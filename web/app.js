@@ -72,7 +72,7 @@ function renderCat(s) {
       catReactUntil = now + CAT_REACT_MS;
     }
   }
-  let mood = s.running ? "scan" : "sleep";
+  let mood = s.running ? "scan" : (s.cycle ? "neutral" : "sleep");
   if (now < catReactUntil && ev) {
     if (ev.kind === "entry") mood = "happy";
     else if (ev.kind === "exit") {
@@ -80,13 +80,24 @@ function renderCat(s) {
       mood = pnl != null && pnl > 0 ? "happy" : "sad";
     }
   }
-  dock.dataset.mood = mood;
+  if (dock.dataset.mood !== mood) {
+    dock.dataset.mood = mood;
+    const body = dock.querySelector(".mascot");
+    if (body) {
+      body.classList.remove("is-hop");
+      if (mood === "happy") {
+        void body.offsetWidth;
+        body.classList.add("is-hop");
+      }
+    }
+  }
 
   const bubble = $("catSpeech");
   const text = $("catSpeechText");
   if (!bubble || !text) return;
   let line = "";
-  if (mood === "sleep") line = s.cycle ? "Paused. I'll wait here." : "Zzz\u2026 tap Start to wake me.";
+  if (mood === "sleep") line = "Zzz\u2026 tap Start to wake me.";
+  else if (mood === "neutral") line = "Paused. I'll wait here.";
   else if (mood === "happy") line = ev && ev.message ? ev.message : "Nice one!";
   else if (mood === "sad") line = ev && ev.message ? ev.message : "That one stung.";
   else if (ev && ev.message) line = ev.message;
