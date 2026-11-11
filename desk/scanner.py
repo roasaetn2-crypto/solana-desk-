@@ -136,14 +136,20 @@ def _i(x) -> int:
         return 0
 
 
-def _age_minutes(iso: str | None) -> float:
+def _created_at_iso(iso: str | None) -> float | None:
     if not iso:
-        return 0.0
+        return None
     try:
-        created = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+        return datetime.fromisoformat(iso.replace("Z", "+00:00")).timestamp()
     except ValueError:
+        return None
+
+
+def _age_minutes(iso: str | None) -> float:
+    created = _created_at_iso(iso)
+    if created is None:
         return 0.0
-    return max(0.0, (datetime.now(timezone.utc) - created).total_seconds() / 60)
+    return max(0.0, (time.time() - created) / 60)
 
 
 def _reset_last() -> None:
@@ -234,6 +240,7 @@ def parse_pool(pool: dict, symbols: dict[str, str]) -> dict | None:
         "change_m5": _f(chg.get("m5")), "change_h1": _f(chg.get("h1")),
         "change_h6": _f(chg.get("h6")),
         "age_minutes": round(_age_minutes(a.get("pool_created_at")), 1),
+        "created_at": _created_at_iso(a.get("pool_created_at")),
         "source": "geckoterminal",
     }
 
@@ -251,7 +258,8 @@ def parse_dex_pair(pair: dict) -> dict | None:
     vol = pair.get("volume") or {}
     chg = pair.get("priceChange") or {}
     created_ms = pair.get("pairCreatedAt")
-    age = round((time.time() * 1000 - created_ms) / 60000, 1) if created_ms else 0.0
+    created_at = (float(created_ms) / 1000.0) if created_ms else None
+    age = round((time.time() - created_at) / 60.0, 1) if created_at else 0.0
     dex = (pair.get("dexId") or "").lower()
     dex = _DEX_ALIAS.get(dex, dex)
     buys = _i(tx_h1.get("buys"))
@@ -273,6 +281,7 @@ def parse_dex_pair(pair: dict) -> dict | None:
         "change_m5": _f(chg.get("m5")), "change_h1": _f(chg.get("h1")),
         "change_h6": _f(chg.get("h6")),
         "age_minutes": age,
+        "created_at": created_at,
         "source": "dexscreener",
     }
 
@@ -381,7 +390,12 @@ def _stamp(t: dict, now: float) -> dict:
 def _view(t: dict, now: float) -> dict:
     origin = t.get("_age_at", now)
     view = {k: v for k, v in t.items() if not k.startswith("_")}
-    view["age_minutes"] = round(float(t.get("age_minutes") or 0) + (now - origin) / 60.0, 1)
+    created = t.get("created_at")
+    if created:
+        view["created_at"] = created
+        view["age_minutes"] = round(max(0.0, (now - float(created)) / 60.0), 1)
+    else:
+        view["age_minutes"] = round(float(t.get("age_minutes") or 0) + (now - origin) / 60.0, 1)
     return view
 
 
@@ -783,7 +797,8 @@ def demo_tokens(n: int = 6, seed: int | None = None) -> list[dict]:
             "change_m5": round(rng.uniform(-25, 40), 2),
             "change_h1": round(rng.uniform(-60, 180), 2),
             "change_h6": round(rng.uniform(-70, 400), 2),
-            "age_minutes": round(rng.uniform(6, 500), 1),
+            "age_minutes": (age_m := round(rng.uniform(6, 500), 1)),
+            "created_at": time.time() - age_m * 60,
             "source": "demo",
         })
     return out

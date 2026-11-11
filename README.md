@@ -500,7 +500,7 @@ solana-desk/
 │   ├── index.html          dashboard markup (7 seats + meme/dev/dialogue panels)
 │   ├── styles.css          dark trading-desk design system
 │   ├── app.js              live 2s polling, controls, pipeline viz
-│   ├── assets/cat/          anime cat poses (idle sits and blinks)
+│   ├── assets/cat-pixel/    pixel mascot (idle/scan/win/loss/sleep/trader)
 │   └── assets/              icons
 └── tests/
     └── test_desk.py        95 offline tests

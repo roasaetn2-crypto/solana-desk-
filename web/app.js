@@ -25,6 +25,67 @@ function priceFmt(p) {
   return n.toFixed(4);
 }
 
+
+function formatAge(seconds) {
+  if (seconds == null || !isFinite(Number(seconds))) return "—";
+  let s = Math.floor(Number(seconds));
+  if (s < 0) s = 0;
+  if (s < 60) return s + "s";
+  const minutes = Math.floor(s / 60);
+  if (minutes < 60) return minutes + "m";
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    const rem = minutes % 60;
+    return rem ? hours + "h " + rem + "m" : hours + "h";
+  }
+  return Math.floor(hours / 24) + "d";
+}
+function shortCa(mint) {
+  if (!mint) return "";
+  if (mint.length <= 8) return mint;
+  return mint.slice(0, 4) + "\u2026" + mint.slice(-4);
+}
+function tokenMetaHtml(row) {
+  if (!row || !row.mint) return "";
+  const created = row.created_at != null && row.created_at !== "" ? Number(row.created_at) : NaN;
+  const age = Number.isFinite(created) ? formatAge(Date.now() / 1000 - created) : "—";
+  const ca = shortCa(row.mint);
+  const createdAttr = Number.isFinite(created) ? String(created) : "";
+  return `<div class="token-meta">
+    <span>Age <b class="age" data-created-at="${esc(createdAttr)}">${esc(age)}</b></span>
+    <a class="ca" href="https://solscan.io/token/${encodeURIComponent(row.mint)}" target="_blank" rel="noopener noreferrer">${esc(ca)}</a>
+    <button type="button" class="copy-ca" data-ca="${esc(row.mint)}" aria-label="Copy contract address">Copy</button>
+  </div>`;
+}
+function tickAges() {
+  document.querySelectorAll(".age[data-created-at]").forEach((el) => {
+    const c = Number(el.dataset.createdAt);
+    if (!c) return;
+    el.textContent = formatAge(Date.now() / 1000 - c);
+  });
+}
+function bindCaCopy(root) {
+  (root || document).querySelectorAll(".copy-ca").forEach((btn) => {
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", async (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const ca = btn.dataset.ca;
+      if (!ca) return;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(ca);
+        }
+        toast("copied");
+      } catch (_) {
+        toast("copied");
+      }
+    });
+  });
+}
+
+
 const ICONS = { entry: "🟢", exit: "🟠", reject: "⚪", thesis: "🧠", error: "🔴", scan: "🔵", info: "🟣" };
 
 let lastState = null;
@@ -171,6 +232,12 @@ function bindChartTabs(root) {
   });
 }
 
+function catBaseMood(s) {
+  if (!s.running) return "sleep";
+  const open = (s.broker && (s.broker.open_count || ((s.broker.positions || []).length))) || 0;
+  return open > 0 ? "trader" : "scan";
+}
+
 function renderCat(s) {
   const dock = $("catDock");
   if (!dock) return;
@@ -183,22 +250,31 @@ function renderCat(s) {
       catReactUntil = now + CAT_REACT_MS;
     }
   }
-  let mood = s.running ? "scan" : "neutral";
+  let mood = catBaseMood(s);
   if (now < catReactUntil && ev) {
-    if (ev.kind === "entry") mood = "happy";
+    if (ev.kind === "entry") mood = "win";
     else if (ev.kind === "exit") {
       const pnl = exitPnl(ev, s);
-      mood = pnl != null && pnl > 0 ? "happy" : "sad";
+      mood = pnl != null && pnl > 0 ? "win" : "loss";
     }
   }
-  if (dock.dataset.mood !== mood) {
-    dock.dataset.mood = mood;
-    const body = dock.querySelector(".mascot");
-    if (body) {
-      body.classList.remove("is-hop");
-      if (mood === "happy") {
-        void body.offsetWidth;
-        body.classList.add("is-hop");
+  const moodChanged = dock.dataset.mood !== mood;
+  if (moodChanged) dock.dataset.mood = mood;
+  if (mood === "win" || mood === "loss") {
+    const fresh = key && dock._reactKey !== key;
+    if (moodChanged || fresh) {
+      dock._reactKey = key;
+      const sprite = dock.querySelector(".mood-" + mood);
+      if (sprite) {
+        sprite.style.animation = "none";
+        void sprite.offsetWidth;
+        sprite.style.animation = "";
+        const onEnd = () => {
+          sprite.removeEventListener("animationend", onEnd);
+          catReactUntil = 0;
+          if (lastState) renderCat(lastState);
+        };
+        sprite.addEventListener("animationend", onEnd);
       }
     }
   }
@@ -207,9 +283,11 @@ function renderCat(s) {
   const text = $("catSpeechText");
   if (!bubble || !text) return;
   let line = "";
-  if (mood === "neutral") line = s.running ? "I'll wait here." : (s.cycle ? "Paused. I'll wait here." : "Tap Start when you're ready.");
-  else if (mood === "happy") line = ev && ev.message ? ev.message : "Nice one!";
-  else if (mood === "sad") line = ev && ev.message ? ev.message : "That one stung.";
+  if (mood === "idle") line = "Tap Start when you're ready.";
+  else if (mood === "sleep") line = s.cycle ? "Paused. I'll wait here." : "Tap Start when you're ready.";
+  else if (mood === "win") line = ev && ev.message ? ev.message : "Nice one!";
+  else if (mood === "loss") line = ev && ev.message ? ev.message : "That one stung.";
+  else if (mood === "trader") line = ev && ev.message ? ev.message : "Watching the book.";
   else if (ev && ev.message) line = ev.message;
   else line = "Sniffing for coins\u2026";
   text.textContent = shorten(line);
@@ -394,6 +472,8 @@ function render(s) {
       banner.hidden = false;
       $("buyBannerText").textContent = "$" + (latestBuy.symbol || "") +
         (latestBuy.ticket_usd != null ? " \u2014 " + fmtMoney(latestBuy.ticket_usd) : "");
+      const meta = $("buyBannerMeta");
+      if (meta) { meta.innerHTML = tokenMetaHtml(latestBuy); bindCaCopy(meta); }
       const link = $("buyBannerLink");
       if (latestBuy.fomo_url) { link.href = latestBuy.fomo_url; link.hidden = false; }
       else { link.removeAttribute("href"); link.hidden = true; }
@@ -432,11 +512,13 @@ function render(s) {
             <span>Cost <b>${fmtMoney(p.cost)}</b></span>
             <span>Held <b>${heldFor(p.opened)}</b></span>
           </div>
+          ${tokenMetaHtml(p)}
           <div class="tf-tabs">${tabsHtml(p.mint, tabs, tf)}</div>
           <canvas class="candle-chart" width="640" height="220"></canvas>
         </article>`;
       }).join("");
       bindChartTabs(pb);
+      bindCaCopy(pb);
       pos.forEach((p) => {
         const card = pb.querySelector('.pos-card[data-mint="' + CSS.escape(p.mint) + '"]');
         if (!card) return;
@@ -463,7 +545,7 @@ function render(s) {
       const devCell = dev === null ? "—"
         : `<span class="num ${dev >= 70 ? "good" : dev >= 45 ? "warn" : "bad"}">${dev}</span>`;
       return `<tr>
-        <td><span class="sym">${esc(d.symbol)}</span></td>
+        <td><span class="sym">${esc(d.symbol)}</span>${tokenMetaHtml(d)}</td>
         <td><span class="tag ${tag}">${esc(label)}</span></td>
         <td>${d.thesis ? d.thesis.score : "—"}</td>
         <td>${memeCell}</td>
@@ -472,6 +554,7 @@ function render(s) {
         <td class="muted" style="font-family:var(--sans);font-size:11.5px">${esc(d.reason || "")} <span class="tag ${d.source === "demo" ? "demo" : "live"}">${esc(d.source || "—")}</span></td>
       </tr>`;
     }).join("");
+    bindCaCopy(db);
   }
 
   // log
@@ -511,12 +594,14 @@ function render(s) {
           <span class="tag ${d.approved ? "buy" : "skip"}">${esc(d.approved ? "approved" : t.verdict)}</span>
           <span class="score ${sc}">${t.score}/10</span>
         </div>
+        ${tokenMetaHtml(d)}
         <div class="flags">${flags || '<div class="flag">no flags</div>'}</div>
         ${d.approved ? `<div style="margin-top:9px">${bar("risk", sizes.by_risk)}${bar("size", sizes.by_size)}${bar("pool", sizes.by_pool)}</div>
           ${fomoBtn(d.fomo_url)}` : ""}
         <div class="foot">shape: ${esc(t.shape)} · src: ${esc(d.source || "—")} · ${timeOf(d.time)}</div>
       </div>`;
     }).join("");
+    bindCaCopy(tl);
   }
 
   // ---------- meme scorecard ----------
@@ -667,3 +752,4 @@ $("btnArmGo").onclick = async () => {
 
 refresh();
 setInterval(refresh, 2000);
+setInterval(tickAges, 1000);

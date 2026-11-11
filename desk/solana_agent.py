@@ -31,6 +31,7 @@ from desk import (analyst, brain, chain, dexscreener, devcheck, dialogue, exits,
                   meme, scanner)
 from desk import chart as candle_chart
 from desk import links as fomo_links
+from desk.age import created_at_of
 from desk.autotune import AutoTune
 from desk import live as live_mod
 from desk.broker import PaperBroker
@@ -527,21 +528,30 @@ class SolanaAgent:
             for p in broker.get("positions") or []:
                 row = fomo_links.with_url(p)
                 tok = seen.get(row.get("mint") or "") or {}
-                age_h = None
-                if tok.get("age_minutes") is not None:
-                    age_h = float(tok["age_minutes"]) / 60.0
+                created = created_at_of(tok)
+                age_h = ((time.time() - created) / 3600.0) if created else (
+                    float(tok["age_minutes"]) / 60.0 if tok.get("age_minutes") is not None else None)
                 row["chart_tabs"] = candle_chart.tabs_for(
                     horizon=row.get("horizon"), age_hours=age_h)
                 row["age_hours"] = age_h
+                row["created_at"] = created
                 positions.append(row)
             broker["positions"] = positions
-            decisions = [fomo_links.with_url(dict(d)) for d in list(self.decisions)[:40]]
+            decisions = []
+            for d in list(self.decisions)[:40]:
+                row = fomo_links.with_url(dict(d))
+                tok = seen.get(row.get("mint") or "") or {}
+                if not tok and isinstance(d.get("token"), dict):
+                    tok = d["token"]
+                row["created_at"] = created_at_of(tok)
+                decisions.append(row)
             latest_buy = None
             for ev in self.events:
                 if ev.get("kind") == "entry" and ev.get("mint"):
                     tok = seen.get(ev["mint"]) or {}
-                    age_h = (float(tok["age_minutes"]) / 60.0
-                             if tok.get("age_minutes") is not None else None)
+                    created = created_at_of(tok)
+                    age_h = ((time.time() - created) / 3600.0) if created else (
+                        float(tok["age_minutes"]) / 60.0 if tok.get("age_minutes") is not None else None)
                     latest_buy = fomo_links.with_url({
                         "symbol": ev.get("symbol"),
                         "mint": ev["mint"],
@@ -551,6 +561,7 @@ class SolanaAgent:
                         "message": ev.get("message"),
                         "time": ev.get("time"),
                         "chart_tabs": candle_chart.tabs_for(age_hours=age_h),
+                        "created_at": created,
                     })
                     break
             return {
