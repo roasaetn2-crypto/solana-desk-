@@ -56,6 +56,9 @@ def _solana_mints(rows) -> list[tuple[str, float]]:
 
 def refresh(session: requests.Session | None = None, now: float | None = None) -> None:
     now = time.time() if now is None else now
+    from desk import scanner
+    if scanner.host_cooling("dexscreener"):
+        return                           # shared 429 cooldown: skip quietly
     for kind, path in PATHS.items():
         if now - _fetched_at[kind] < REFRESH_S:
             continue
@@ -64,6 +67,8 @@ def refresh(session: requests.Session | None = None, now: float | None = None) -
         _fetched_at[kind] = now          # also throttles retries after a failure
         try:
             r = (session or requests).get(BASE + path, headers=HEADERS, timeout=TIMEOUT_S)
+            if r.status_code == 429:
+                scanner.note_429("dexscreener", f"promo {path}", r.headers.get("Retry-After"))
             if r.status_code != 200:
                 raise RuntimeError(f"http {r.status_code}")
             rows = _solana_mints(r.json())

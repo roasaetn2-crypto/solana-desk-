@@ -29,7 +29,7 @@ SCAN_FETCH = {
     "cache_ttl_s": 90,             # reuse an endpoint body this long
     "pool_ttl_s": 600,             # rolling candidate pool, keyed by mint (~10 min)
     "quote_ttl_s": 15,             # short cache for open-position price refreshes
-    "cooldown_floor_s": 15,        # even if Retry-After is 1s, back off at least this
+    "cooldown_floor_s": 30,        # even if Retry-After is 1s, back off at least this (per host)
     "cooldown_cap_s": 120,         # exponential 429 cooldown cap; never sleep the cycle
 }
 

@@ -88,8 +88,11 @@ def _new_buckets() -> tuple[TokenBucket, TokenBucket]:
 
 _gt_bucket, _ds_bucket = _new_buckets()
 _cycle = 0
-# endpoint id -> {"until": ts, "strikes": int}
+# endpoint id -> {"until": ts, "strikes": int}  (non-429 errors only)
 _COOL: dict[str, dict] = {}
+# host ("geckoterminal" | "dexscreener") -> {"until": ts, "strikes": int}
+# A 429 is a per-IP limit, so it cools the whole host, not one endpoint.
+_HOST_COOL: dict[str, dict] = {}
 # endpoint id -> {"exp": ts, "body": ...}
 _EP_CACHE: dict[str, dict] = {}
 # mint -> {"token": dict, "at": ts}  (rolling candidate pool, ~10 min)
@@ -110,6 +113,7 @@ def reset_runtime() -> None:
     _cycle = 0
     _gt_bucket, _ds_bucket = _new_buckets()
     _COOL.clear()
+    _HOST_COOL.clear()
     _EP_CACHE.clear()
     _POOL.clear()
     _PAIR_CACHE.clear()
@@ -200,10 +204,26 @@ def source_counts(tokens: list[dict]) -> dict[str, int]:
     }
 
 
+def _host_name(endpoint_id: str) -> str:
+    return "geckoterminal" if endpoint_id.startswith("gt:") else "dexscreener"
+
+
+def host_cooling_until(source: str, now: float | None = None) -> float:
+    now = time.time() if now is None else now
+    until = float((_HOST_COOL.get(source) or {}).get("until") or 0)
+    return until if until > now else 0.0
+
+
+def host_cooling(source: str, now: float | None = None) -> bool:
+    """True while a 429 cooldown is active for the whole host."""
+    return host_cooling_until(source, now) > 0
+
+
 def cooling_until(endpoint_id: str, now: float | None = None) -> float:
     now = time.time() if now is None else now
     until = float((_COOL.get(endpoint_id) or {}).get("until") or 0)
-    return until if until > now else 0.0
+    until = until if until > now else 0.0
+    return max(until, host_cooling_until(_host_name(endpoint_id), now))
 
 
 def is_cooling(endpoint_id: str, now: float | None = None) -> bool:
@@ -288,28 +308,55 @@ def parse_dex_pair(pair: dict) -> dict | None:
 
 # ---------- HTTP: one shot, no in-cycle sleep ----------
 
-def _retry_after(r: requests.Response, default: float) -> float:
-    raw = r.headers.get("Retry-After") or r.headers.get("retry-after")
+def _parse_retry_after(raw, default: float) -> float:
     if not raw:
         return default
     try:
         return max(1.0, float(raw))
-    except ValueError:
+    except (TypeError, ValueError):
         return default
 
 
+def _retry_after(r: requests.Response, default: float) -> float:
+    raw = r.headers.get("Retry-After") or r.headers.get("retry-after")
+    return _parse_retry_after(raw, default)
+
+
 def _cool(endpoint_id: str, source: str, wait: float, label: str, status: int, reason: str) -> None:
-    """Start or extend a cooldown. Log a 429 (or 5xx) once per cooldown window."""
+    """Start a cooldown and log it once.
+
+    429 is per client IP, so it cools the whole host (every endpoint on it) with
+    one exponential backoff that persists across cycles until a call succeeds.
+    While the host is already cooling, further 429s are silent. Other errors
+    cool only their own endpoint.
+    """
     cap = SCAN_FETCH["cooldown_cap_s"]
-    floor = SCAN_FETCH["cooldown_floor_s"] if status == 429 else min(10.0, wait)
+    now = time.time()
+    if status == 429:
+        if host_cooling(source, now):
+            return                      # one log line per cooldown start
+        rec = _HOST_COOL.get(source) or {"until": 0.0, "strikes": 0}
+        rec["strikes"] = int(rec.get("strikes") or 0) + 1
+        exp = min(cap, max(wait, SCAN_FETCH["cooldown_floor_s"]) * (2 ** (rec["strikes"] - 1)))
+        rec["until"] = now + exp
+        _HOST_COOL[source] = rec
+        CALLS["429"] += 1
+        _note(source, f"{label} -> 429 {reason}, cooling {source} for {exp:.0f}s")
+        return
+    floor = min(10.0, wait)
     rec = _COOL.get(endpoint_id) or {"until": 0.0, "strikes": 0}
     rec["strikes"] = int(rec.get("strikes") or 0) + 1
     exp = min(cap, max(wait, floor) * (2 ** max(0, rec["strikes"] - 1)))
-    rec["until"] = time.time() + min(cap, exp)
+    rec["until"] = now + exp
     _COOL[endpoint_id] = rec
-    if status == 429:
-        CALLS["429"] += 1
-    _note(source, f"{label} -> {status} {reason}, cooling {min(cap, exp):.0f}s")
+    _note(source, f"{label} -> {status} {reason}, cooling {exp:.0f}s")
+
+
+def note_429(source: str, label: str, retry_after=None) -> None:
+    """For other modules that call a scanner host directly (promo, dexscreener)."""
+    wait = _parse_retry_after(retry_after, SCAN_FETCH["cooldown_floor_s"])
+    _cool(f"{'gt' if source == 'geckoterminal' else 'ds'}:external", source, wait, label,
+          429, "Too Many Requests")
 
 
 def _get_once(s: requests.Session, url: str, params: dict | None, source: str,
@@ -339,6 +386,9 @@ def _get_once(s: requests.Session, url: str, params: dict | None, source: str,
     if endpoint_id in _COOL:
         _COOL[endpoint_id]["strikes"] = 0
         _COOL[endpoint_id]["until"] = 0.0
+    if source in _HOST_COOL:
+        _HOST_COOL[source]["strikes"] = 0
+        _HOST_COOL[source]["until"] = 0.0
     return r
 
 
@@ -578,8 +628,8 @@ def _schedule(cycle: int) -> list[dict]:
     planned: list[dict] = []
     gt = _gt_endpoints()
     planned.append(gt[0])                    # new_pools page 1 every cycle
-    if cycle % 2 == 1:
-        planned.append(gt[1])                # page 2 every other cycle
+    if cycle % 4 == 1:
+        planned.append(gt[1])                # page 2 every 4th cycle (older pools, mostly cut by age)
     rot = _ds_rotation()
     # If the rotated slot is cooling, try the next ones rather than skip DS entirely.
     for i in range(len(rot)):
@@ -596,7 +646,7 @@ def new_tokens(session: requests.Session | None = None) -> list[dict]:
     """Solana pools worth looking at, deduplicated by mint.
 
     Each cycle spends at most 1-2 GeckoTerminal calls (new_pools page 1 always,
-    page 2 every other cycle) and one rotated DexScreener discovery endpoint.
+    page 2 every 4th cycle) and one rotated DexScreener discovery endpoint.
     Responses are cached (90s) and merged into a rolling 10-minute pool, so a
     429 cannot empty the candidate set. 429s cool that endpoint and never sleep.
     """

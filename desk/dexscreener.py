@@ -46,9 +46,16 @@ def best_pair(mint: str, session: requests.Session | None = None) -> dict | None
         pairs = [p for p in cached if (p.get("chainId") or "solana") == "solana"]
         if pairs:
             return max(pairs, key=lambda p: _f((p.get("liquidity") or {}).get("usd")))
+    from desk import scanner as _scanner
+    if _scanner.host_cooling("dexscreener"):
+        return None                      # shared 429 cooldown: skip quietly
     s = session or requests.Session()
     try:
-        payload = s.get(f"{BASE}/tokens/v1/solana/{mint}", headers=HEADERS, timeout=20).json()
+        r = s.get(f"{BASE}/tokens/v1/solana/{mint}", headers=HEADERS, timeout=20)
+        if r.status_code == 429:
+            _scanner.note_429("dexscreener", "tokens/v1 pair lookup", r.headers.get("Retry-After"))
+            return None
+        payload = r.json()
     except Exception:
         return None
     raw = payload.get("pairs") if isinstance(payload, dict) else payload
