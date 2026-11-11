@@ -9,8 +9,8 @@ SCAN = {
     "pages": 3,                    # pages per cycle, per source (1 page = 20 pools)
     "pump_only": False,            # True = only pump.fun curve + PumpSwap pools
     "pump_dexes": {"pump-fun", "pumpswap"},
-    "min_age_minutes": 5,          # younger: the data is noise
-    "max_age_hours": 12,           # older with no new move: not a launch any more
+    "min_age_minutes": 2,          # younger: the data is noise
+    "max_age_hours": 24,           # older with no new move: not a launch any more
     "min_liquidity_usd": 5_000,
     "min_volume_h1_usd": 8_000,
     "min_mcap_usd": 15_000,
@@ -32,20 +32,20 @@ CHAIN = {
 ANALYST_MODEL = "claude-sonnet-4-20250514"
 REVIEW_MODEL = "claude-sonnet-4-20250514"
 ANALYST_MAX_TOKENS = 4_000
-MIN_SCORE = 6                        # 0-10, the analyst's score must clear this
+MIN_SCORE = 5                        # 0-10, the analyst's score must clear this
 
 # The bar for the analyst to say "valid_setup" (the only verdict the risk engine
 # will size a ticket for). Lower = more trades, more noise. Raise it back to 7
 # for the original, stricter desk.
-ANALYST_VALID_SCORE = 6              # 0-10
-ANALYST_MAX_RED_FOR_VALID = 2        # red flags allowed on a valid setup
+ANALYST_VALID_SCORE = 5              # 0-10
+ANALYST_MAX_RED_FOR_VALID = 3        # red flags allowed on a valid setup
 
 # ---------- Seat 4: risk engine (pure code) ----------
 RISK = {
     "max_risk_per_trade": 0.01,    # lose at most 1% of equity if the stop hits
-    "max_position_pct": 0.02,      # no position above 2% of equity (memecoins)
+    "max_position_pct": 0.05,      # no position above 2% of equity (memecoins)
     "max_pool_share": 0.02,        # never be more than 2% of the pool: you'd be the exit
-    "max_open_positions": 3,
+    "max_open_positions": 4,
     "max_daily_loss_pct": 0.03,    # down 3% on the day -> desk stops until tomorrow
     "min_ticket_usd": 10,          # below this, fees eat the edge
     "quiet_hours": (0, 0),         # local hours with no new entries. (0,0) = trade 24/7.
@@ -55,7 +55,7 @@ RISK = {
 # ---------- Seat 5: exits (paper broker applies these, no model involved) ----------
 EXITS = {
     "stop_pct": 0.35,              # -35% from entry -> close all
-    "take_half_at": 2.0,           # 2x -> sell half, let the rest ride
+    "take_half_at": 1.5,           # 2x -> sell half, let the rest ride
     "volume_decay_ratio": 0.20,    # h6 volume / (h24/4) under this -> close
     "volume_decay_min_minutes": 30,
     "max_hold_hours": 24,
@@ -85,7 +85,7 @@ EXECUTION = {
     "starting_equity_usd": 0.0,        # live equity is measured, not seeded
 }
 
-CYCLE_SECONDS = 45                 # crypto scan cycle
+CYCLE_SECONDS = 30                 # crypto scan cycle
 STOCK_CYCLE_SECONDS = 15 * 60      # stocks: every 15 min while the market is open
 
 # How long a rejected token sits out, by the check that failed (minutes)
@@ -143,9 +143,9 @@ HOLD_HORIZONS = [
 
 # ---------- Solana Agent ----------
 AGENT = {
-    "cycle_seconds": 45,           # how often the agent wakes up
-    "chain_budget": 14,            # RPC fact checks per cycle
-    "analyst_budget": 3,           # analyst calls per cycle: caps the bill
+    "cycle_seconds": 30,           # how often the agent wakes up
+    "chain_budget": 24,            # RPC fact checks per cycle
+    "analyst_budget": 6,           # analyst calls per cycle: caps the bill
     "demo_when_empty": True,       # if a live scan returns nothing usable, feed a demo batch
     "max_events": 400,             # ring buffer size for the agent log
 }
