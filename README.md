@@ -302,7 +302,7 @@ itself is never shown, anywhere, by anything.
 ### The caps (two locks, not one)
 
 Seat 4 sizes live tickets from the live caps, not from the paper percentages.
-Paper sizes 2% of a $1,000 book; live sizes from the money you actually said you
+Paper sizes ~$3-5 tickets on a $20 book; live sizes from the money you actually said you
 are willing to risk. `check_live_trade()` in `desk/risk.py` takes the smallest
 of the per-trade cap, what is left of the total notional cap, and 2% of the
 pool. Then `LiveBroker._guard_buy()` re-checks every one of them before it

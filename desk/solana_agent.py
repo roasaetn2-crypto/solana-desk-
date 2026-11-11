@@ -26,13 +26,14 @@ from datetime import datetime, timezone
 
 import requests
 
-from config import AGENT, ENTRY, EXECUTION, RISK
+from config import AGENT, ENTRY, EXECUTION, PAPER, RISK
 from desk import (analyst, brain, chain, dexscreener, devcheck, dialogue, exits, helius,
                   meme, scanner)
 from desk import chart as candle_chart
 from desk import links as fomo_links
 from desk.age import created_at_of
 from desk.autotune import AutoTune
+from desk import equity_curve
 from desk import live as live_mod
 from desk.broker import PaperBroker
 from desk.ops import Bench, alert, journal, killed
@@ -91,6 +92,8 @@ class SolanaAgent:
                       "dev_rejects": 0, "meme_rejects": 0, "analyst_calls": 0,
                       "risk_rejects": 0, "entries": 0, "exits": 0, "dialogues": 0,
                       "errors": 0}
+        self.equity_curve: deque = deque(maxlen=equity_curve.MAX_POINTS)
+        self.curve_marks: deque = deque(maxlen=equity_curve.MAX_MARKS)
 
     # ---------- execution mode ----------
     @property
@@ -156,6 +159,91 @@ class SolanaAgent:
             self.events.appendleft(ev)
         return ev
 
+
+    def _snapshot_equity(self, t: float | None = None) -> dict:
+        """Record the book as it is right now. Never invent a price."""
+        ts = t if t is not None else time.time()
+        with self.lock:
+            return equity_curve.record_point(
+                self.equity_curve, ts, self.broker.equity(), self.broker.day_pnl())
+
+    def _mark_trade(self, kind: str, fill: dict, **extra) -> dict:
+        ts = time.time()
+        usd = extra.pop("usd", None)
+        if usd is None:
+            usd = fill.get("ticket_usd")
+            if usd is None and fill.get("fill") is not None and fill.get("qty") is not None:
+                usd = round(float(fill["fill"]) * float(fill["qty"]), 2)
+        mark = equity_curve.record_mark(
+            self.curve_marks, ts, kind, fill.get("symbol") or "?",
+            usd=usd, pnl_usd=fill.get("pnl_usd"), fraction=extra.get("fraction"),
+            reason=fill.get("reason"), mint=fill.get("mint"),
+            entry=extra.get("entry"), fill=fill.get("fill"),
+            mult=extra.get("mult"), mcap_usd=extra.get("mcap_usd"))
+        self._snapshot_equity(ts)
+        return mark
+
+    def _mcap_of(self, mint: str | None) -> float | None:
+        if not mint:
+            return None
+        tok = self.tokens_seen.get(mint) or {}
+        val = tok.get("mcap_usd")
+        try:
+            return float(val) if val is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    def _activity(self, seen: dict) -> list[dict]:
+        rows = []
+        for ev in self.events:
+            if ev.get("kind") not in ("entry", "exit"):
+                continue
+            mint = ev.get("mint")
+            tok = seen.get(mint or "") or {}
+            mcap = tok.get("mcap_usd")
+            row = {
+                "kind": ev["kind"],
+                "symbol": ev.get("symbol"),
+                "mint": mint,
+                "time": ev.get("time"),
+                "reason": ev.get("reason") or ev.get("message"),
+                "seat": "broker",
+                "usd": ev.get("ticket_usd"),
+                "pnl_usd": ev.get("pnl_usd"),
+                "fraction": ev.get("fraction"),
+                "entry": ev.get("entry"),
+                "fill": ev.get("fill"),
+                "message": ev.get("message"),
+            }
+            if ev.get("kind") == "exit" and row["usd"] is None and ev.get("fill") is not None and ev.get("qty") is not None:
+                row["usd"] = round(float(ev["fill"]) * float(ev["qty"]), 2)
+            if ev.get("entry") and ev.get("fill"):
+                try:
+                    entry = float(ev["entry"])
+                    if entry > 0:
+                        row["mult"] = round(float(ev["fill"]) / entry, 4)
+                except (TypeError, ValueError):
+                    pass
+            if mcap is not None:
+                try:
+                    row["mcap_usd"] = float(mcap)
+                except (TypeError, ValueError):
+                    pass
+            rows.append(row)
+        return rows
+
+    def _latest_realized(self, broker: dict) -> dict | None:
+        for c in broker.get("closed") or []:
+            if c.get("pnl_usd") is not None:
+                return {
+                    "symbol": c.get("symbol"),
+                    "mint": c.get("mint"),
+                    "pnl_usd": c.get("pnl_usd"),
+                    "reason": c.get("reason"),
+                    "t": c.get("closed"),
+                }
+        return None
+
     # ---------- lifecycle ----------
     def start(self):
         with self.lock:
@@ -165,6 +253,8 @@ class SolanaAgent:
             self.running = True
             self._thread = threading.Thread(target=self._loop, name="solana-agent", daemon=True)
             self._thread.start()
+        if not self.equity_curve:
+            self._snapshot_equity()
         self.emit("info", "Solana Agent started. Watching new Solana pools.")
         return {"ok": True, "message": "agent started"}
 
@@ -194,9 +284,11 @@ class SolanaAgent:
     def _liquidate(self, reason: str):
         for mint in list(self.broker.s["positions"]):
             price = self.broker.s["positions"][mint]["last"]
+            entry = self.broker.s["positions"][mint].get("entry")
             fill = self.broker.sell(mint, 1.0, price, reason)
             journal("exit", **fill)
-            self.emit("exit", f"closed {fill['symbol']} — {reason}", **fill)
+            self.emit("exit", f"closed {fill['symbol']} — {reason}", fraction=1.0, entry=entry, **fill)
+            self._mark_trade("sell", fill, fraction=1.0, entry=entry, mcap_usd=self._mcap_of(mint))
 
     # ---------- one cycle ----------
     def run_once(self, force_demo: bool = False) -> dict:
@@ -399,7 +491,9 @@ class SolanaAgent:
                         else:
                             buy_price = cq["price_usd"]
                             ticket = round(min(ticket, RISK["max_pool_share"] * cq["liquidity_usd"]), 2)
-                            if ticket < RISK["min_ticket_usd"]:
+                            floor = (RISK["min_ticket_usd"] if self.mode == "live"
+                                     else PAPER.get("min_ticket_usd", RISK["min_ticket_usd"]))
+                            if ticket < floor:
                                 bad = "liq_unconfirmed"
                     if bad:
                         self.stats["risk_rejects"] += 1
@@ -432,6 +526,7 @@ class SolanaAgent:
                                    f"(score {th.score}/10)",
                           **{k: fill[k] for k in ("mint", "symbol", "qty", "fill", "ticket_usd")},
                           score=th.score, live=self.mode == "live", tx=fill.get("tx"))
+                self._mark_trade("buy", fill, usd=ticket, mcap_usd=t.get("mcap_usd"))
             except Exception as e:  # one bad token must not kill the cycle
                 with self.lock:
                     self.stats["errors"] += 1
@@ -447,6 +542,7 @@ class SolanaAgent:
         except Exception as e:   # tuning must never break a cycle
             self.emit("error", f"autotune failed ({type(e).__name__}: {e})")
         journal("cycle", **self.stats, equity=self.broker.equity())
+        self._snapshot_equity()
         return {"cycle": cycle, "source": source, "stats": dict(self.stats)}
 
     def _scan(self, force_demo: bool) -> tuple[list[dict], str]:
@@ -486,7 +582,9 @@ class SolanaAgent:
             sig = self.broker.exit_signal(mint, q)
             if sig:
                 fraction, reason = sig
-                price = self.broker.s["positions"][mint]["last"]
+                pos = self.broker.s["positions"][mint]
+                price = pos["last"]
+                entry = pos.get("entry")
                 try:
                     fill = self.broker.sell(mint, fraction, price, reason)
                 except live_mod.LiveError as e:
@@ -500,7 +598,16 @@ class SolanaAgent:
                     self.bench.sit(mint, "exited")
                 self.emit("exit", f"EXIT {fill['symbol']} {int(fraction * 100)}% — {reason}"
                            + (f" (pnl ${fill['pnl_usd']})" if "pnl_usd" in fill else ""),
-                          **fill)
+                          fraction=fraction, entry=entry, **fill)
+                mult = None
+                if entry and fill.get("fill"):
+                    try:
+                        if float(entry) > 0:
+                            mult = round(float(fill["fill"]) / float(entry), 4)
+                    except (TypeError, ValueError):
+                        mult = None
+                self._mark_trade("sell", fill, fraction=fraction, entry=entry, mult=mult,
+                                 mcap_usd=self._mcap_of(mint))
 
     # ---------- read-only views for the dashboard ----------
     def chart(self, mint: str, tf: str | None = None) -> dict:
@@ -535,6 +642,8 @@ class SolanaAgent:
                     horizon=row.get("horizon"), age_hours=age_h)
                 row["age_hours"] = age_h
                 row["created_at"] = created
+                if tok.get("mcap_usd") is not None:
+                    row["mcap_usd"] = tok.get("mcap_usd")
                 positions.append(row)
             broker["positions"] = positions
             decisions = []
@@ -577,6 +686,11 @@ class SolanaAgent:
                 "autotune": self.autotune.snapshot(),
                 "broker": broker,
                 "latest_buy": latest_buy,
+                "starting_equity": PAPER["starting_equity_usd"],
+                "equity_curve": list(self.equity_curve),
+                "curve_marks": list(self.curve_marks),
+                "latest_realized": self._latest_realized(broker),
+                "activity": self._activity(seen)[:60],
                 "events": list(self.events)[:120],
                 "decisions": decisions,
                 "transcripts": list(self.transcripts)[:12],
@@ -604,5 +718,8 @@ class SolanaAgent:
             self.stats = {k: 0 for k in self.stats}
             self.cycle_no = 0
             self.data_source = "idle"
+            self.equity_curve.clear()
+            self.curve_marks.clear()
+        self._snapshot_equity()
         self.emit("info", f"Desk reset: {self.mode} book back to start, bench cleared.")
         return {"ok": True}

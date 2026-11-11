@@ -56,12 +56,12 @@ ANALYST_MAX_RED_FOR_VALID = 3        # red flags allowed on a valid setup
 
 # ---------- Seat 4: risk engine (pure code) ----------
 RISK = {
-    "max_risk_per_trade": 0.01,    # lose at most 1% of equity if the stop hits
-    "max_position_pct": 0.05,      # no position above 2% of equity (memecoins)
+    "max_risk_per_trade": 0.05,    # 5% of the $20 paper book: scalp ~$5, swing ~$3.33
+    "max_position_pct": 0.25,      # $5 cap on a $20 book (was 5% of $1,000 = $50)
     "max_pool_share": 0.02,        # never be more than 2% of the pool: you'd be the exit
     "max_open_positions": 4,
     "max_daily_loss_pct": 0.03,    # down 3% on the day -> desk stops until tomorrow
-    "min_ticket_usd": 10,          # below this, fees eat the edge
+    "min_ticket_usd": 10,          # live fee floor (unchanged). Paper floor is PAPER["min_ticket_usd"]
     "compound": True,              # MERGE: size off REALIZED equity (start + closed P&L), so wins are reinvested
                                    # and losses shrink size. Still capped by every cap below + 2% of pool.
     "quiet_hours": (0, 0),         # local hours with no new entries. (0,0) = trade 24/7.
@@ -101,7 +101,8 @@ ENTRY = {
 }
 
 PAPER = {
-    "starting_equity_usd": 1_000,
+    "starting_equity_usd": 20,     # paper bankroll
+    "min_ticket_usd": 2,           # fee floor for the $20 book; live still uses RISK["min_ticket_usd"]
     "fee_pct": 0.01,               # pump.fun charges ~1% per swap on the curve
     "slippage_pct": 0.02,          # assume 2% worse than the quoted price
 }

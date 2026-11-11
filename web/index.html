@@ -42,8 +42,8 @@
         </div>
       </div>
       <div class="titles">
-        <div class="title">AI Trading Desk</div>
-        <div class="sub">Solana Agent · meme desk · paper / live</div>
+        <div class="title">Solana Desk</div>
+        <div class="sub" id="heroMeta">paper · —</div>
         <div class="speech" id="catSpeech" hidden><span id="catSpeechText"></span></div>
       </div>
     </div>
@@ -58,7 +58,7 @@
     <div class="equity-block">
       <div class="metric">
         <div class="k" id="equityLabel">Equity</div>
-        <div class="v" id="topEquity">$1,000.00</div>
+        <div class="v" id="topEquity">$20.00</div>
       </div>
       <div class="metric">
         <div class="k">Day P&amp;L</div>
@@ -75,7 +75,49 @@
     </div>
   </header>
 
+
+  <section class="hero" id="hero">
+    <div class="hero-equity" id="heroEquity">$20.00</div>
+    <div class="hero-pnl" id="heroPnl">
+      <span class="pnl-usd" id="heroPnlUsd">$0.00</span>
+      <span class="pnl-pct" id="heroPnlPct">0.00%</span>
+      <span class="chip" id="heroMult" hidden>1.00x</span>
+      <span class="chip realized" id="heroRealized" hidden></span>
+    </div>
+    <div class="equity-chart-wrap">
+      <canvas class="equity-chart" id="equityChart" width="824" height="280"></canvas>
+      <div class="equity-labels" id="equityLabels"></div>
+    </div>
+    <div class="tf-tabs equity-tabs" id="equityTabs">
+      <button type="button" data-tf="LIVE" class="on" aria-selected="true">LIVE</button>
+      <button type="button" data-tf="1H">1H</button>
+      <button type="button" data-tf="4H">4H</button>
+      <button type="button" data-tf="1D">1D</button>
+      <button type="button" data-tf="1W">1W</button>
+      <button type="button" data-tf="ALL">ALL</button>
+    </div>
+  </section>
+
+  <section class="board-sec" id="agentsSec">
+    <div class="board-head">
+      <h2>Agents</h2>
+      <span class="badge" id="agentsRunning">0 running</span>
+    </div>
+    <div class="agents-grid" id="agentsGrid"></div>
+  </section>
+
+  <section class="board-sec" id="activitySec">
+    <div class="board-head">
+      <h2>Activity</h2>
+      <span class="badge" id="activityCount">0 trades</span>
+    </div>
+    <div class="activity-feed" id="activityFeed"><div class="empty">No trades yet.</div></div>
+  </section>
+
+  <canvas id="confetti" class="confetti" hidden></canvas>
+
   <main class="layout">
+
     <!-- LEFT: pipeline + agent stats + playbook -->
     <section class="col col-left">
       <div class="panel">
@@ -199,7 +241,7 @@
     <section class="col col-center">
       <div class="kpis">
         <div class="kpi" style="--accent: var(--green)">
-          <div class="k">Equity</div><div class="v" id="kEquity">$1,000.00</div>
+          <div class="k">Equity</div><div class="v" id="kEquity">$20.00</div>
           <div class="s">paper account</div>
         </div>
         <div class="kpi" style="--accent: var(--blue)">

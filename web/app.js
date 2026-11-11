@@ -358,6 +358,348 @@ function toast(msg) {
   t._h = setTimeout(() => t.classList.remove("show"), 2200);
 }
 
+
+let equityTf = "LIVE";
+const EQUITY_WINDOWS = { LIVE: 15 * 60, "1H": 3600, "4H": 4 * 3600, "1D": 86400, "1W": 7 * 86400, ALL: null };
+
+function timeManila(isoOrUnix) {
+  if (isoOrUnix == null || isoOrUnix === "") return "—";
+  const d = typeof isoOrUnix === "number" ? new Date(isoOrUnix * 1000) : new Date(isoOrUnix);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleTimeString("en-US", { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit", hour12: true });
+}
+
+function curveWindow(points, marks, tf, now) {
+  const pts = points || [];
+  const mks = marks || [];
+  const span = EQUITY_WINDOWS[tf];
+  if (span == null || !pts.length) return { pts, mks };
+  const cut = now - span;
+  const wPts = pts.filter((p) => p.t >= cut);
+  const wMks = mks.filter((m) => m.t >= cut);
+  if (!wPts.length) return { pts, mks };
+  return { pts: wPts, mks: wMks };
+}
+
+function drawEquity(s) {
+  const canvas = $("equityChart");
+  const labels = $("equityLabels");
+  if (!canvas) return;
+  const now = Date.now() / 1000;
+  const { pts, mks } = curveWindow(s.equity_curve || [], s.curve_marks || [], equityTf, now);
+  const ctx = canvas.getContext("2d");
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth || 360;
+  const h = canvas.clientHeight || 168;
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  if (labels) labels.innerHTML = "";
+  if (!pts.length) return;
+
+  const padL = 6, padR = 6, padT = 18, padB = 8;
+  const ts = pts.map((p) => p.t);
+  const vs = pts.map((p) => p.equity);
+  let t0 = Math.min.apply(null, ts), t1 = Math.max.apply(null, ts);
+  if (t1 <= t0) t1 = t0 + 1;
+  let v0 = Math.min.apply(null, vs), v1 = Math.max.apply(null, vs);
+  const vspan = (v1 - v0) || 1;
+  v0 -= vspan * 0.15;
+  v1 += vspan * 0.22;
+  const xOf = (t) => padL + ((t - t0) / (t1 - t0)) * (w - padL - padR);
+  const yOf = (v) => padT + (1 - (v - v0) / (v1 - v0)) * (h - padT - padB);
+
+  const firstX = xOf(pts[0].t);
+  const lastY = yOf(pts[pts.length - 1].equity);
+  const endX = w - padR;
+
+  ctx.beginPath();
+  pts.forEach((p, i) => {
+    const px = xOf(p.t), py = yOf(p.equity);
+    if (i === 0) ctx.moveTo(px, py);
+    else {
+      ctx.lineTo(px, yOf(pts[i - 1].equity));
+      ctx.lineTo(px, py);
+    }
+  });
+  ctx.lineTo(endX, lastY);
+  ctx.strokeStyle = "#00d35a";
+  ctx.lineWidth = 2;
+  ctx.lineJoin = "miter";
+  ctx.stroke();
+  ctx.lineTo(endX, h - padB);
+  ctx.lineTo(firstX, h - padB);
+  ctx.closePath();
+  ctx.fillStyle = "rgba(0, 211, 90, 0.22)";
+  ctx.fill();
+
+  function equityAt(t) {
+    let eq = pts[0].equity;
+    for (let i = 0; i < pts.length; i++) {
+      if (pts[i].t <= t) eq = pts[i].equity;
+    }
+    return eq;
+  }
+
+  mks.forEach((m) => {
+    const mx = xOf(m.t), my = yOf(equityAt(m.t));
+    ctx.beginPath();
+    ctx.arc(mx, my, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = m.kind === "buy" ? "#00d35a" : "#ff453a";
+    ctx.fill();
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = "#000";
+    ctx.stroke();
+  });
+
+  if (labels) {
+    const recent = mks.slice(-2);
+    labels.innerHTML = recent.map((m) => {
+      const mx = xOf(m.t), my = yOf(equityAt(m.t));
+      let text = "";
+      if (m.kind === "buy") text = "$" + (m.symbol || "") + " bought " + fmtMoney(m.usd || 0, 0);
+      else {
+        const pnl = m.pnl_usd;
+        const sold = pnl == null ? "" : ((pnl >= 0 ? "+" : "") + fmtMoney(pnl));
+        text = "$" + (m.symbol || "") + " sold " + sold;
+      }
+      return `<div class="equity-float" style="left:${mx}px;top:${my}px">${esc(text)}</div>`;
+    }).join("");
+  }
+}
+
+function renderHero(s) {
+  const b = s.broker || {};
+  const start = Number(s.starting_equity != null ? s.starting_equity : 20);
+  const eq = b.equity != null ? Number(b.equity) : start;
+  if ($("heroEquity")) $("heroEquity").textContent = fmtMoney(eq);
+  const pnl = Number(b.day_pnl || 0);
+  const pct = start ? (pnl / start) * 100 : 0;
+  const cls = pnl > 0 ? "pos" : pnl < 0 ? "neg" : "";
+  const usd = $("heroPnlUsd");
+  if (usd) { usd.textContent = (pnl > 0 ? "+" : "") + fmtMoney(pnl); usd.className = "pnl-usd " + cls; }
+  const pc = $("heroPnlPct");
+  if (pc) { pc.textContent = fmtPct(pct); pc.className = "pnl-pct " + cls; }
+  const chip = $("heroMult");
+  if (chip) {
+    const mult = start ? eq / start : 1;
+    chip.hidden = false;
+    chip.textContent = mult.toFixed(3).replace(/0+$/, "").replace(/\.$/, "") + "x";
+    if (Math.abs(mult - 1) < 0.0005) chip.textContent = "1.00x";
+    chip.className = "chip " + (mult >= 1 ? "pos" : "neg");
+  }
+  const rc = $("heroRealized");
+  if (rc) {
+    const real = s.latest_realized;
+    if (real && real.pnl_usd != null) {
+      const n = Number(real.pnl_usd);
+      rc.hidden = false;
+      rc.textContent = (n >= 0 ? "+" : "") + fmtMoney(n);
+      rc.className = "chip realized " + (n >= 0 ? "pos" : "neg");
+    } else rc.hidden = true;
+  }
+  const src = s.data_source || "—";
+  const open = b.open_count || 0;
+  if ($("heroMeta")) $("heroMeta").textContent = src + " \u00b7 " + open + " open";
+  drawEquity(s);
+}
+
+const AGENT_SEATS = [
+  { id: "scanner", name: "Scanner", handle: "@scan", color: "#0a84ff", face: "Sc" },
+  { id: "chain", name: "Chain", handle: "@chain", color: "#5ac8ff", face: "Ch" },
+  { id: "dev", name: "Devcheck", handle: "@dev", color: "#bf5af2", face: "Dv" },
+  { id: "meme", name: "Meme", handle: "@meme", color: "#ff9f0a", face: "Me" },
+  { id: "analyst", name: "Analyst", handle: "@thesis", color: "#f2b2c2", face: "An" },
+  { id: "risk", name: "Risk", handle: "@risk", color: "#ffd60a", face: "Rk" },
+  { id: "broker", name: "Broker", handle: "@fills", color: "#00d35a", face: "Br" },
+];
+
+function lastDecision(s) {
+  return (s.decisions && s.decisions[0]) || null;
+}
+
+function seatRing(s, id) {
+  const st = s.stats || {};
+  const seen = st.seen || 0;
+  const d = lastDecision(s);
+  if (id === "scanner") return seen ? Math.min(100, seen) : 0;
+  if (id === "chain") return seen ? Math.max(0, Math.min(100, (1 - (st.chain_rejects || 0) / seen) * 100)) : 0;
+  if (id === "dev") return d && d.dev && d.dev.dev_score != null ? Number(d.dev.dev_score) : 0;
+  if (id === "meme") return d && d.scorecard && d.scorecard.total != null ? Number(d.scorecard.total) : 0;
+  if (id === "analyst") return d && d.thesis && d.thesis.score != null ? Number(d.thesis.score) * 10 : 0;
+  if (id === "risk") {
+    if (!d) return 0;
+    return d.approved ? 100 : 25;
+  }
+  if (id === "broker") {
+    const max = (s.config && s.config.max_positions) || 3;
+    const open = (s.broker && s.broker.open_count) || 0;
+    return max ? Math.min(100, (open / max) * 100) : 0;
+  }
+  return 0;
+}
+
+function seatStatus(s, id) {
+  const st = s.stats || {};
+  const d = lastDecision(s);
+  const sym = d && d.symbol ? d.symbol : "";
+  if (id === "scanner") return st.seen ? (st.seen + " coins seen") : "waiting";
+  if (id === "chain") return st.chain_rejects ? (st.chain_rejects + " cut") : (st.seen ? "facts clear" : "waiting");
+  if (id === "dev") {
+    if (d && d.dev && d.dev.dev_score != null) return sym + " dev " + d.dev.dev_score;
+    return st.dev_rejects ? (st.dev_rejects + " cut") : "waiting";
+  }
+  if (id === "meme") {
+    if (d && d.scorecard && d.scorecard.total != null) return sym + " meme " + d.scorecard.total;
+    return st.meme_rejects ? (st.meme_rejects + " cut") : "waiting";
+  }
+  if (id === "analyst") {
+    if (d && d.thesis && d.thesis.score != null) return sym + " score " + d.thesis.score + "/10";
+    return st.analyst_calls ? (st.analyst_calls + " calls") : "waiting";
+  }
+  if (id === "risk") {
+    if (d && d.approved && d.ticket_usd != null) return "ticket " + fmtMoney(d.ticket_usd, 0);
+    return st.risk_rejects ? (st.risk_rejects + " veto") : "waiting";
+  }
+  if (id === "broker") {
+    const buy = s.latest_buy;
+    if (buy && buy.ticket_usd != null) return "bought " + fmtMoney(buy.ticket_usd, 0);
+    return st.entries ? (st.entries + " fills") : "waiting";
+  }
+  return "waiting";
+}
+
+function renderAgents(s) {
+  const grid = $("agentsGrid");
+  const badge = $("agentsRunning");
+  if (badge) badge.textContent = s.running ? "7 running" : "0 running";
+  if (!grid) return;
+  const C = 48, r = 20, cx = 24, cy = 24, circ = 2 * Math.PI * r;
+  grid.innerHTML = AGENT_SEATS.map((a) => {
+    const pct = Math.max(0, Math.min(100, seatRing(s, a.id)));
+    const dash = (pct / 100) * circ;
+    return `<article class="agent-card" data-seat="${a.id}">
+      <div class="avatar-wrap">
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#222" stroke-width="3"></circle>
+          <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${a.color}" stroke-width="3"
+            stroke-linecap="round" stroke-dasharray="${dash.toFixed(2)} ${circ.toFixed(2)}"></circle>
+        </svg>
+        <div class="face" style="background:${a.color}">${a.face}</div>
+      </div>
+      <div class="abody">
+        <div class="aname">${a.name}</div>
+        <div class="handle">${a.handle}</div>
+        <div class="astat">${esc(seatStatus(s, a.id))}</div>
+      </div>
+    </article>`;
+  }).join("");
+}
+
+function renderActivity(s) {
+  const feed = $("activityFeed");
+  const badge = $("activityCount");
+  const rows = s.activity || [];
+  if (badge) badge.textContent = rows.length + (rows.length === 1 ? " trade" : " trades");
+  if (!feed) return;
+  if (!rows.length) {
+    feed.innerHTML = '<div class="empty">No trades yet.</div>';
+    return;
+  }
+  feed.innerHTML = rows.map((r) => {
+    const bought = r.kind === "entry";
+    let title = bought ? ("Bought $" + (r.symbol || "")) : "Sold";
+    if (!bought) {
+      const frac = r.fraction != null ? (Math.round(Number(r.fraction) * 100) + "% ") : "";
+      title = "Sold " + frac + "$" + (r.symbol || "");
+    }
+    const reason = r.reason || r.message || "";
+    let amt = "";
+    let cls = "";
+    if (bought) amt = fmtMoney(r.usd);
+    else if (r.pnl_usd != null) {
+      const n = Number(r.pnl_usd);
+      amt = (n >= 0 ? "+" : "") + fmtMoney(n);
+      cls = n > 0 ? "pos" : n < 0 ? "neg" : "";
+    } else amt = r.usd != null ? fmtMoney(r.usd) : "";
+    let extra = "";
+    if (r.mult != null && isFinite(Number(r.mult))) extra = Number(r.mult).toFixed(2) + "x";
+    else if (r.mcap_usd != null) extra = "mc " + fmtMoney(r.mcap_usd, 0);
+    return `<div class="activity-row">
+      <div class="face" style="background:${bought ? "#00d35a" : "#ff453a"}">${bought ? "B" : "S"}</div>
+      <div>
+        <div class="ttl">${esc(title)}</div>
+        <div class="sub">broker \u00b7 ${esc(reason)} \u00b7 ${esc(timeManila(r.time))}</div>
+      </div>
+      <div>
+        <div class="amt ${cls}">${amt}</div>
+        <div class="meta">${esc(extra)}</div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+let confettiKey = "";
+function burstConfetti() {
+  const c = $("confetti");
+  if (!c) return;
+  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const dpr = window.devicePixelRatio || 1;
+  const w = window.innerWidth, h = window.innerHeight;
+  c.width = Math.round(w * dpr);
+  c.height = Math.round(h * dpr);
+  c.style.width = w + "px";
+  c.style.height = h + "px";
+  c.hidden = false;
+  const ctx = c.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const colors = ["#00d35a", "#ffd60a", "#0a84ff", "#bf5af2", "#fff"];
+  const bits = Array.from({ length: 80 }, () => ({
+    x: Math.random() * w,
+    y: -10 - Math.random() * 80,
+    r: 3 + Math.random() * 4,
+    vx: -1.5 + Math.random() * 3,
+    vy: 2 + Math.random() * 3.5,
+    rot: Math.random() * 6,
+    vr: -0.2 + Math.random() * 0.4,
+    color: colors[Math.floor(Math.random() * colors.length)],
+  }));
+  const t0 = performance.now();
+  function frame(now) {
+    const t = now - t0;
+    ctx.clearRect(0, 0, w, h);
+    bits.forEach((b) => {
+      b.x += b.vx;
+      b.y += b.vy;
+      b.vy += 0.04;
+      b.rot += b.vr;
+      ctx.save();
+      ctx.translate(b.x, b.y);
+      ctx.rotate(b.rot);
+      ctx.fillStyle = b.color;
+      ctx.fillRect(-b.r, -b.r * 0.6, b.r * 2, b.r * 1.2);
+      ctx.restore();
+    });
+    if (t < 1400) requestAnimationFrame(frame);
+    else { ctx.clearRect(0, 0, w, h); c.hidden = true; }
+  }
+  requestAnimationFrame(frame);
+}
+
+function maybeConfetti(s) {
+  const ev = (s.events || []).find((e) => e.kind === "exit" && Number(e.pnl_usd) > 0);
+  if (!ev) return;
+  const key = eventKey(ev);
+  const t = ev.time ? new Date(ev.time).getTime() : 0;
+  const age = Date.now() - t;
+  if (key === confettiKey) return;
+  if (!confettiKey && age > 8000) { confettiKey = key; return; }
+  if (age > 20000) { confettiKey = key; return; }
+  confettiKey = key;
+  burstConfetti();
+}
+
 function render(s) {
   lastState = s;
   const b = s.broker || {};
@@ -367,8 +709,8 @@ function render(s) {
 
   // status
   const pill = $("statusPill");
-  pill.className = "pill " + (s.running ? "live" : (s.cycle ? "paused" : ""));
-  $("statusText").textContent = s.running ? "agent running" : (s.cycle ? "paused" : "idle");
+  pill.className = "pill " + (s.running ? "live live-on" : (s.cycle ? "paused" : ""));
+  $("statusText").textContent = s.running ? "Live" : (s.cycle ? "paused" : "idle");
   $("sourceText").textContent = "source: " + (s.data_source || "—");
   const acc = s.access || {};
   const lp = $("lockPill");
@@ -400,7 +742,7 @@ function render(s) {
   const kp = $("kPnl");
   kp.textContent = fmtMoney(pnl);
   kp.className = "v " + (pnl > 0 ? "pos" : pnl < 0 ? "neg" : "");
-  const startEq = 1000;
+  const startEq = Number((s.starting_equity != null) ? s.starting_equity : 20);
   $("kPnlPct").textContent = fmtPct((pnl / startEq) * 100);
   $("kOpen").textContent = b.open_count || 0;
   $("kOpenMax").textContent = "max " + (cfg.max_positions || 3);
@@ -678,6 +1020,10 @@ function render(s) {
     $("dialogue").innerHTML = '<div class="empty">The seats have not spoken yet.</div>';
   }
 
+  renderHero(s);
+  renderAgents(s);
+  renderActivity(s);
+  maybeConfetti(s);
   renderCat(s);
 }
 
@@ -749,6 +1095,22 @@ $("btnArmGo").onclick = async () => {
   }
   await refresh();
 };
+
+const equityTabs = $("equityTabs");
+if (equityTabs) {
+  equityTabs.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-tf]");
+    if (!btn) return;
+    equityTf = btn.dataset.tf;
+    equityTabs.querySelectorAll("button").forEach((b) => {
+      const on = b === btn;
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    if (lastState) renderHero(lastState);
+  });
+}
+window.addEventListener("resize", () => { if (lastState) drawEquity(lastState); });
 
 refresh();
 setInterval(refresh, 2000);

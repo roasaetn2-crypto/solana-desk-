@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import config
-from config import EXITS, RISK
+from config import EXITS, PAPER, RISK
 
 
 @dataclass
@@ -70,8 +70,9 @@ def check_token_trade(thesis, account: Account, liquidity_usd: float,
     by_size = RISK["max_position_pct"] * base
     by_pool = RISK["max_pool_share"] * liquidity_usd
     ticket = round(min(by_risk, by_size, by_pool), 2)
-    if ticket < RISK["min_ticket_usd"]:
-        return False, 0.0, f"ticket ${ticket} below fee floor ${RISK['min_ticket_usd']}"
+    floor = PAPER.get("min_ticket_usd", RISK["min_ticket_usd"])
+    if ticket < floor:
+        return False, 0.0, f"ticket ${ticket} below fee floor ${floor}"
     return True, ticket, "approved"
 
 
@@ -93,7 +94,7 @@ def check_live_trade(thesis, day_pnl: float, open_positions: int, liquidity_usd:
                      caps: dict, now: datetime | None = None) -> tuple[bool, float, str]:
     """The live version of seat 4. Same gates, but sized from the live caps.
 
-    Paper sizes off a $1,000 book with 2% positions. That is right for a
+    Paper sizes off a $20 book with ~$3-5 tickets. That is right for a
     simulator and wrong for real money, where the cap IS the bankroll. Here the
     ticket is the smallest of: the per-trade cap, what is left of the total
     notional cap, and 2% of the pool. The broker re-checks all of it before it

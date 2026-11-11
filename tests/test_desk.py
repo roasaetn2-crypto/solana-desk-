@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from desk import analyst, brain, chain, helius, live, meme, scanner                # noqa: E402
 from desk.solana_agent import SolanaAgent                                          # noqa: E402
 from desk.broker import PaperBroker                           # noqa: E402
+from config import EXITS, PAPER, RISK                         # noqa: E402
 from desk.risk import (Account, check_live_trade, check_token_trade,  # noqa: E402
                        live_sizing_breakdown, sizing_breakdown)
 
@@ -118,25 +119,36 @@ class ChainFacts(unittest.TestCase):
 
 
 class RiskEngine(unittest.TestCase):
-    acct = Account(equity=1_000, day_pnl=0, open_positions=0)
+    acct = Account(equity=PAPER["starting_equity_usd"], day_pnl=0, open_positions=0,
+                   realized_equity=PAPER["starting_equity_usd"])
 
     def test_sizing_takes_the_smallest_cap(self):
         ok, ticket, _ = check_token_trade(thesis(), self.acct, 30_000, now=NOON)
-        # risk cap 1000*1%/35% = 28.57, size cap 5% = 50, pool cap 600 -> 28.57 (MERGE: tests synced to config)
+        # $20 book, fallback stop 35%: risk 20*5%/35% = 2.86, size 25% = 5, pool 600 -> 2.86
         self.assertTrue(ok)
-        self.assertEqual(ticket, 28.57)
+        self.assertEqual(ticket, 2.86)
 
     def test_thin_pool_caps_ticket(self):
-        ok, ticket, reason = check_token_trade(thesis(), self.acct, 400, now=NOON)
-        self.assertFalse(ok)                       # 2% of $400 = $8 < $10 fee floor
+        ok, ticket, reason = check_token_trade(thesis(), self.acct, 50, now=NOON)
+        self.assertFalse(ok)                       # 2% of $50 = $1 < $2 paper fee floor
         self.assertIn("fee floor", reason)
+
+    def test_paper_tickets_fit_the_twenty_dollar_book(self):
+        eq = PAPER["starting_equity_usd"]
+        self.assertEqual(eq, 20)
+        scalp = check_token_trade(thesis(), self.acct, 30_000, now=NOON, stop_pct=0.20)
+        swing = check_token_trade(thesis(), self.acct, 30_000, now=NOON, stop_pct=0.30)
+        self.assertTrue(scalp[0]); self.assertEqual(scalp[1], 5.00)
+        self.assertTrue(swing[0]); self.assertEqual(swing[1], 3.33)
+        self.assertLessEqual(scalp[1] * RISK["max_open_positions"], eq)
 
     def test_model_cannot_force_a_trade(self):
         self.assertFalse(check_token_trade(thesis(verdict="watch"), self.acct, 30_000, now=NOON)[0])
         self.assertFalse(check_token_trade(thesis(score=4), self.acct, 30_000, now=NOON)[0])
 
     def test_daily_loss_and_quiet_hours(self):
-        down = Account(equity=1_000, day_pnl=-31, open_positions=0)
+        eq = PAPER["starting_equity_usd"]
+        down = Account(equity=eq, day_pnl=-(RISK["max_daily_loss_pct"] * eq + 0.01), open_positions=0)
         self.assertIn("daily loss", check_token_trade(thesis(), down, 30_000, now=NOON)[2])
         night = datetime(2026, 10, 26, 2, 30)
         with mock.patch.dict("config.RISK", {"quiet_hours": (1, 7)}):   # shipped config trades 24/7
@@ -144,7 +156,7 @@ class RiskEngine(unittest.TestCase):
 
     def test_sizing_breakdown(self):
         b = sizing_breakdown(self.acct, 30_000)
-        self.assertEqual(b["ticket"], 28.57)
+        self.assertEqual(b["ticket"], 2.86)
         self.assertLessEqual(b["ticket"], min(b["by_risk"], b["by_size"], b["by_pool"]))
 
 
@@ -208,7 +220,7 @@ class PaperExits(unittest.TestCase):
         out = self.b.sell("M", 1.0, 1.0, "test")
         self.assertLess(out["pnl_usd"], 0)        # fees + slippage cost money at flat price
         self.assertEqual(self.b.open_count(), 0)
-        self.assertAlmostEqual(self.b.equity(), 1_000 + out["pnl_usd"], places=2)
+        self.assertAlmostEqual(self.b.equity(), PAPER["starting_equity_usd"] + out["pnl_usd"], places=2)
 
 
 if __name__ == "__main__":
