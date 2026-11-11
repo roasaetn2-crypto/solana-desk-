@@ -6,14 +6,18 @@ so it never reaches the analyst.
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import random
+import threading
 import time
 
 import requests
 
 from config import CHAIN
 from desk import helius
+
+log = logging.getLogger("desk.chain")
 
 PUBLIC_RPC = "https://api.mainnet-beta.solana.com"
 SYSTEM_PROGRAM = "11111111111111111111111111111111"
@@ -33,31 +37,95 @@ def rpc_source() -> str:
         "custom" if os.getenv("SOLANA_RPC_URL") else "public")
 
 
+# After a Helius HTTP error, skip it for a bit so one 401/429 does not
+# stall every mint in the cycle. Tests call reset_rpc_state().
+_COOL_LOCK = threading.Lock()
+_cool_until = 0.0
+_COOL_S = {401: 300, 403: 300, 429: 15}
+
+
+def reset_rpc_state() -> None:
+    global _cool_until
+    with _COOL_LOCK:
+        _cool_until = 0.0
+    helius.reset_throttle()
+
+
+def _cool_helius(status: int) -> None:
+    global _cool_until
+    seconds = _COOL_S.get(status, 15 if status >= 500 else 15)
+    with _COOL_LOCK:
+        _cool_until = max(_cool_until, time.time() + seconds)
+
+
+def _helius_cooled() -> bool:
+    with _COOL_LOCK:
+        return time.time() < _cool_until
+
+
+def _http_error(method: str, r: requests.Response) -> requests.HTTPError:
+    # Never put the request URL in the exception: it may contain the API key.
+    return requests.HTTPError(f"{method} HTTP {r.status_code}", response=r)
+
+
+def _post_rpc(url: str, method: str, params: list, session: requests.Session | None):
+    """One JSON-RPC call to a specific URL, with backoff on 429/5xx."""
+    if helius.is_helius_url(url):
+        helius.throttle()
+    s = session or requests.Session()
+    last = None
+    for attempt in range(4):
+        if helius.is_helius_url(url) and attempt:
+            helius.throttle()
+        r = s.post(url,
+                   json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params},
+                   timeout=20)
+        if r.status_code == 429 or r.status_code >= 500:
+            last = r
+            time.sleep(1.5 * (attempt + 1))   # 1.5s, 3s, 4.5s
+            continue
+        if r.status_code >= 400:
+            raise _http_error(method, r)
+        body = r.json()
+        err = body.get("error") if isinstance(body, dict) else None
+        if err is not None:
+            code = err.get("code") if isinstance(err, dict) else None
+            if code == 429:
+                last = r
+                time.sleep(1.5 * (attempt + 1))
+                continue
+            raise RuntimeError(f"{method}: {err}")
+        return body["result"]
+    if last is not None:
+        raise _http_error(method, last)
+    raise RuntimeError(f"{method}: retries exhausted")
+
+
 def rpc(method: str, params: list, session: requests.Session | None = None):
-    """One JSON-RPC call, with backoff.
+    """One JSON-RPC call, with backoff and a public-RPC fallback.
 
     The free public node allows only a handful of requests per second and
     answers 429 under any real load. A single 429 used to abort the whole
     token, which is why nothing ever reached the analyst. Retry instead.
+
+    When Helius is configured it is tried first. An HTTP error from Helius
+    (401/403 from a bad key, 429 on the free tier, 5xx) must not kill the
+    coin: fall back to the public node, which is how the desk ran before.
+    Exception text never includes the request URL, so the API key stays out
+    of logs and the journal.
     """
-    s = session or requests.Session()
-    last = None
-    for attempt in range(4):
-        r = s.post(rpc_url(),
-                   json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params},
-                   timeout=20)
-        if r.status_code == 429:
-            last = r
-            time.sleep(1.5 * (attempt + 1))   # 1.5s, 3s, 4.5s
-            continue
-        r.raise_for_status()
-        body = r.json()
-        if "error" in body:
-            raise RuntimeError(f"{method}: {body['error']}")
-        return body["result"]
-    if last is not None:
-        last.raise_for_status()
-    raise RuntimeError(f"{method}: retries exhausted")
+    primary = rpc_url()
+    url = PUBLIC_RPC if (helius.is_helius_url(primary) and _helius_cooled()) else primary
+    try:
+        return _post_rpc(url, method, params, session)
+    except requests.HTTPError as e:
+        status = e.response.status_code if e.response is not None else 0
+        if helius.is_helius_url(url) and url.rstrip("/") != PUBLIC_RPC.rstrip("/"):
+            _cool_helius(status)
+            log.warning("helius %s failed (HTTP %s); falling back to public RPC",
+                        method, status or "error")
+            return _post_rpc(PUBLIC_RPC, method, params, session)
+        raise
 
 
 def _demo_facts(mint: str) -> dict:

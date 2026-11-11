@@ -567,6 +567,7 @@ class Helius(unittest.TestCase):
         os.environ.pop("HELIUS_API_KEY", None)
         os.environ.pop("SOLANA_RPC_URL", None)
         helius.cache_clear()
+        chain.reset_rpc_state()
 
     def tearDown(self):
         os.environ.clear()
@@ -594,6 +595,98 @@ class Helius(unittest.TestCase):
         os.environ["SOLANA_RPC_URL"] = "https://my-node.example"
         self.assertEqual(chain.rpc_source(), "custom")
         self.assertEqual(chain.rpc_url(), "https://my-node.example")
+
+    def test_pasted_helius_url_is_used_as_the_endpoint(self):
+        os.environ["HELIUS_API_KEY"] = "https://mainnet.helius-rpc.com/?api-key=abc-123"
+        self.assertEqual(helius.key(), "abc-123")
+        self.assertEqual(helius.rpc_url(), "https://mainnet.helius-rpc.com/?api-key=abc-123")
+        self.assertEqual(chain.rpc_source(), "helius")
+
+    def _session_that(self, handler):
+        session = mock.Mock()
+        session.post.side_effect = handler
+        return session
+
+    def _http(self, status, result=None, error=None, text=""):
+        r = mock.Mock()
+        r.status_code = status
+        r.text = text or f"HTTP {status}"
+        body = {}
+        if error is not None:
+            body["error"] = error
+        elif result is not None:
+            body["result"] = result
+        r.json.return_value = body
+        r.raise_for_status.side_effect = Exception(f"should not raise_for_status {status}")
+        return r
+
+    def test_rpc_falls_back_to_public_when_helius_returns_http_error(self):
+        """A Helius 401/429 must not kill the coin; use the public node."""
+        os.environ["HELIUS_API_KEY"] = "k"
+        calls = []
+
+        def post(url, json=None, timeout=None, **kwargs):
+            calls.append((url, json["method"], json))
+            if "helius" in url:
+                return self._http(401, text="Unauthorized")
+            return self._http(200, result={"value": {"ok": True}})
+
+        out = chain.rpc("getAccountInfo", ["MINT"], self._session_that(post))
+        self.assertEqual(out, {"value": {"ok": True}})
+        self.assertTrue(any("helius" in u for u, *_ in calls))
+        self.assertTrue(any(u == chain.PUBLIC_RPC for u, *_ in calls))
+        # the API key must never appear in the exception path either
+        for u, *_ in calls:
+            self.assertNotIn("should-not-leak", u)
+
+    def test_rpc_fallback_error_hides_the_api_key(self):
+        os.environ["HELIUS_API_KEY"] = "super-secret-key"
+        def post(url, json=None, timeout=None, **kwargs):
+            if "helius" in url:
+                return self._http(403, text="Forbidden")
+            return self._http(429, text="Too Many Requests")
+
+        with mock.patch.object(chain.time, "sleep"):
+            with self.assertRaises(Exception) as ctx:
+                chain.rpc("getAccountInfo", ["MINT"], self._session_that(post))
+        msg = str(ctx.exception)
+        self.assertNotIn("super-secret-key", msg)
+        self.assertNotIn("api-key", msg.lower())
+        self.assertIn("HTTP", msg)
+
+    def test_rpc_retries_helius_429_then_falls_back(self):
+        os.environ["HELIUS_API_KEY"] = "k"
+        hits = {"helius": 0, "public": 0}
+
+        def post(url, json=None, timeout=None, **kwargs):
+            if "helius" in url:
+                hits["helius"] += 1
+                return self._http(429, text="Too Many Requests")
+            hits["public"] += 1
+            return self._http(200, result={"ok": 1})
+
+        with mock.patch.object(chain.time, "sleep"):
+            out = chain.rpc("getAccountInfo", ["MINT"], self._session_that(post))
+        self.assertEqual(out, {"ok": 1})
+        self.assertGreaterEqual(hits["helius"], 2)  # retried before giving up
+        self.assertEqual(hits["public"], 1)
+
+    def test_rpc_skips_helius_during_cooldown_after_auth_error(self):
+        os.environ["HELIUS_API_KEY"] = "k"
+        hosts = []
+
+        def post(url, json=None, timeout=None, **kwargs):
+            hosts.append("helius" if "helius" in url else "public")
+            if "helius" in url:
+                return self._http(401, text="Unauthorized")
+            return self._http(200, result={"n": len(hosts)})
+
+        session = self._session_that(post)
+        chain.rpc("getAccountInfo", ["A"], session)
+        chain.rpc("getAccountInfo", ["B"], session)
+        # first call tries helius then public; second should go straight to public
+        self.assertEqual(hosts.count("helius"), 1)
+        self.assertGreaterEqual(hosts.count("public"), 2)
 
     def test_das_calls_return_none_without_a_key(self):
         # must not raise, must not invent data

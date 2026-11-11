@@ -22,11 +22,16 @@ from __future__ import annotations
 import os
 import threading
 import time
+from urllib.parse import parse_qs, urlparse
 
 import requests
 
 BASE = "https://mainnet.helius-rpc.com"
 TIMEOUT = int(os.getenv("HELIUS_TIMEOUT", "15"))
+# Stay a little under the common free-tier cap of 10 req/s.
+_RPS = float(os.getenv("HELIUS_RPS", "8"))
+_THROTTLE_LOCK = threading.Lock()
+_last_call = 0.0
 
 # DAS calls cost 10 credits each and the free tier is 1M/month at 2 req/sec.
 # Without a cache the desk burns the whole free tier in under two days and
@@ -64,35 +69,93 @@ def cache_stats() -> dict:
         return {"entries": len(_CACHE), "ttl": dict(_TTL)}
 
 
+def _raw_key() -> str:
+    return os.getenv("HELIUS_API_KEY", "").strip().strip('"').strip("'")
+
+
 def key() -> str:
-    return os.getenv("HELIUS_API_KEY", "").strip()
+    """The bare API key, even if someone pasted a full Helius URL."""
+    raw = _raw_key()
+    if not raw:
+        return ""
+    if raw.lower().startswith("bearer "):
+        raw = raw[7:].strip()
+    lower = raw.lower()
+    if "api-key=" in lower:
+        parsed = urlparse(raw if "://" in raw else "https://unused/?" + raw)
+        for name, vals in parse_qs(parsed.query).items():
+            if name.lower() == "api-key" and vals and vals[0].strip():
+                return vals[0].strip()
+        idx = lower.find("api-key=")
+        return raw[idx + len("api-key="):].split("&", 1)[0].strip()
+    return raw
 
 
 def configured() -> bool:
-    return bool(key())
+    return bool(_raw_key())
 
 
 def rpc_url() -> str | None:
-    """The Helius endpoint, or None when no key is set."""
+    """The Helius endpoint, or None when no key is set.
+
+    Accepts a bare key or a pasted full URL so a dashboard copy-paste still works.
+    """
+    raw = _raw_key()
+    if not raw:
+        return None
+    if raw.startswith("http://") or raw.startswith("https://"):
+        return raw
     k = key()
     return f"{BASE}/?api-key={k}" if k else None
 
 
+def is_helius_url(url: str | None) -> bool:
+    u = (url or "").lower()
+    return "helius-rpc.com" in u or "helius.xyz" in u or "helius.com" in u
+
+
+def reset_throttle() -> None:
+    global _last_call
+    with _THROTTLE_LOCK:
+        _last_call = 0.0
+
+
+def throttle() -> None:
+    """Block briefly so Helius calls stay under the free-tier rate."""
+    global _last_call
+    interval = 1.0 / max(0.5, _RPS)
+    with _THROTTLE_LOCK:
+        now = time.time()
+        wait = interval - (now - _last_call)
+        if wait > 0:
+            time.sleep(min(wait, 2.0))
+            now = time.time()
+        _last_call = now
+
+
 def _post(method: str, params, session: requests.Session | None = None):
-    k = key()
-    if not k:
+    url = rpc_url()
+    if not url:
         return None
     s = session or requests.Session()
     try:
-        r = s.post(f"{BASE}/?api-key={k}",
-                   json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params},
-                   timeout=TIMEOUT)
-        if r.status_code >= 400:
-            return None
-        body = r.json()
-        if "error" in body:
-            return None
-        return body.get("result")
+        last = None
+        for attempt in range(3):
+            throttle()
+            r = s.post(url,
+                       json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params},
+                       timeout=TIMEOUT)
+            if r.status_code == 429 or r.status_code >= 500:
+                last = r
+                time.sleep(0.5 * (attempt + 1))
+                continue
+            if r.status_code >= 400:
+                return None
+            body = r.json()
+            if "error" in body:
+                return None
+            return body.get("result")
+        return None
     except Exception:
         return None
 
