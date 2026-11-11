@@ -9,10 +9,14 @@ a poll never adds a request and a 429 still returns real candles.
 """
 from __future__ import annotations
 
+import logging
+import os
 import time
 from collections import defaultdict, deque
 
 from config import EXITS
+
+log = logging.getLogger("desk.chart")
 
 SCALP_MAX_AGE_H = float(EXITS.get("scalp_max_age_hours", 6.0))
 SCALP_TABS = ["15s", "30s"]
@@ -47,10 +51,136 @@ _OHLCV: dict[str, dict] = {}
 _ATTEMPT: dict[str, float] = {}
 
 
+# ---- optional CoinGecko Demo key for OHLCV only (the scanner stays public) ----
+# Demo plan: 100 calls/min but only 10,000 calls/month. We spend at most
+# CG_DAILY_BUDGET per UTC day (280 -> ~8,400 in a 30 day month) and at most one
+# keyed call per CG_MIN_GAP_S (86400/310 = 278/day), so the budget lasts the whole
+# day instead of burning in the morning. Anything beyond that, a keyed failure,
+# or no key at all uses the public GeckoTerminal path unchanged.
+CG_ENV = "COINGECKO_DEMO_API_KEY"
+CG = "https://api.coingecko.com/api/v3/onchain"
+CG_DAILY_BUDGET = 280
+CG_MIN_GAP_S = 310.0
+CG_COOL_FLOOR_S = 60.0
+CG_COOL_CAP_S = 900.0
+_CG = {"day": "", "used": 0, "last": 0.0, "until": 0.0, "strikes": 0,
+       "ok": 0, "fail": 0, "r429": 0}
+
+
+def _cg_key() -> str:
+    return (os.environ.get(CG_ENV) or "").strip()
+
+
+def _redact(text) -> str:
+    """Strip the API key from any text before it can reach a log or error."""
+    out = str(text)
+    key = _cg_key()
+    if key:
+        out = out.replace(key, "[redacted]")
+    return out
+
+
+def _utc_day(now: float) -> str:
+    return time.strftime("%Y-%m-%d", time.gmtime(now))
+
+
+def _cg_roll(now: float) -> None:
+    day = _utc_day(now)
+    if _CG["day"] != day:
+        _CG["day"] = day
+        _CG["used"] = 0
+
+
+def cg_stats(now: float | None = None) -> dict:
+    """Secret-free usage counters (never contains the key)."""
+    now = time.time() if now is None else now
+    _cg_roll(now)
+    return {"enabled": bool(_cg_key()), "day": _CG["day"], "used_today": _CG["used"],
+            "daily_budget": CG_DAILY_BUDGET, "ok": _CG["ok"], "fail": _CG["fail"],
+            "r429": _CG["r429"], "cooling_s": max(0, round(_CG["until"] - now))}
+
+
+def cg_available(now: float | None = None) -> bool:
+    """Key set, budget left today, and the keyed host is not in a 429 cooldown."""
+    now = time.time() if now is None else now
+    if not _cg_key():
+        return False
+    _cg_roll(now)
+    return _CG["used"] < CG_DAILY_BUDGET and now >= _CG["until"]
+
+
+def cg_ready(now: float | None = None) -> bool:
+    """cg_available and the minimum gap since the last keyed call has passed."""
+    now = time.time() if now is None else now
+    return cg_available(now) and now - _CG["last"] >= CG_MIN_GAP_S
+
+
+def _cg_fail(now: float, status, reason: str, retry_after=None) -> None:
+    _CG["fail"] += 1
+    if status == 429:
+        _CG["r429"] += 1
+        _CG["strikes"] += 1
+        try:
+            wait = float(retry_after) if retry_after is not None else 0.0
+        except (TypeError, ValueError):
+            wait = 0.0
+        exp = min(CG_COOL_CAP_S, max(wait, CG_COOL_FLOOR_S) * (2 ** (_CG["strikes"] - 1)))
+        _CG["until"] = now + exp
+        log.warning("coingecko demo ohlcv -> 429, cooling keyed host %ds, using public path", exp)
+    else:
+        log.warning("coingecko demo ohlcv -> %s, using public path", _redact(reason))
+
+
+def _cg_ohlcv(session, pool: str, timeframe: str, aggregate: int, now: float):
+    """One keyed CoinGecko onchain OHLCV call. Returns the JSON body or None.
+
+    Counts against the daily budget whether or not it succeeds, has its own
+    cooldown, sends the key only in the x-cg-demo-api-key header, and never
+    puts the key in a URL, query string, log line or error text.
+    """
+    key = _cg_key()
+    if not key or not cg_ready(now):
+        return None
+    import requests
+    from desk import scanner
+    _CG["used"] += 1
+    _CG["last"] = now
+    headers = dict(scanner.HEADERS)
+    headers["x-cg-demo-api-key"] = key
+    params = {"aggregate": aggregate, "limit": 100, "currency": "usd"}
+    try:
+        r = session.get(f"{CG}/networks/solana/pools/{pool}/ohlcv/{timeframe}",
+                        params=params, headers=headers, timeout=20)
+    except requests.RequestException as e:
+        _cg_fail(now, 0, f"request failed ({type(e).__name__})")
+        return None
+    status = getattr(r, "status_code", 0)
+    if status == 429:
+        hdrs = getattr(r, "headers", None) or {}
+        _cg_fail(now, 429, "Too Many Requests", hdrs.get("Retry-After") or hdrs.get("retry-after"))
+        return None
+    if status != 200:
+        _cg_fail(now, status, f"http {status}")
+        return None
+    try:
+        body = r.json()
+    except ValueError:
+        _cg_fail(now, status, "200 but body was not JSON")
+        return None
+    _CG["ok"] += 1
+    _CG["strikes"] = 0
+    _CG["until"] = 0.0
+    log.info("coingecko demo ohlcv ok %s pool=%s… (keyed calls today %d/%d)",
+             timeframe, pool[:8], _CG["used"], CG_DAILY_BUDGET)
+    return body
+
+
 def reset() -> None:
     _TICKS.clear()
     _OHLCV.clear()
     _ATTEMPT.clear()
+    _CG.update({"day": "", "used": 0, "last": 0.0, "until": 0.0, "strikes": 0,
+                "ok": 0, "fail": 0, "r429": 0})
 
 
 def tabs_for(*, horizon: str | None = None, age_hours: float | None = None) -> list[str]:
@@ -133,6 +263,12 @@ def _pool_address(mint: str) -> str | None:
     return None
 
 
+def _last_good_s(tf: str) -> float:
+    """Serve stale candles at least two keyed gaps long, so a paced refresh never blanks a chart."""
+    base = LAST_GOOD_S.get(tf, 600)
+    return max(base, 2 * CG_MIN_GAP_S) if _cg_key() else base
+
+
 def _ohlcv_key(pool: str, tf: str) -> str:
     return f"{pool}:{tf}"
 
@@ -146,6 +282,14 @@ def _fetch_and_store(pool: str, tf: str, session, now: float) -> list[dict]:
     from desk import scanner
     import requests
     s = session or requests.Session()
+    key = _ohlcv_key(pool, tf)
+    _ATTEMPT[key] = now
+    body = _cg_ohlcv(s, pool, timeframe, aggregate, now)    # None if no key/budget/cooling/failed
+    if body is not None:
+        candles = _parse_ohlcv(body)
+        if candles:
+            _OHLCV[key] = {"at": now, "candles": candles}
+            return candles
     ep = {
         "id": f"gt:ohlcv:{pool}:{timeframe}:{aggregate}",
         "source": "geckoterminal",
@@ -154,8 +298,6 @@ def _fetch_and_store(pool: str, tf: str, session, now: float) -> list[dict]:
         "label": f"ohlcv {tf} pool={pool[:8]}…",
         "kind": "gt_ohlcv",
     }
-    key = _ohlcv_key(pool, tf)
-    _ATTEMPT[key] = now
     body, fresh = scanner._fetch_endpoint(s, ep, now)
     candles = _parse_ohlcv(body) if body else []
     if candles and fresh:
@@ -185,7 +327,7 @@ def _network_ohlcv(mint: str, tf: str, session=None) -> list[dict]:
     now = time.time()
     key = _ohlcv_key(pool, tf)
     row = _OHLCV.get(key)
-    if row and now - row["at"] <= LAST_GOOD_S.get(tf, 600):
+    if row and now - row["at"] <= _last_good_s(tf):
         return row["candles"]
     if now - _ATTEMPT.get(key, 0.0) < MISS_RETRY_S:
         return []
@@ -204,7 +346,10 @@ def prefetch(session, positions, now: float | None = None):
         return None
     from desk import scanner
     now = time.time() if now is None else now
-    if scanner.host_cooling("geckoterminal", now):
+    keyed = cg_available(now)
+    if keyed and not cg_ready(now):
+        return None            # keyed budget is paced; the cache serves meanwhile
+    if not keyed and scanner.host_cooling("geckoterminal", now):
         return None
     wanted = []                                   # (level, mint, tf, pool)
     for mint, horizon in positions or []:
