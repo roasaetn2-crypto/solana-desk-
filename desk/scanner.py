@@ -2,9 +2,13 @@
 
 GeckoTerminal is free and needs no key, but allows about 10 calls a minute,
 so one cycle spends `pages` calls here and nothing per token.
+
+DexScreener is the fallback and a second source: token profiles, boosts, and
+a couple of searches, hydrated into the same pool shape and deduped by mint.
 """
 from __future__ import annotations
 
+import logging
 import random
 import time
 from datetime import datetime, timezone
@@ -13,9 +17,40 @@ import requests
 
 from config import SCAN
 
+log = logging.getLogger("desk.scanner")
+
 GT = "https://api.geckoterminal.com/api/v2"
+DS = "https://api.dexscreener.com"
 DEX = "https://api.dexscreener.com/latest/dex/tokens"
-HEADERS = {"Accept": "application/json", "User-Agent": "solana-trading-desk/1.0"}
+HEADERS = {
+    "Accept": "application/json",
+    "User-Agent": "solana-trading-desk/1.1 (paper-scanner; +https://github.com/roasaetn2-crypto/solana-desk-)",
+}
+
+# Base mints we never treat as a tradable pool (the quote side of a pair).
+_QUOTE_MINTS = {
+    "So11111111111111111111111111111111111111112",  # wrapped SOL
+    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",  # USDC
+    "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",  # USDT
+    "USD1ttGY1N17mxyTXcFmcrzJJPDZX1apYe0NAKwrpump",  # USD1 (sometimes)
+}
+
+# DexScreener dexId -> the names GeckoTerminal / SCAN["pump_dexes"] use.
+_DEX_ALIAS = {
+    "pumpfun": "pump-fun",
+    "pump-fun": "pump-fun",
+    "pumpswap": "pumpswap",
+}
+
+# Fetch outcome of the last new_tokens() call. The agent prints this.
+LAST: dict = {
+    "geckoterminal": {"pools": 0, "calls": 0, "errors": []},
+    "dexscreener": {"pools": 0, "calls": 0, "errors": []},
+}
+
+_gt_skip_until = 0.0
+_GT_COOLDOWN_S = 60
+_MAX_BACKOFF_S = 15  # cap so a 429 cannot stall a cycle for minutes
 
 
 def _f(x) -> float:
@@ -23,6 +58,13 @@ def _f(x) -> float:
         return float(x)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _i(x) -> int:
+    try:
+        return int(x)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _age_minutes(iso: str | None) -> float:
@@ -33,6 +75,52 @@ def _age_minutes(iso: str | None) -> float:
     except ValueError:
         return 0.0
     return max(0.0, (datetime.now(timezone.utc) - created).total_seconds() / 60)
+
+
+def _reset_last() -> None:
+    LAST["geckoterminal"] = {"pools": 0, "calls": 0, "errors": []}
+    LAST["dexscreener"] = {"pools": 0, "calls": 0, "errors": []}
+
+
+def _note(source: str, message: str) -> None:
+    """Record a visible, secret-free failure and log it."""
+    log.warning("%s: %s", source, message)
+    errs = LAST[source]["errors"]
+    if message not in errs and len(errs) < 12:
+        errs.append(message)
+
+
+def fetch_report() -> dict:
+    """Last fetch, for the agent log: per-source counts and status reasons."""
+    warnings = []
+    for name, row in LAST.items():
+        for err in row["errors"]:
+            warnings.append(f"{name} {err}")
+    return {
+        "geckoterminal": dict(LAST["geckoterminal"]),
+        "dexscreener": dict(LAST["dexscreener"]),
+        "warnings": warnings,
+    }
+
+
+def source_label(tokens: list[dict]) -> str:
+    gt = sum(1 for t in tokens if t.get("source") == "geckoterminal")
+    ds = sum(1 for t in tokens if t.get("source") == "dexscreener")
+    parts = []
+    if gt:
+        parts.append("geckoterminal")
+    if ds:
+        parts.append("dexscreener")
+    if parts:
+        return "+".join(parts)
+    return "geckoterminal+dexscreener-empty"
+
+
+def source_counts(tokens: list[dict]) -> dict[str, int]:
+    return {
+        "geckoterminal": sum(1 for t in tokens if t.get("source") == "geckoterminal"),
+        "dexscreener": sum(1 for t in tokens if t.get("source") == "dexscreener"),
+    }
 
 
 def parse_pool(pool: dict, symbols: dict[str, str]) -> dict | None:
@@ -67,53 +155,243 @@ def parse_pool(pool: dict, symbols: dict[str, str]) -> dict | None:
     }
 
 
-def _get(s: requests.Session, path: str, params: dict, tries: int = 3):
-    """GET with real 429 backoff. GeckoTerminal allows ~10 calls/min."""
+def parse_dex_pair(pair: dict) -> dict | None:
+    """One DexScreener pair -> the same token dict the rest of the desk already uses."""
+    if (pair.get("chainId") or "").lower() != "solana":
+        return None
+    base = pair.get("baseToken") or {}
+    quote = pair.get("quoteToken") or {}
+    mint = base.get("address") or ""
+    if not mint or mint in _QUOTE_MINTS:
+        return None
+    tx_h1 = (pair.get("txns") or {}).get("h1") or {}
+    vol = pair.get("volume") or {}
+    chg = pair.get("priceChange") or {}
+    created_ms = pair.get("pairCreatedAt")
+    age = round((time.time() * 1000 - created_ms) / 60000, 1) if created_ms else 0.0
+    dex = (pair.get("dexId") or "").lower()
+    dex = _DEX_ALIAS.get(dex, dex)
+    buys = _i(tx_h1.get("buys"))
+    symbol = base.get("symbol") or "?"
+    quote_sym = quote.get("symbol") or "SOL"
+    return {
+        "mint": mint,
+        "symbol": symbol,
+        "name": f"{symbol} / {quote_sym}",
+        "pool": pair.get("pairAddress"),
+        "dex": dex,
+        "price_usd": _f(pair.get("priceUsd")),
+        "mcap_usd": _f(pair.get("marketCap")) or _f(pair.get("fdv")),
+        "liquidity_usd": _f((pair.get("liquidity") or {}).get("usd")),
+        "volume_m5": _f(vol.get("m5")), "volume_h1": _f(vol.get("h1")),
+        "volume_h6": _f(vol.get("h6")), "volume_h24": _f(vol.get("h24")),
+        "buys_h1": buys, "sells_h1": _i(tx_h1.get("sells")),
+        "buyers_h1": buys,  # DexScreener has no unique-buyer count; buys is the stand-in
+        "change_m5": _f(chg.get("m5")), "change_h1": _f(chg.get("h1")),
+        "change_h6": _f(chg.get("h6")),
+        "age_minutes": age,
+        "source": "dexscreener",
+    }
+
+
+def _retry_after(r: requests.Response, default: float) -> float:
+    raw = r.headers.get("Retry-After") or r.headers.get("retry-after")
+    if not raw:
+        return default
+    try:
+        return max(1.0, min(float(raw), _MAX_BACKOFF_S))
+    except ValueError:
+        return default
+
+
+def _get(s: requests.Session, url: str, params: dict | None = None,
+         tries: int = 3, source: str = "geckoterminal", label: str = ""):
+    """GET with logged status codes and capped 429/5xx backoff. Never raises on HTTP errors."""
+    tag = label or url
+    last_exc = None
     for i in range(tries):
-        r = s.get(f"{GT}{path}", params=params, headers=HEADERS, timeout=20)
-        if r.status_code == 429:
+        LAST[source]["calls"] += 1
+        try:
+            r = s.get(url, params=params, headers=HEADERS, timeout=20)
+        except requests.RequestException as e:
+            last_exc = e
+            _note(source, f"{tag} request failed ({type(e).__name__})")
             if i == tries - 1:
                 return None
-            time.sleep(20 * (i + 1))   # 20s, then 40s
+            time.sleep(min(2 * (i + 1), _MAX_BACKOFF_S))
             continue
-        r.raise_for_status()
+        if r.status_code == 429:
+            wait = _retry_after(r, default=min(8 * (i + 1), _MAX_BACKOFF_S))
+            _note(source, f"{tag} -> 429 {r.reason or 'Too Many Requests'}, backoff {wait:.0f}s")
+            if i == tries - 1:
+                return None
+            time.sleep(wait)
+            continue
+        if r.status_code >= 500:
+            _note(source, f"{tag} -> {r.status_code} {r.reason or 'server error'}")
+            if i == tries - 1:
+                return None
+            time.sleep(min(3 * (i + 1), _MAX_BACKOFF_S))
+            continue
+        if r.status_code != 200:
+            _note(source, f"{tag} -> {r.status_code} {r.reason or 'error'}")
+            return None
         return r
+    if last_exc is not None:
+        return None
     return None
+
+
+def _keep(t: dict | None, seen: set[str]) -> dict | None:
+    if not t or t["mint"] in seen:
+        return None
+    if SCAN["pump_only"] and t["dex"] not in SCAN["pump_dexes"]:
+        return None
+    return t
+
+
+def _from_geckoterminal(s: requests.Session) -> list[dict]:
+    """Existing two GeckoTerminal paths. Stops a path on a hard failure; 429 cools the source down."""
+    global _gt_skip_until
+    out, seen = [], set()
+    now = time.time()
+    if now < _gt_skip_until:
+        wait = _gt_skip_until - now
+        _note("geckoterminal", f"cooling down {wait:.0f}s after 429")
+        return out
+
+    hit_429 = False
+
+    def absorb(body: dict) -> int:
+        symbols = {i["id"]: i["attributes"].get("symbol", "?")
+                   for i in body.get("included", []) if i.get("type") == "token"}
+        added = 0
+        for pool in body.get("data", []):
+            t = _keep(parse_pool(pool, symbols), seen)
+            if not t:
+                continue
+            seen.add(t["mint"])
+            out.append(t)
+            added += 1
+        return added
+
+    for path in ("/networks/solana/pools", "/networks/solana/new_pools"):
+        for page in range(1, SCAN["pages"] + 1):
+            r = _get(s, f"{GT}{path}", {"page": page, "include": "base_token,dex"},
+                     source="geckoterminal", label=f"{path} page={page}")
+            if r is None:
+                if any("429" in e for e in LAST["geckoterminal"]["errors"]):
+                    hit_429 = True
+                break
+            try:
+                body = r.json()
+            except ValueError:
+                _note("geckoterminal", f"{path} page={page} -> 200 but body was not JSON")
+                break
+            absorb(body)
+
+    if hit_429:
+        _gt_skip_until = time.time() + _GT_COOLDOWN_S
+    LAST["geckoterminal"]["pools"] = len(out)
+    return out
+
+
+def _ds_json(s: requests.Session, path: str, params: dict | None = None, label: str = ""):
+    r = _get(s, f"{DS}{path}", params, source="dexscreener", label=label or path)
+    if r is None:
+        return None
+    try:
+        return r.json()
+    except ValueError:
+        _note("dexscreener", f"{label or path} -> 200 but body was not JSON")
+        return None
+
+
+def _best_solana_pairs_by_mint(pairs: list[dict]) -> list[dict]:
+    """Deepest Solana pair per mint, already parsed and pump-filtered."""
+    best: dict[str, dict] = {}
+    for raw in pairs or []:
+        t = parse_dex_pair(raw)
+        if not t:
+            continue
+        if SCAN["pump_only"] and t["dex"] not in SCAN["pump_dexes"]:
+            continue
+        prev = best.get(t["mint"])
+        if prev is None or t["liquidity_usd"] > prev["liquidity_usd"]:
+            best[t["mint"]] = t
+    return list(best.values())
+
+
+def _from_dexscreener(s: requests.Session) -> list[dict]:
+    """Profiles + boosts + a couple of searches, normalized and deduped by mint."""
+    by_mint: dict[str, dict] = {}
+
+    def absorb(tokens: list[dict]) -> None:
+        for t in tokens:
+            prev = by_mint.get(t["mint"])
+            if prev is None or t["liquidity_usd"] > prev["liquidity_usd"]:
+                by_mint[t["mint"]] = t
+
+    for path, label in (
+        ("/latest/dex/search", "search q=SOL"),
+        ("/latest/dex/search", "search q=pump"),
+    ):
+        q = "SOL" if "SOL" in label else "pump"
+        body = _ds_json(s, path, {"q": q}, label=label)
+        if isinstance(body, dict):
+            absorb(_best_solana_pairs_by_mint(body.get("pairs") or []))
+
+    # token-profiles / boosts are mint lists; hydrate via the batch tokens endpoint.
+    mints: list[str] = []
+    seen_mints = set(by_mint)
+    for path, label in (
+        ("/token-profiles/latest/v1", "token-profiles/latest"),
+        ("/token-boosts/latest/v1", "token-boosts/latest"),
+        ("/token-boosts/top/v1", "token-boosts/top"),
+    ):
+        body = _ds_json(s, path, label=label)
+        rows = body if isinstance(body, list) else []
+        for row in rows:
+            if (row.get("chainId") or "").lower() != "solana":
+                continue
+            addr = row.get("tokenAddress") or ""
+            if addr and addr not in seen_mints and addr not in _QUOTE_MINTS:
+                seen_mints.add(addr)
+                mints.append(addr)
+
+    # Batch, max 30 addresses per call (DexScreener limit). Cap at 2 batches / 60 mints.
+    for i in range(0, min(len(mints), 60), 30):
+        chunk = mints[i:i + 30]
+        body = _ds_json(s, f"/latest/dex/tokens/{','.join(chunk)}",
+                        label=f"tokens batch {i // 30 + 1} n={len(chunk)}")
+        if isinstance(body, dict):
+            absorb(_best_solana_pairs_by_mint(body.get("pairs") or []))
+
+    out = list(by_mint.values())
+    LAST["dexscreener"]["pools"] = len(out)
+    return out
 
 
 def new_tokens(session: requests.Session | None = None) -> list[dict]:
     """Solana pools worth looking at, deduplicated by mint.
 
-    Two sources, because neither alone can pass the desk's filters:
+    Two sources, because neither alone can pass the desk's filters — and because
+    GeckoTerminal rate-limits (and sometimes blocks) cloud IPs with a 429 that
+    used to be swallowed as "0 pools":
 
-      new_pools       brand-new launches. Young (1-2 min) and the API returns
-                      market_cap_usd = None for them, so they fail the age and
-                      mcap checks on arrival.
-      pools           top pools by volume. Mixed ages, and these DO carry a
-                      real market cap. This is where the 5min-12h window lives.
+      geckoterminal  /networks/solana/pools (volume) and /new_pools (launches)
+      dexscreener    token-profiles, boosts, and search (SOL, pump), hydrated
+                     to the same shape. Used as a merged fallback, not a demo feed.
     """
     s = session or requests.Session()
+    _reset_last()
     out, seen = [], set()
 
-    def absorb(body: dict) -> None:
-        symbols = {i["id"]: i["attributes"].get("symbol", "?")
-                   for i in body.get("included", []) if i.get("type") == "token"}
-        for pool in body.get("data", []):
-            t = parse_pool(pool, symbols)
-            if not t or t["mint"] in seen:
-                continue
-            if SCAN["pump_only"] and t["dex"] not in SCAN["pump_dexes"]:
-                continue
-            seen.add(t["mint"])
-            out.append(t)
-
-    for path in ("/networks/solana/pools", "/networks/solana/new_pools"):
-        for page in range(1, SCAN["pages"] + 1):
-            r = _get(s, path, {"page": page, "include": "base_token,dex"})
-            if r is None:
-                break
-            absorb(r.json())
-
+    for t in _from_geckoterminal(s) + _from_dexscreener(s):
+        if t["mint"] in seen:
+            continue
+        seen.add(t["mint"])
+        out.append(t)
     return out
 
 

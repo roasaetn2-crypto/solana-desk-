@@ -43,3 +43,28 @@ Not changed: stop/size/daily-loss caps (`RISK`), scam kills (mint/freeze authori
 The old `desk/` repo is untouched. Old tests that pinned stale numbers (RiskEngine, take-half) were synced to the current config; 
 new tests: `tests/test_merge_best.py` (exits, compounding, entry confirm end-to-end with mocked network, autotune floors).
 Render free disk is ephemeral: `paper_ledger.json`, `autotune.json`, `desk.db` reset on every restart/redeploy/sleep.
+
+# Scanner fix (2026-11-11): GeckoTerminal 429s were silent, so Render saw 0 pools
+
+Root cause: `_get` in `desk/scanner.py` returned `None` after a 429 and `new_tokens()`
+just stopped, with no status code in the log. The agent then emitted
+"0 pools from geckoterminal" and incremented no error counter. GeckoTerminal
+allows ~10 calls/min; a cycle of 6 calls plus Render's Singapore IP being
+rate-limited (or blocked with 429) matches every cycle since the merge
+deploy returning nothing. Confirmed from this box: the same endpoints and
+headers return HTTP 200 with 20 pools/page, so the API shape itself is fine.
+
+What changed
+- `desk/scanner.py`: log every non-200 (status + reason, no secrets); honor
+  Retry-After; cap backoff at 15s so a 429 cannot stall a cycle for minutes;
+  60s cooldown on GeckoTerminal after a 429; User-Agent/Accept tightened.
+- DexScreener is a merged fallback (token-profiles/latest, token-boosts
+  latest+top, search `SOL` and `pump`), normalized to the same pool shape
+  via `parse_dex_pair`, deduped by mint (GeckoTerminal wins on a clash).
+  Existing `free_kill` filters, risk caps, PAPER-only and LIVE_DISABLED
+  are untouched.
+- `desk/solana_agent.py`: scan line now reports `gt=` / `ds=` counts and
+  emits each fetch warning into the event log.
+- `tests/test_scanner_sources.py`: 429/403 logging, merge+dedup, labels.
+- Cycle interval stays 30s. The 3–4 minute cycles on Render were the 20s+40s
+  429 sleeps; those are now capped, so the loop is effectively shorter.

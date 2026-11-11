@@ -216,8 +216,14 @@ class SolanaAgent:
         # rank by volume churn: the loudest pools first
         tokens.sort(key=lambda t: t["volume_h1"] / max(t["mcap_usd"], 1), reverse=True)
         chain_left, analyst_left = AGENT["chain_budget"], AGENT["analyst_budget"]
-        self.emit("scan", f"cycle {cycle}: {len(tokens)} pools from {source}",
-                  count=len(tokens), source=source)
+        counts = scanner.source_counts(tokens)
+        report = scanner.fetch_report()
+        self.emit("scan",
+                  f"cycle {cycle}: {len(tokens)} pools from {source} "
+                  f"(gt={counts['geckoterminal']} ds={counts['dexscreener']})",
+                  count=len(tokens), source=source, **counts)
+        for warning in report.get("warnings") or []:
+            self.emit("info", f"scanner: {warning}", stage="scanner")
 
         for t in tokens:
             try:
@@ -449,7 +455,7 @@ class SolanaAgent:
                 self.emit("error", f"scanner unavailable ({type(e).__name__}); "
                                    f"live mode will not substitute demo pools")
                 return [], "live-no-data"
-            return live, ("geckoterminal" if live else "geckoterminal-empty")
+            return live, (scanner.source_label(live) if live else "live-no-data")
         if force_demo:
             return scanner.demo_tokens(8, seed=self.cycle_no * 7919 + 13), "demo"
         try:
@@ -461,8 +467,9 @@ class SolanaAgent:
         if len(live) < 3 and AGENT["demo_when_empty"]:
             # top up with demo pools so the desk keeps exercising its rules
             demo = scanner.demo_tokens(5, seed=self.cycle_no * 7919 + 13)
-            return live + demo, ("geckoterminal+demo" if live else "demo")
-        return live, "geckoterminal"
+            label = scanner.source_label(live) if live else "demo"
+            return live + demo, (label + "+demo" if live else "demo")
+        return live, scanner.source_label(live)
 
     def _manage_positions(self):
         for mint in list(self.broker.s["positions"]):
