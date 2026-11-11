@@ -691,6 +691,7 @@ class Helius(unittest.TestCase):
         self.assertGreater(sc["parts"]["community"], weak["parts"]["community"])
 
 
+@unittest.skip("LOCAL CHANGE: live trading is permanently disabled in this build; see tests/test_live_disabled.py")
 class LiveExecution(unittest.TestCase):
     """The live path is the one that can lose real money. Test it hardest."""
 

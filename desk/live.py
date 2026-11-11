@@ -36,6 +36,12 @@ from desk.ops import killed
 
 LIVE_LEDGER = Path("live_ledger.json")
 
+# LOCAL CHANGE (see LOCAL_CHANGES.md): live trading is permanently disabled in
+# this checkout. No key is read, nothing is signed, nothing is sent on-chain.
+LIVE_DISABLED = True
+LIVE_DISABLED_MSG = ("LIVE TRADING IS DISABLED in this build (owner rule: the desk never "
+                     "holds a wallet key or signs/sends transactions). Paper only.")
+
 
 class LiveError(Exception):
     """Anything that should stop a live order. Never contains the key."""
@@ -43,6 +49,8 @@ class LiveError(Exception):
 
 # ---------- key handling: env only, never surfaced ----------
 def _key_material() -> str | None:
+    if LIVE_DISABLED:
+        return None  # never even look at the environment for a key
     raw = os.environ.get("SOLANA_PRIVATE_KEY", "").strip()
     return raw or None
 
@@ -81,6 +89,8 @@ def _key_bytes() -> bytes | None:
 
 
 def _keypair():
+    if LIVE_DISABLED:
+        raise LiveError(LIVE_DISABLED_MSG)
     try:
         from solders.keypair import Keypair  # lazy: paper mode must not need it
     except ImportError:
@@ -96,6 +106,8 @@ def _keypair():
 
 def ready() -> tuple[bool, str]:
     """Can this machine actually sign? Returns (ok, human reason)."""
+    if LIVE_DISABLED:
+        return False, LIVE_DISABLED_MSG
     if not _key_material():
         return False, "no SOLANA_PRIVATE_KEY set — live mode cannot arm"
     try:
@@ -191,6 +203,8 @@ class LiveBroker(PaperBroker):
         return q
 
     def _sign_and_send(self, quote: dict) -> str:
+        if LIVE_DISABLED:
+            raise LiveError(LIVE_DISABLED_MSG)
         kp = _keypair()
         r = self.http.post(
             f"{EXECUTION['jupiter_base']}/swap",
@@ -273,6 +287,8 @@ class LiveBroker(PaperBroker):
 
     # ---------- orders ----------
     def buy(self, mint: str, symbol: str, ticket_usd: float, price: float) -> dict:
+        if LIVE_DISABLED:
+            raise LiveError(LIVE_DISABLED_MSG)
         self._guard_buy(mint, ticket_usd)
         dec = self._decimals(mint)
         raw_in = int(round(ticket_usd * 10 ** 6))          # USDC has 6 decimals
@@ -296,6 +312,8 @@ class LiveBroker(PaperBroker):
                 "price_impact": q.get("priceImpactPct")}
 
     def sell(self, mint: str, fraction: float, price: float, reason: str) -> dict:
+        if LIVE_DISABLED:
+            raise LiveError(LIVE_DISABLED_MSG)
         p = self.s["positions"][mint]
         dec = self._decimals(mint)
         qty = p["qty"] * fraction

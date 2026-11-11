@@ -15,6 +15,8 @@ not change: it holds a broker, and the broker decides whether the fill is paper.
 """
 from __future__ import annotations
 
+import os
+
 import hashlib
 import random
 import threading
@@ -78,6 +80,8 @@ class SolanaAgent:
     @property
     def broker(self):
         """The active seat 5. Paper by default, live only after explicit arming."""
+        if live_mod.LIVE_DISABLED:  # LOCAL CHANGE
+            return self.paper
         return self.live if self.mode == "live" else self.paper
 
     def mode_info(self) -> dict:
@@ -107,6 +111,9 @@ class SolanaAgent:
             return {"ok": True, **self.mode_info()}
         if mode != "live":
             return {"ok": False, "error": "mode must be 'paper' or 'live'"}
+        if live_mod.LIVE_DISABLED:  # LOCAL CHANGE: live can never be armed
+            self.mode = "paper"
+            return {"ok": False, "error": live_mod.LIVE_DISABLED_MSG}
         if confirm != EXECUTION["live_confirm_phrase"]:
             return {"ok": False, "error": "confirmation phrase did not match — live not armed"}
         ok, why = live_mod.ready()
@@ -122,6 +129,12 @@ class SolanaAgent:
 
     # ---------- event log ----------
     def emit(self, kind: str, message: str, **data):
+        # LOCAL CHANGE: never show the RPC URL (it may embed an API key) in the UI log
+        for _sec in (os.environ.get("SOLANA_RPC_URL", ""), os.environ.get("HELIUS_API_KEY", "")):
+            if len(_sec) > 8:
+                message = message.replace(_sec, "***")
+                if "?" in _sec:
+                    message = message.replace(_sec.split("?", 1)[1], "***")
         ev = {"time": _now(), "kind": kind, "message": message, **data}
         with self.lock:
             self.events.appendleft(ev)
