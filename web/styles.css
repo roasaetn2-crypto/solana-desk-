@@ -328,12 +328,91 @@ tbody tr:hover { background: rgba(255,255,255,0.015); }
 .msg .head .arrow { color: var(--muted-2); }
 .msg .body { font-size: 11.5px; color: #cbd8e8; line-height: 1.45; }
 
-/* ---------- playbook + horizon ---------- */
-.playbook { width: 100%; border-radius: 10px; border: 1px solid var(--border); display: block; }
+/* ---------- hold horizon guide ---------- */
+.horizon-card {
+  background: linear-gradient(180deg, var(--panel-2), var(--bg-2));
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 14px 12px;
+}
+.horizon-kicker {
+  font-size: 10px; font-weight: 600; letter-spacing: .7px;
+  text-transform: uppercase; color: var(--muted-2); margin-bottom: 4px;
+}
+.horizon-title {
+  font-size: 14px; font-weight: 700; color: var(--cream);
+  letter-spacing: .1px; line-height: 1.35; margin: 0 0 12px;
+}
+.horizon-guide { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.horizon-guide li {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+  font-size: 12.5px; line-height: 1.35;
+}
+.horizon-guide li span { color: var(--muted); }
+.horizon-guide li b { font-weight: 650; text-align: right; font-size: 12.5px; }
+.hv-weekly { color: #7ad4ff; }
+.hv-fresh { color: var(--green); }
+.hv-scalp { color: var(--amber); }
+.hv-swing { color: var(--purple); }
+.horizon-note {
+  margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--border-soft);
+  font-size: 11.5px; color: var(--muted); line-height: 1.45;
+}
 .horizon { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
 .hrow { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; }
 .hrow span { color: var(--muted-2); text-transform: uppercase; letter-spacing: .5px; font-size: 9.5px; }
 .hrow b { font-family: var(--mono); font-weight: 600; color: var(--text); text-align: right; }
+
+/* ---------- FOMO buy + ticket charts ---------- */
+.btn-fomo {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--sans); font-size: 12px; font-weight: 700;
+  padding: 7px 12px; border-radius: 11px; text-decoration: none;
+  background: linear-gradient(180deg, #3ee87a, #00d35a 55%, #00b34c);
+  color: #04110b; border: 0; white-space: nowrap;
+}
+.btn-fomo:hover { box-shadow: 0 6px 18px rgba(46,229,157,0.3); }
+.btn-fomo[hidden] { display: none !important; }
+
+.buy-banner {
+  display: grid; grid-template-columns: 1fr auto; gap: 10px 14px;
+  align-items: center;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 12px 14px 14px;
+  margin-bottom: 12px;
+}
+.buy-banner .buy-banner-copy { min-width: 0; }
+.buy-banner .k { font-size: 10px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted-2); }
+.buy-banner .v { font-family: var(--mono); font-size: 16px; font-weight: 650; color: var(--cream); margin-top: 2px; }
+.buy-banner .ticket-chart { grid-column: 1 / -1; }
+.buy-banner[hidden] { display: none !important; }
+
+.pos-cards { display: flex; flex-direction: column; gap: 12px; }
+.pos-card {
+  background: var(--panel-2); border: 1px solid var(--border-soft);
+  border-radius: 14px; padding: 12px;
+}
+.pos-card .pos-head { display: flex; align-items: center; gap: 10px; }
+.pos-card .pos-head .sym { font-weight: 700; font-size: 15px; color: var(--cream); }
+.pos-card .pos-head .pnl { margin-left: auto; font-family: var(--mono); font-weight: 700; }
+.pos-card .pos-meta {
+  display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 8px 0 10px;
+  font-size: 11px; color: var(--muted);
+}
+.pos-card .pos-meta b { color: var(--text); font-family: var(--mono); font-weight: 600; }
+
+.tf-tabs { display: flex; gap: 4px; margin-bottom: 8px; }
+.tf-tabs button {
+  font-family: var(--sans); font-size: 11px; font-weight: 650;
+  padding: 4px 8px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--bg); color: var(--muted);
+}
+.tf-tabs button.on, .tf-tabs button[aria-selected="true"] {
+  background: var(--green-dim); color: var(--green); border-color: rgba(0,211,90,.35);
+}
+.candle-chart { width: 100%; height: 160px; display: block; border-radius: 8px; background: #0c0a12; }
+
+.thesis .btn-fomo { margin-top: 8px; }
 
 /* decisions table numeric cells */
 td .num { font-family: var(--mono); font-size: 12px; font-weight: 600; }
@@ -369,8 +448,11 @@ td .num.bad  { color: var(--red); }
   .bar-row { grid-template-columns: 62px minmax(0, 1fr) 30px; font-size: 10px; }
   .msg { grid-template-columns: 1fr; gap: 4px; }
   .msg .who { margin-bottom: 2px; }
-  .playbook { max-height: 220px; object-fit: contain; }
   .horizon .hrow { grid-template-columns: 1fr; gap: 2px; }
+  .horizon-guide li { flex-direction: column; gap: 2px; align-items: flex-start; }
+  .horizon-guide li b { text-align: left; }
+  .buy-banner { grid-template-columns: 1fr; }
+  .pos-card .pos-head { flex-wrap: wrap; }
   .meme-total b { font-size: 30px; }
 }
 
@@ -472,13 +554,9 @@ td .num.bad  { color: var(--red); }
 .cat-dock[data-mood="scan"] .mood-scan .frame-b { animation: glance-b 3.4s ease-in-out infinite; }
 .cat-dock[data-mood="scan"] .mood-scan .frame-blink { animation: blink-on 4.2s steps(1, end) infinite; }
 
-@keyframes idle-live {
-  0%, 100% { transform: translateY(0) rotate(0); }
-  28% { transform: translateY(-4px) rotate(0); }
-  56% { transform: translateY(0) rotate(0); }
-  74% { transform: translateY(-1px) rotate(-6deg); }
-  78% { transform: translateY(-1px) rotate(3deg); }
-  82% { transform: translateY(-2px) rotate(0); }
+@keyframes idle-sit {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
 }
 @keyframes scan-tilt {
   0%, 42% { transform: translateY(-3px) rotate(-5deg); }
@@ -521,7 +599,7 @@ td .num.bad  { color: var(--red); }
   100% { opacity: 0; transform: translateY(26px) scale(0.8); }
 }
 
-.cat-dock[data-mood="neutral"] .mascot { animation: idle-live 3.6s ease-in-out infinite; }
+.cat-dock[data-mood="neutral"] .mascot { animation: idle-sit 3.8s ease-in-out infinite; }
 .cat-dock[data-mood="scan"] .mascot { animation: scan-tilt 3.4s ease-in-out infinite; }
 .cat-dock[data-mood="sleep"] .mascot { animation: snooze 3.4s ease-in-out infinite; }
 .cat-dock[data-mood="sad"] .mascot { animation: droop 2.6s ease-in-out infinite; }

@@ -22,6 +22,7 @@ Endpoints
     GET  /logout               clears both cookies
     GET  /devices              list paired devices, revoke them
     GET  /api/state            full agent + broker + event snapshot
+    GET  /api/chart            OHLC for one ticket (query: mint, tf)
     GET  /api/devices          paired device list (JSON)
     DELETE /api/devices/{id}   revoke one device
     POST /api/agent/start      start the background loop
@@ -224,6 +225,11 @@ def state(request: Request):
         "paired_devices": devices.count(),
     }
     return JSONResponse(snap)
+
+
+@app.get("/api/chart")
+def chart(mint: str = "", tf: str = ""):
+    return agent.chart(mint, tf or None)
 
 
 @app.get("/api/health")

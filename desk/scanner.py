@@ -118,6 +118,8 @@ def reset_runtime() -> None:
     CALLS["dexscreener"] = 0
     CALLS["429"] = 0
     _reset_last()
+    from desk import chart
+    chart.reset()
 
 
 def _f(x) -> float:
@@ -659,6 +661,7 @@ def quote_many(mints: list[str], session: requests.Session | None = None) -> dic
         row = _QUOTE_CACHE.get(mint)
         if row and row["exp"] > now:
             out[mint] = row["q"]
+            _record_quote_tick(mint, row["q"])
             continue
         pairs = cached_raw_pairs(mint, now)
         if pairs:
@@ -666,6 +669,7 @@ def quote_many(mints: list[str], session: requests.Session | None = None) -> dic
             if q:
                 out[mint] = q
                 _QUOTE_CACHE[mint] = {"exp": now + SCAN_FETCH["quote_ttl_s"], "q": q}
+                _record_quote_tick(mint, q)
                 continue
         need.append(mint)
 
@@ -705,6 +709,7 @@ def quote_many(mints: list[str], session: requests.Session | None = None) -> dic
                 continue
             out[mint] = q
             _QUOTE_CACHE[mint] = {"exp": now + SCAN_FETCH["quote_ttl_s"], "q": q}
+            _record_quote_tick(mint, q)
     return out
 
 
@@ -725,6 +730,15 @@ def socials(mint: str, session: requests.Session | None = None) -> dict:
     sites = info.get("websites") or []
     return {"x": links.get("twitter"), "telegram": links.get("telegram"),
             "website": sites[0].get("url") if sites else None}
+
+
+
+def _record_quote_tick(mint: str, q: dict) -> None:
+    """Feed the ticket chart without an extra HTTP call."""
+    if not q:
+        return
+    from desk import chart
+    chart.record_tick(mint, q.get("price_usd"), q.get("volume_m5") or 0.0)
 
 
 def quote(mint: str, session: requests.Session | None = None) -> dict | None:

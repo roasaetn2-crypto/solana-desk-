@@ -493,12 +493,15 @@ solana-desk/
 │   ├── dialogue.py         seat-to-seat transcript (template or model)
 │   ├── devices.py          paired-device registry (hashed tokens)
 │   ├── ops.py              journal, bench, alerts, kill switch
+│   ├── links.py            FOMO URLs (always r=romsq, never shortened)
+│   ├── chart.py            ticket OHLC (ticks + cached GeckoTerminal)
 │   └── solana_agent.py     the autonomous Solana agent
 ├── web/
 │   ├── index.html          dashboard markup (7 seats + meme/dev/dialogue panels)
 │   ├── styles.css          dark trading-desk design system
 │   ├── app.js              live 2s polling, controls, pipeline viz
-│   └── assets/timeframe.jpg  the hold-horizon playbook image
+│   ├── assets/cat/          anime cat poses (idle sits and blinks)
+│   └── assets/              icons
 └── tests/
     └── test_desk.py        95 offline tests
 ```

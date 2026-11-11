@@ -60,6 +60,117 @@ function shorten(msg, n = 72) {
   return t.length > n ? t.slice(0, n - 1) + "\u2026" : t;
 }
 
+function fomoBtn(url, label) {
+  if (!url) return "";
+  return `<a class="btn-fomo" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${label || "Buy on FOMO"}</a>`;
+}
+
+const chartCache = new Map(); // mint|tf -> payload
+const chartTf = {};            // mint -> selected tf
+
+function tabsHtml(mint, tabs, current) {
+  const list = tabs && tabs.length ? tabs : ["15s", "30s"];
+  const on = current || list[0];
+  return list.map((t) =>
+    `<button type="button" data-mint="${esc(mint)}" data-tf="${esc(t)}" ${t === on ? 'aria-selected="true" class="on"' : ""}>${esc(t)}</button>`
+  ).join("");
+}
+
+function drawCandles(canvas, data) {
+  if (!canvas || !canvas.getContext) return;
+  const ctx = canvas.getContext("2d");
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "#0c0a12";
+  ctx.fillRect(0, 0, w, h);
+  const candles = (data && data.candles) || [];
+  if (!candles.length) {
+    ctx.fillStyle = "#7a6e86";
+    ctx.font = "16px sans-serif";
+    ctx.fillText("Waiting for candles\u2026", 16, h / 2);
+    return;
+  }
+  const padL = 8, padR = 8, padT = 10, volH = Math.floor(h * 0.22), gap = 6;
+  const plotH = h - padT - volH - gap - 8;
+  const plotW = w - padL - padR;
+  let lo = Math.min(...candles.map((c) => c.l));
+  let hi = Math.max(...candles.map((c) => c.h));
+  const entry = data.entry != null ? Number(data.entry) : null;
+  if (entry && Number.isFinite(entry)) { lo = Math.min(lo, entry); hi = Math.max(hi, entry); }
+  if (hi === lo) { hi = lo * 1.01 || 1; }
+  const maxV = Math.max(...candles.map((c) => c.v || 0), 1e-9);
+  const slot = plotW / candles.length;
+  const bodyW = Math.max(2, slot * 0.62);
+  const y = (px) => padT + (1 - (px - lo) / (hi - lo)) * plotH;
+  // entry line
+  if (entry && Number.isFinite(entry)) {
+    const ey = y(entry);
+    ctx.strokeStyle = "rgba(244,240,230,.55)";
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath(); ctx.moveTo(padL, ey); ctx.lineTo(w - padR, ey); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "rgba(244,240,230,.8)";
+    ctx.font = "11px sans-serif";
+    ctx.fillText("entry", w - padR - 36, Math.max(12, ey - 4));
+  }
+  candles.forEach((c, i) => {
+    const up = c.c >= c.o;
+    const color = up ? "#00d35a" : "#ff453a";
+    const x = padL + i * slot + slot / 2;
+    ctx.strokeStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x, y(c.h));
+    ctx.lineTo(x, y(c.l));
+    ctx.stroke();
+    const top = y(Math.max(c.o, c.c));
+    const bot = y(Math.min(c.o, c.c));
+    const bh = Math.max(1, bot - top);
+    ctx.fillStyle = color;
+    ctx.fillRect(x - bodyW / 2, top, bodyW, bh);
+    const vh = ((c.v || 0) / maxV) * (volH - 2);
+    ctx.globalAlpha = 0.45;
+    ctx.fillRect(x - bodyW / 2, h - 6 - vh, bodyW, vh);
+    ctx.globalAlpha = 1;
+  });
+}
+
+async function loadChart(mint, tf, canvas, tabsEl) {
+  if (!mint || !canvas) return;
+  const want = tf || chartTf[mint] || "";
+  const key = mint + "|" + want;
+  let data = chartCache.get(key);
+  const stale = !data || (Date.now() - (data._at || 0) > 25000);
+  if (stale) {
+    try {
+      const q = "/api/chart?mint=" + encodeURIComponent(mint) + (want ? "&tf=" + encodeURIComponent(want) : "");
+      const res = await api(q);
+      res._at = Date.now();
+      chartCache.set(mint + "|" + (res.tf || want), res);
+      data = res;
+    } catch (e) {
+      data = data || { candles: [], tf: want, tabs: [] };
+    }
+  }
+  if (data && data.tf) chartTf[mint] = data.tf;
+  if (tabsEl) tabsEl.innerHTML = tabsHtml(mint, data.tabs, data.tf);
+  drawCandles(canvas, data);
+}
+
+function bindChartTabs(root) {
+  if (!root) return;
+  root.querySelectorAll(".tf-tabs button").forEach((btn) => {
+    btn.onclick = () => {
+      const mint = btn.dataset.mint;
+      const tf = btn.dataset.tf;
+      chartTf[mint] = tf;
+      chartCache.delete(mint + "|" + tf); // refresh this tab
+      const card = btn.closest(".pos-card, .buy-banner, .ticket-chart") || root;
+      const canvas = card.querySelector("canvas.candle-chart");
+      loadChart(mint, tf, canvas, btn.parentElement);
+    };
+  });
+}
+
 function renderCat(s) {
   const dock = $("catDock");
   if (!dock) return;
@@ -72,7 +183,7 @@ function renderCat(s) {
       catReactUntil = now + CAT_REACT_MS;
     }
   }
-  let mood = s.running ? "scan" : (s.cycle ? "neutral" : "sleep");
+  let mood = s.running ? "scan" : "neutral";
   if (now < catReactUntil && ev) {
     if (ev.kind === "entry") mood = "happy";
     else if (ev.kind === "exit") {
@@ -96,8 +207,7 @@ function renderCat(s) {
   const text = $("catSpeechText");
   if (!bubble || !text) return;
   let line = "";
-  if (mood === "sleep") line = "Zzz\u2026 tap Start to wake me.";
-  else if (mood === "neutral") line = "Paused. I'll wait here.";
+  if (mood === "neutral") line = s.running ? "I'll wait here." : (s.cycle ? "Paused. I'll wait here." : "Tap Start when you're ready.");
   else if (mood === "happy") line = ev && ev.message ? ev.message : "Nice one!";
   else if (mood === "sad") line = ev && ev.message ? ev.message : "That one stung.";
   else if (ev && ev.message) line = ev.message;
@@ -276,24 +386,63 @@ function render(s) {
   $("cfgStop").textContent = "-" + Math.round((cfg.stop_pct ?? 0.35) * 100) + "%";
   $("cfgTake").textContent = (cfg.take_half_at ?? 2).toFixed(1) + "x";
 
-  // positions
+  // latest paper buy banner
+  const latestBuy = s.latest_buy || null;
+  const banner = $("buyBanner");
+  if (banner) {
+    if (latestBuy && latestBuy.mint) {
+      banner.hidden = false;
+      $("buyBannerText").textContent = "$" + (latestBuy.symbol || "") +
+        (latestBuy.ticket_usd != null ? " \u2014 " + fmtMoney(latestBuy.ticket_usd) : "");
+      const link = $("buyBannerLink");
+      if (latestBuy.fomo_url) { link.href = latestBuy.fomo_url; link.hidden = false; }
+      else { link.removeAttribute("href"); link.hidden = true; }
+      const tabs = latestBuy.chart_tabs || ["15s", "30s"];
+      const tf = chartTf[latestBuy.mint] || tabs[0];
+      $("buyBannerTabs").innerHTML = tabsHtml(latestBuy.mint, tabs, tf);
+      $("buyBannerTabs").dataset.mint = latestBuy.mint;
+      bindChartTabs(banner);
+      loadChart(latestBuy.mint, tf, $("buyBannerChart"), $("buyBannerTabs"));
+    } else {
+      banner.hidden = true;
+    }
+  }
+
+  // positions (cards: chart + Buy on FOMO)
   const pos = b.positions || [];
   $("posBadge").textContent = pos.length;
-  const pb = $("posBody");
-  if (!pos.length) {
-    pb.innerHTML = '<tr><td colspan="6" class="empty">No open positions. Start the agent.</td></tr>';
-  } else {
-    pb.innerHTML = pos.map((p) => {
-      const cls = p.pnl_pct > 0 ? "pos" : p.pnl_pct < 0 ? "neg" : "";
-      return `<tr>
-        <td><span class="sym">${esc(p.symbol)}</span></td>
-        <td>${priceFmt(p.entry)}</td>
-        <td>${priceFmt(p.last)}</td>
-        <td class="${cls}">${fmtPct(p.pnl_pct)}</td>
-        <td>${fmtMoney(p.cost)}</td>
-        <td>${heldFor(p.opened)}</td>
-      </tr>`;
-    }).join("");
+  const pb = $("posCards");
+  if (pb) {
+    if (!pos.length) {
+      pb.innerHTML = '<div class="empty">No open positions. Start the agent.</div>';
+    } else {
+      pb.innerHTML = pos.map((p) => {
+        const cls = p.pnl_pct > 0 ? "pos" : p.pnl_pct < 0 ? "neg" : "";
+        const tabs = p.chart_tabs || ["15s", "30s"];
+        const tf = chartTf[p.mint] || tabs[0];
+        return `<article class="pos-card" data-mint="${esc(p.mint)}">
+          <div class="pos-head">
+            <span class="sym">${esc(p.symbol)}</span>
+            <span class="pnl ${cls}">${fmtPct(p.pnl_pct)}</span>
+            ${fomoBtn(p.fomo_url)}
+          </div>
+          <div class="pos-meta">
+            <span>Entry <b>${priceFmt(p.entry)}</b></span>
+            <span>Last <b>${priceFmt(p.last)}</b></span>
+            <span>Cost <b>${fmtMoney(p.cost)}</b></span>
+            <span>Held <b>${heldFor(p.opened)}</b></span>
+          </div>
+          <div class="tf-tabs">${tabsHtml(p.mint, tabs, tf)}</div>
+          <canvas class="candle-chart" width="640" height="220"></canvas>
+        </article>`;
+      }).join("");
+      bindChartTabs(pb);
+      pos.forEach((p) => {
+        const card = pb.querySelector('.pos-card[data-mint="' + CSS.escape(p.mint) + '"]');
+        if (!card) return;
+        loadChart(p.mint, chartTf[p.mint], card.querySelector("canvas"), card.querySelector(".tf-tabs"));
+      });
+    }
   }
 
   // decisions
@@ -319,7 +468,7 @@ function render(s) {
         <td>${d.thesis ? d.thesis.score : "—"}</td>
         <td>${memeCell}</td>
         <td>${devCell}</td>
-        <td>${d.approved ? fmtMoney(d.ticket_usd) : "—"}</td>
+        <td>${d.approved ? fmtMoney(d.ticket_usd) + " " + fomoBtn(d.fomo_url) : "—"}</td>
         <td class="muted" style="font-family:var(--sans);font-size:11.5px">${esc(d.reason || "")} <span class="tag ${d.source === "demo" ? "demo" : "live"}">${esc(d.source || "—")}</span></td>
       </tr>`;
     }).join("");
@@ -363,7 +512,8 @@ function render(s) {
           <span class="score ${sc}">${t.score}/10</span>
         </div>
         <div class="flags">${flags || '<div class="flag">no flags</div>'}</div>
-        ${d.approved ? `<div style="margin-top:9px">${bar("risk", sizes.by_risk)}${bar("size", sizes.by_size)}${bar("pool", sizes.by_pool)}</div>` : ""}
+        ${d.approved ? `<div style="margin-top:9px">${bar("risk", sizes.by_risk)}${bar("size", sizes.by_size)}${bar("pool", sizes.by_pool)}</div>
+          ${fomoBtn(d.fomo_url)}` : ""}
         <div class="foot">shape: ${esc(t.shape)} · src: ${esc(d.source || "—")} · ${timeOf(d.time)}</div>
       </div>`;
     }).join("");

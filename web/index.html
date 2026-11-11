@@ -17,7 +17,7 @@
 <body class="desk-page">
   <header class="topbar">
     <div class="brand">
-      <div class="cat-dock" id="catDock" data-mood="sleep">
+      <div class="cat-dock" id="catDock" data-mood="neutral">
                         <div class="mascot-wrap" aria-hidden="true">
           <div class="mascot">
             <div class="mood mood-neutral">
@@ -185,10 +185,16 @@
       <div class="panel">
         <div class="panel-head"><span class="icon">📐</span><h2>Hold horizon</h2><span class="badge" id="horizonBadge">—</span></div>
         <div class="panel-body">
-          <img class="playbook" src="/static/assets/timeframe.jpg" alt="Match your timeframe to how long you hold" />
-          <div class="tiny muted" style="margin-top:10px">
-            A fresh launch is not traded on a weekly chart. The desk states the horizon
-            before it sizes a ticket.
+          <div class="horizon-card">
+            <div class="horizon-kicker">Timeframe guide</div>
+            <h3 class="horizon-title">Match your timeframe to how long you hold</h3>
+            <ul class="horizon-guide">
+              <li><span>Long hold</span><b class="hv-weekly">High timeframe (weekly)</b></li>
+              <li><span>Fresh memecoin</span><b class="hv-fresh">Low timeframe</b></li>
+              <li><span>Out in 10 minutes</span><b class="hv-scalp">15s or 30s chart</b></li>
+              <li><span>Out in a couple of days</span><b class="hv-swing">15m, 1H or 4H chart</b></li>
+            </ul>
+            <p class="horizon-note">Lines are only drawn once the price has built up memory (60+ candles).</p>
           </div>
           <div class="horizon" id="horizon">
             <div class="hrow"><span>Hold</span><b id="hHold">—</b></div>
@@ -220,13 +226,22 @@
         </div>
       </div>
 
+      <div class="buy-banner" id="buyBanner" hidden>
+        <div class="buy-banner-copy">
+          <div class="k">Latest paper buy</div>
+          <div class="v" id="buyBannerText">—</div>
+        </div>
+        <div class="ticket-chart" data-role="latest">
+          <div class="tf-tabs" id="buyBannerTabs"></div>
+          <canvas class="candle-chart" id="buyBannerChart" width="640" height="220"></canvas>
+        </div>
+        <a class="btn-fomo" id="buyBannerLink" target="_blank" rel="noopener noreferrer" hidden>Buy on FOMO</a>
+      </div>
+
       <div class="panel">
         <div class="panel-head"><span class="icon">💼</span><h2>Open positions</h2><span class="badge" id="posBadge">0</span></div>
         <div class="panel-body" style="padding: 12px 10px">
-          <table>
-            <thead><tr><th>Symbol</th><th>Entry</th><th>Last</th><th>P&amp;L</th><th>Cost</th><th>Held</th></tr></thead>
-            <tbody id="posBody"><tr><td colspan="6" class="empty">No open positions. Start the agent.</td></tr></tbody>
-          </table>
+          <div class="pos-cards" id="posCards"><div class="empty">No open positions. Start the agent.</div></div>
         </div>
       </div>
 

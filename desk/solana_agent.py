@@ -29,6 +29,8 @@ import requests
 from config import AGENT, ENTRY, EXECUTION, RISK
 from desk import (analyst, brain, chain, dexscreener, devcheck, dialogue, exits, helius,
                   meme, scanner)
+from desk import chart as candle_chart
+from desk import links as fomo_links
 from desk.autotune import AutoTune
 from desk import live as live_mod
 from desk.broker import PaperBroker
@@ -500,9 +502,57 @@ class SolanaAgent:
                           **fill)
 
     # ---------- read-only views for the dashboard ----------
+    def chart(self, mint: str, tf: str | None = None) -> dict:
+        """OHLC for one ticket. View-only; uses cached ticks / rate-limited OHLCV."""
+        if not mint:
+            return {"mint": "", "tf": tf or "15s", "tabs": ["15s", "30s"],
+                    "candles": [], "source": "none", "fallback": False, "entry": None}
+        with self.lock:
+            pos = self.broker.s["positions"].get(mint) or {}
+            tok = self.tokens_seen.get(mint) or {}
+            entry = pos.get("entry")
+            horizon = pos.get("horizon")
+            age_h = (float(tok["age_minutes"]) / 60.0
+                     if tok.get("age_minutes") is not None else None)
+            session = self.session
+        return candle_chart.series(
+            mint, tf, horizon=horizon, age_hours=age_h, entry=entry, session=session)
+
     def status(self) -> dict:
         import config
         with self.lock:
+            broker = self.broker.snapshot()
+            seen = self.tokens_seen
+            positions = []
+            for p in broker.get("positions") or []:
+                row = fomo_links.with_url(p)
+                tok = seen.get(row.get("mint") or "") or {}
+                age_h = None
+                if tok.get("age_minutes") is not None:
+                    age_h = float(tok["age_minutes"]) / 60.0
+                row["chart_tabs"] = candle_chart.tabs_for(
+                    horizon=row.get("horizon"), age_hours=age_h)
+                row["age_hours"] = age_h
+                positions.append(row)
+            broker["positions"] = positions
+            decisions = [fomo_links.with_url(dict(d)) for d in list(self.decisions)[:40]]
+            latest_buy = None
+            for ev in self.events:
+                if ev.get("kind") == "entry" and ev.get("mint"):
+                    tok = seen.get(ev["mint"]) or {}
+                    age_h = (float(tok["age_minutes"]) / 60.0
+                             if tok.get("age_minutes") is not None else None)
+                    latest_buy = fomo_links.with_url({
+                        "symbol": ev.get("symbol"),
+                        "mint": ev["mint"],
+                        "ticket_usd": ev.get("ticket_usd"),
+                        "fill": ev.get("fill"),
+                        "score": ev.get("score"),
+                        "message": ev.get("message"),
+                        "time": ev.get("time"),
+                        "chart_tabs": candle_chart.tabs_for(age_hours=age_h),
+                    })
+                    break
             return {
                 "running": self.running,
                 "cycle": self.cycle_no,
@@ -514,9 +564,10 @@ class SolanaAgent:
                 "execution": self.mode_info(),
                 "stats": dict(self.stats),
                 "autotune": self.autotune.snapshot(),
-                "broker": self.broker.snapshot(),
+                "broker": broker,
+                "latest_buy": latest_buy,
                 "events": list(self.events)[:120],
-                "decisions": list(self.decisions)[:40],
+                "decisions": decisions,
                 "transcripts": list(self.transcripts)[:12],
                 "config": {
                     "min_score": config.MIN_SCORE,
