@@ -70,6 +70,7 @@ class Base(unittest.TestCase):
         os.environ.pop("OPENROUTER_API_KEY", None)
         self.adv = ba.Advisor()
         self.lines = []
+        self.addCleanup(self.adv._pool.shutdown, wait=True, cancel_futures=True)
 
     def run_review(self, net, mint="M1", adv=None):
         with mock.patch.object(ba.requests, "post", net):
@@ -195,9 +196,16 @@ class Opinions(Base):
                 if len(done) == 2:
                     break
                 time.sleep(0.05)
-        self.assertEqual(len(done), 2)
-        self.adv.new_cycle()
-        self.assertEqual(self.adv.submit("M9", SUMMARY, done.append), "queued" if self.adv.enabled() else "")
+            self.assertEqual(len(done), 2)
+            self.adv.new_cycle()
+            # Keep the post mock in place and wait; a leftover worker must not
+            # leak into the next test and steal its scripted HTTP replies.
+            self.assertEqual(self.adv.submit("M9", SUMMARY, done.append), "queued" if self.adv.enabled() else "")
+            for _ in range(50):
+                if len(done) == 3:
+                    break
+                time.sleep(0.05)
+            self.assertEqual(len(done), 3)
 
 
 def requests_timeout():

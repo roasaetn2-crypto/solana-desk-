@@ -6,7 +6,9 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import isolate_env  # noqa: E402,F401  # drop live CoinGecko key (unittest does not load conftest)
 from desk import chart, scanner
 from test_scanner_sources import FakeResp
 
