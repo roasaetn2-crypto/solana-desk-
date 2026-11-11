@@ -45,12 +45,13 @@ def groq(text):
 class Net:
     """Scripted per-provider replies; records every call (url, headers, body)."""
 
-    def __init__(self, gemini=(), groq_=()):
-        self.q = {"gemini": list(gemini), "groq": list(groq_)}
+    def __init__(self, gemini=(), groq_=(), orr=()):
+        self.q = {"gemini": list(gemini), "groq": list(groq_), "openrouter": list(orr)}
         self.calls = []
 
     def __call__(self, url, headers=None, json=None, timeout=None):
-        who = "gemini" if "generativelanguage" in url else "groq"
+        who = ("gemini" if "generativelanguage" in url else
+               "openrouter" if "openrouter.ai" in url else "groq")
         self.calls.append((who, url, headers, json, timeout))
         item = self.q[who].pop(0) if self.q[who] else Resp(500, text="script exhausted")
         if isinstance(item, Exception):
@@ -66,6 +67,7 @@ class Base(unittest.TestCase):
         self.env = mock.patch.dict(os.environ, {"GEMINI_API_KEY": GKEY, "GROQ_API_KEY": QKEY})
         self.env.start()
         self.addCleanup(self.env.stop)
+        os.environ.pop("OPENROUTER_API_KEY", None)
         self.adv = ba.Advisor()
         self.lines = []
 
@@ -271,6 +273,99 @@ class Debate(Base):
         self.assertEqual(r["final"]["verdict"], "skip")
         self.assertEqual(r["final"]["agree"], 1) if r["final"]["votes"]["gemini"] != "skip" else None
         self.assertEqual(r["verdict"], "skip")
+
+
+ORKEY = "sk-or-v1-FAKEOPENROUTERKEY123456"
+
+
+class OpenRouterProvider(Base):
+    def setUp(self):
+        super().setUp()
+        os.environ.pop("GROQ_API_KEY")                  # Romz's setup: Gemini + OpenRouter
+        os.environ["OPENROUTER_API_KEY"] = ORKEY
+
+    def test_gemini_plus_openrouter_pair_and_debate(self):
+        net = Net(gemini=[gem(opinion("watch", 62, ("liquidity thin but volume real",))),
+                          gem(chat("fine, skip", "skip"))],
+                  orr=[groq(opinion("skip", 70, ("dev holds 18%",))),
+                       groq(chat("dev holds 18%, that's a rug setup, skip", "skip")),
+                       groq(chat("skip", "skip"))])
+        r = self.run_review(net)
+        self.assertEqual(r["providers"], ["gemini", "openrouter"])
+        self.assertEqual((net.n("gemini"), net.n("openrouter"), net.n("groq")), (2, 3, 0))
+        self.assertIn("brain: $SYM split (gemini watch / openrouter skip)", self.lines)
+        self.assertIn("\U0001F4AC openrouter: dev holds 18%, that's a rug setup, skip", self.lines)
+        self.assertEqual(self.lines[-1], "brain final: $SYM skip (2/2)")
+        self.assertEqual(r["final"]["votes"], {"gemini": "skip", "openrouter": "skip"})
+        who, url, headers, body, timeout = [c for c in net.calls if c[0] == "openrouter"][0]
+        self.assertEqual(url, "https://openrouter.ai/api/v1/chat/completions")
+        self.assertEqual(headers["Authorization"], "Bearer " + ORKEY)
+        self.assertTrue(body["model"].endswith(":free"))
+        self.assertEqual(body["model"], ba.OPENROUTER_MODELS[0])
+        self.assertLessEqual(timeout, 8)
+        self.assertEqual(self.adv.openrouter.snapshot()["used_today"], 3)
+        self.assertEqual(r["opinions"]["openrouter"]["model"], ba.OPENROUTER_MODELS[0])
+
+    def test_first_two_in_order_gemini_groq_openrouter(self):
+        os.environ["GROQ_API_KEY"] = QKEY
+        net = Net(gemini=[gem(opinion("skip", 60))], groq_=[groq(opinion("skip", 60))],
+                  orr=[groq(opinion("buy", 90))])
+        r = self.run_review(net)
+        self.assertEqual(r["providers"], ["gemini", "groq"])
+        self.assertEqual(net.n("openrouter"), 0)
+        # gemini cooling: groq + openrouter step in
+        self.adv.gemini.cool(600)
+        net2 = Net(groq_=[groq(opinion("skip", 60))], orr=[groq(opinion("skip", 50))])
+        r2 = self.run_review(net2, mint="M2")
+        self.assertEqual(r2["providers"], ["groq", "openrouter"])
+        self.assertEqual(net2.n("gemini"), 0)
+
+    def test_openrouter_falls_back_to_next_free_model(self):
+        os.environ.pop("GEMINI_API_KEY")
+        net = Net(orr=[Resp(404, text="No endpoints found"), groq(opinion("watch", 40))])
+        r = self.run_review(net)
+        models = [c[3]["model"] for c in net.calls]
+        self.assertEqual(models, ba.OPENROUTER_MODELS[:2])
+        self.assertEqual(r["opinions"]["openrouter"]["model"], ba.OPENROUTER_MODELS[1])
+        self.assertTrue(all(m.endswith(":free") for m in ba.OPENROUTER_MODELS))
+        self.assertGreaterEqual(len(ba.OPENROUTER_MODELS), 3)
+
+    def test_openrouter_429_cools_and_gemini_stands_alone(self):
+        net = Net(gemini=[gem(opinion("watch", 55))], orr=[Resp(429, headers={"Retry-After": "60"})])
+        r = self.run_review(net)
+        self.assertEqual((r["source"], net.n("openrouter")), ("gemini", 1))   # no model hopping on 429
+        self.assertGreaterEqual(self.adv.openrouter.snapshot()["cooldown_s"], 30)
+        self.assertFalse(self.adv.openrouter.available())
+
+    def test_openrouter_daily_budget(self):
+        self.assertEqual(self.adv.openrouter.budget, 45)
+        os.environ.pop("GEMINI_API_KEY")
+        net = Net(orr=[groq(opinion()) for _ in range(60)])
+        for i in range(50):
+            self.run_review(net, mint=f"M{i}")
+        self.assertEqual(net.n("openrouter"), 45)
+        self.assertFalse(self.adv.openrouter.available())
+
+    def test_no_debate_when_openrouter_budget_under_10(self):
+        self.adv.openrouter.used = 45 - 10      # exactly 10 left; one opinion call leaves 9
+        net = Net(gemini=[gem(opinion("watch", 62))], orr=[groq(opinion("skip", 70))])
+        r = self.run_review(net)
+        self.assertEqual(r["agreement"], "split")
+        self.assertNotIn("debate", r)
+        self.assertEqual((net.n("gemini"), net.n("openrouter")), (1, 1))
+
+    def test_model_override_env(self):
+        with mock.patch.dict(os.environ, {"BRAIN_OPENROUTER_MODEL": "google/gemma-4-31b-it:free"}):
+            ms = ba.openrouter_models()
+        self.assertEqual(ms[0], "google/gemma-4-31b-it:free")
+        self.assertEqual(len(ms), len(set(ms)))
+        self.assertEqual(ba.openrouter_models("")[0], "nvidia/nemotron-3-ultra-550b-a55b:free")
+
+    def test_openrouter_key_never_leaks(self):
+        net = Net(gemini=[Resp(500, text="x")], orr=[Resp(401, text=f"bad Bearer {ORKEY}")])
+        self.run_review(net)
+        self.assertNotIn(ORKEY, "\n".join(self.lines))
+        self.assertNotIn(ORKEY, ba.redact(f"token {ORKEY}"))
 
 
 class Advisory(unittest.TestCase):
