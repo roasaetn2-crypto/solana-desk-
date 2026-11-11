@@ -287,7 +287,16 @@ def health():
             "reconnects": pp["reconnects"],
             "error": pp.get("error"),
         },
+        "ai": _ai_health(),
     }
+
+
+def _ai_health() -> dict:
+    try:
+        from desk import desk_chat
+        return desk_chat.health()
+    except Exception as e:  # health must never fail
+        return {"error": type(e).__name__}
 
 
 @app.get("/api/ai/status")

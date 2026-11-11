@@ -56,10 +56,20 @@
 
   async function status() {
     try {
-      const r = await fetch("/api/ai/status");
+      const r = await fetch("/api/ai/status", { cache: "no-store" });
+      if (r.status === 401) {
+        pill.classList.add("off");
+        pillText.textContent = "sign in again · PAPER";
+        return;
+      }
       const s = await r.json();
-      pill.classList.toggle("off", !s.enabled);
-      pillText.textContent = s.enabled ? "online · PAPER" : "AI keys not set · PAPER";
+      const state = s.state || (s.enabled ? "online" : "no_keys");
+      pill.classList.toggle("off", state !== "online");
+      if (state === "online") pillText.textContent = "online · PAPER";
+      else if (state === "busy") {
+        const errs = Object.entries(s.errors || {}).filter(([, v]) => v).map(([k, v]) => k + ": " + v);
+        pillText.textContent = "AI busy / limited" + (errs.length ? " (" + errs.join(", ") + ")" : "") + " · PAPER";
+      } else pillText.textContent = "AI keys not set · PAPER";
     } catch (e) {
       pill.classList.add("off");
       pillText.textContent = "offline · PAPER";

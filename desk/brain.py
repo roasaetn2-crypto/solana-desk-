@@ -52,12 +52,12 @@ PROVIDERS: dict[str, Provider] = {
         "free tier, extremely fast, generous rate limit",
     ),
     "gemini": Provider(
-        "gemini", "Google Gemini", os.getenv("GEMINI_MODEL", "gemini-2.0-flash"),
+        "gemini", "Google Gemini", os.getenv("GEMINI_MODEL", "gemini-3.6-flash"),
         "GEMINI_API_KEY", True,
         "free tier, good at structured output",
     ),
     "openrouter": Provider(
-        "openrouter", "OpenRouter", os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free"),
+        "openrouter", "OpenRouter", os.getenv("OPENROUTER_MODEL", "nvidia/nemotron-3.5-super-vl:free"),
         "OPENROUTER_API_KEY", True,
         "free models with a ':free' suffix, one key for many models",
     ),

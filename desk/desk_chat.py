@@ -241,12 +241,41 @@ def answer(question: str, state: dict, history=None) -> dict:
             continue
         return {"ok": True, "reply": scrub(out["reply"]), "agents": out["agents"],
                 "provider": p.name, "model": getattr(p, "last_model", None) or p.model, "source": "ai"}
-    msg = ("The AI models are busy or out of free calls right now. Try again in a few minutes."
-           if last_err else "All AI models are cooling down. Try again in a few minutes.")
-    return {"ok": True, "reply": msg, "agents": [], "provider": None, "source": "unavailable",
-            "detail": scrub(last_err or "")[:120]}
+    return {"ok": True, "reply": busy_message(), "agents": [], "provider": None, "source": "unavailable",
+            "detail": scrub(last_err or "")[:120], "errors": _error_classes()}
+
+
+def _error_classes() -> dict:
+    """{provider: error class} for keyed providers, e.g. {"gemini": "rate_limited"}."""
+    out = {}
+    for p in ADVISOR.providers():
+        if not p.key():
+            continue
+        h = p.health()
+        out[p.name] = h["last_error"] or ("cooling" if h["cooling_s"] else
+                                          "over_budget" if h["used_today"] >= h["budget"] else None)
+    return out
+
+
+def busy_message() -> str:
+    errs = ", ".join(f"{k}: {v}" for k, v in _error_classes().items() if v)
+    return ("AI busy / limited right now" + (f" ({errs})" if errs else "")
+            + ". Keys are set; try again in a few minutes. The desk keeps paper trading without me.")
+
+
+def chat_enabled() -> bool:
+    return has_keys() and bool(_providers())
+
+
+def health() -> dict:
+    """Public /api/health block: no key values, lengths or prefixes."""
+    return {"chat_enabled": chat_enabled(), "keys_present": has_keys(), **ADVISOR.health()}
 
 
 def status() -> dict:
-    return {"enabled": has_keys(), "limits": LIMITER.snapshot(),
+    keyed = has_keys()
+    ready = chat_enabled()
+    return {"enabled": keyed, "keys_present": keyed, "available": ready,
+            "state": "online" if ready else ("busy" if keyed else "no_keys"),
+            "errors": _error_classes(), "limits": LIMITER.snapshot(),
             "providers": [p.name for p in ADVISOR.providers() if p.key()]}

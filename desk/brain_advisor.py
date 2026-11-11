@@ -31,6 +31,9 @@ from typing import Callable
 import requests
 
 GEMINI_MODEL = os.getenv("BRAIN_GEMINI_MODEL", "gemini-3.6-flash")
+# Checked against generativelanguage.googleapis.com/v1beta/models (generateContent) on 2026-11-12.
+# gemini-2.5-flash is closed to new keys (404); "-latest" aliases 503 under load.
+GEMINI_FALLBACKS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite"]
 GROQ_MODEL = os.getenv("BRAIN_GROQ_MODEL", "openai/gpt-oss-120b")
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -48,6 +51,15 @@ def openrouter_models(primary: str | None = None) -> list[str]:
 
 
 OPENROUTER_MODELS = openrouter_models()
+
+
+def gemini_models(primary: str | None = None) -> list[str]:
+    """BRAIN_GEMINI_MODEL first, then the verified fallbacks."""
+    primary = (primary if primary is not None else GEMINI_MODEL).strip()
+    return ([primary] if primary else []) + [m for m in GEMINI_FALLBACKS if m != primary]
+
+
+GEMINI_MODELS = gemini_models()
 
 TIMEOUT_S = 8.0                 # per HTTP call
 DEADLINE_S = 40.0               # whole review incl. debate
@@ -184,6 +196,9 @@ class Provider:
         self.day = _day()
         self.used = 0
         self.errors = 0
+        self.last_error: str | None = None   # error class only, never text from the provider
+        self.last_error_at = 0.0
+        self.last_ok_at = 0.0
         self.lock = threading.Lock()
 
     def key(self) -> str:
@@ -219,6 +234,9 @@ class Provider:
         with self.lock:
             self.cooldown_until = time.time() + s
 
+    def _fail(self, cls: str):
+        self.last_error, self.last_error_at = cls, time.time()
+
     def call(self, system: str, user: str, max_tokens: int = 700) -> str:
         """One model call. Raises ProviderError; sets the cooldown on a 429."""
         if not self.reserve():
@@ -228,26 +246,47 @@ class Provider:
             resp = self._post(system, user, max_tokens)
         except requests.Timeout:
             self.errors += 1
+            self._fail("timeout")
             raise ProviderError(f"{self.name} timeout")
         except requests.RequestException as e:
             self.errors += 1
+            self._fail("network")
             raise ProviderError(f"{self.name} network error: {type(e).__name__}")
         if resp.status_code == 429:
             self.cool(_retry_after(resp))
+            self._fail("rate_limited")
             raise ProviderError(f"{self.name} rate limited (429)", 429, _retry_after(resp))
         if resp.status_code == 402 or (resp.status_code in (403, 400) and _QUOTA_RE.search(str(resp.text or ""))):
             self.cool(_retry_after(resp) or MAX_COOLDOWN_S / 2)
+            self._fail("quota")
             raise ProviderError(f"{self.name} out of quota (HTTP {resp.status_code})", resp.status_code,
                                 limited=True)
         if resp.status_code >= 400:
             self.errors += 1
+            self._fail("auth" if resp.status_code in (401, 403) else
+                       "model_not_found" if resp.status_code == 404 else
+                       "overloaded" if resp.status_code in (500, 502, 503, 504) else f"http_{resp.status_code}")
             raise ProviderError(f"{self.name} HTTP {resp.status_code}: {_clean(resp.text, 120)}",
                                 resp.status_code)
         try:
-            return self._extract(resp.json())
+            out = self._extract(resp.json())
         except Exception:
             self.errors += 1
+            self._fail("unreadable")
             raise ProviderError(f"{self.name} unreadable response")
+        self.last_ok_at = time.time()
+        return out
+
+    def health(self) -> dict:
+        """Public, non-secret: presence only, never the key, its length or prefix."""
+        with self.lock:
+            self._roll()
+            cd = max(0, int(self.cooldown_until - time.time()))
+            used = self.used
+        return {"key_present": bool(self.key()), "available": self.available(), "cooling_s": cd,
+                "used_today": used, "budget": self.budget, "last_error": self.last_error,
+                "last_error_age_s": int(time.time() - self.last_error_at) if self.last_error_at else None,
+                "last_ok_age_s": int(time.time() - self.last_ok_at) if self.last_ok_at else None}
 
     def _post(self, system, user, max_tokens):  # pragma: no cover - overridden
         raise NotImplementedError
@@ -264,11 +303,30 @@ class Provider:
 
 
 class Gemini(Provider):
-    model = GEMINI_MODEL
+    """Tries the next verified model when one is gone (404) or overloaded (5xx)."""
+    models = GEMINI_MODELS
+
+    @property
+    def model(self):
+        return self.models[0]
+
+    def call(self, system: str, user: str, max_tokens: int = 700) -> str:
+        last = None
+        for m in self.models:
+            self._try_model = m
+            try:
+                out = super().call(system, user, max_tokens)
+                self.last_model = m
+                return out
+            except ProviderError as e:
+                last = e
+                if e.status not in (404, 500, 502, 503, 504) or not self.available():
+                    raise
+        raise last or ProviderError("gemini: no model available")
 
     def _post(self, system, user, max_tokens):
         return requests.post(
-            GEMINI_URL.format(model=self.model),
+            GEMINI_URL.format(model=getattr(self, "_try_model", self.models[0])),
             headers={"x-goog-api-key": self.key(), "Content-Type": "application/json"},
             json={"systemInstruction": {"parts": [{"text": system}]},
                   "contents": [{"role": "user", "parts": [{"text": user}]}],
@@ -375,9 +433,13 @@ class Advisor:
             self.cycle_reviews = 0
             self.cycle_debates = 0
 
+    def health(self) -> dict:
+        """Public /api/health block. Presence flags and error classes only, no secrets."""
+        return {p.name: p.health() for p in self.providers()}
+
     def status(self) -> dict:
         return {"enabled": self.enabled(), "resting": self.resting(), "per_cycle": PER_CYCLE,
-                "models": {"gemini": GEMINI_MODEL, "groq": GROQ_MODEL,
+                "models": {"gemini": GEMINI_MODELS, "groq": GROQ_MODEL,
                            "openrouter": OPENROUTER_MODELS},
                 "providers": {p.name: p.snapshot() for p in self.providers()},
                 "cached": len(self._cache)}
