@@ -68,3 +68,31 @@ What changed
 - `tests/test_scanner_sources.py`: 429/403 logging, merge+dedup, labels.
 - Cycle interval stays 30s. The 3–4 minute cycles on Render were the 20s+40s
   429 sleeps; those are now capped, so the loop is effectively shorter.
+
+# Scanner rate limits (scan-rate, 2026-11-12): don't sleep on 429, rotate, cache
+
+The first scanner fix stopped swallowing 429s, but still retried and slept
+inside the cycle (up to 15s) and called every DexScreener endpoint every
+cycle. On Render both hosts 429'd; cycles dragged and GeckoTerminal stayed
+at 0 while the log filled with repeat "search q=SOL -> 429" lines.
+
+What changed
+- Per-host token bucket (`config.SCAN_FETCH`): GeckoTerminal <= 10/min, burst 2;
+  DexScreener 30/min, burst 4. A cycle never waits for a token — it skips.
+- 1-2 GeckoTerminal calls per cycle: `new_pools` page 1 every cycle, page 2
+  every other cycle. DexScreener discovery rotates one endpoint per cycle
+  (search pump, search SOL, profiles, boosts latest, boosts top) — never
+  both search queries in the same cycle.
+- Endpoint responses cached 90s; rolling candidate pool keyed by mint for
+  10 minutes, so a 429 on one endpoint does not shrink the set. Age is
+  advanced from the original fetch time.
+- On 429: no in-cycle retry or sleep. The endpoint cools (Retry-After vs
+  exponential, floor 15s, cap 120s). A 429 is logged once per cooldown.
+- Open positions refresh via one batched `GET /tokens/v1/solana/{mints}`
+  (max 30) in `quote_many`, used by `_manage_positions`. Short quote / pair
+  cache also feeds `quote()`, `socials()`, and `dexscreener.best_pair`.
+- Filters, risk caps, PAPER-only and LIVE_DISABLED are untouched. Cycle
+  interval stays 30s.
+- Tests: `tests/test_scanner_sources.py` covers limiter, cooldown, no-sleep
+  429, one search per cycle, and batched quotes.
+

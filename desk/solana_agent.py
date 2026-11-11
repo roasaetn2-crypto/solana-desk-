@@ -220,7 +220,8 @@ class SolanaAgent:
         report = scanner.fetch_report()
         self.emit("scan",
                   f"cycle {cycle}: {len(tokens)} pools from {source} "
-                  f"(gt={counts['geckoterminal']} ds={counts['dexscreener']})",
+                  f"(gt={counts['geckoterminal']} ds={counts['dexscreener']}, "
+                  f"calls gt={report['geckoterminal']['calls']} ds={report['dexscreener']['calls']})",
                   count=len(tokens), source=source, **counts)
         for warning in report.get("warnings") or []:
             self.emit("info", f"scanner: {warning}", stage="scanner")
@@ -472,11 +473,13 @@ class SolanaAgent:
         return live, scanner.source_label(live)
 
     def _manage_positions(self):
+        live_mints = [m for m in self.broker.s["positions"] if not m.startswith("DEMO")]
+        quotes = scanner.quote_many(live_mints, self.session) if live_mints else {}
         for mint in list(self.broker.s["positions"]):
             if mint.startswith("DEMO"):
                 q = scanner.demo_quote(mint, self.broker.s["positions"][mint]["last"])
             else:
-                q = scanner.quote(mint, self.session)
+                q = quotes.get(mint)
             sig = self.broker.exit_signal(mint, q)
             if sig:
                 fraction, reason = sig
