@@ -513,8 +513,15 @@ class Brain(unittest.TestCase):
     def test_free_provider_beats_paid_when_auto_detecting(self):
         os.environ["ANTHROPIC_API_KEY"] = "paid"
         os.environ["GEMINI_API_KEY"] = "free"
+        os.environ["DESK_BRAIN_AUTODETECT"] = "1"
         with mock.patch.object(brain, "_ollama_up", return_value=False):
             self.assertEqual(brain.active(), "gemini")
+
+    def test_cloud_keys_alone_do_not_switch_the_analyst_on(self):
+        os.environ["GROQ_API_KEY"] = "gsk_" + "x" * 20
+        os.environ["GEMINI_API_KEY"] = "AIza" + "x" * 20
+        with mock.patch.object(brain, "_ollama_up", return_value=False):
+            self.assertEqual(brain.active(), "heuristic")
 
     def test_no_keys_means_heuristic(self):
         with mock.patch.object(brain, "_ollama_up", return_value=False):

@@ -197,7 +197,10 @@ def _model_debate(token: dict, facts: dict, ds: dict, dev: dict, sc: dict,
 def debate(token: dict, facts: dict, ds: dict, dev: dict, sc: dict, thesis: dict,
            approved: bool, ticket: float, reason: str, sizes: dict) -> dict:
     """Return {'messages': [...], 'backend': provider|'template'}."""
-    msgs = _model_debate(token, facts, ds, dev, sc, thesis, approved, ticket, reason, sizes)
+    try:
+        msgs = _model_debate(token, facts, ds, dev, sc, thesis, approved, ticket, reason, sizes)
+    except Exception:   # a model outage or rate limit must never drop a coin from the cycle
+        msgs = None
     if msgs:
         return {"messages": msgs, "backend": brain.active()}
     return {"messages": _template_debate(token, facts, ds, dev, sc, thesis,

@@ -13,8 +13,8 @@ Providers, cheapest first:
     anthropic   Claude, paid
     heuristic   no model at all, deterministic rules (always available)
 
-Pick one with DESK_BRAIN=groq. With nothing set, the desk auto-detects: a local
-Ollama if it is running, else the first provider with a key, else the heuristic.
+Pick one with DESK_BRAIN=groq. With nothing set, the desk uses a local Ollama if it is
+running, else the heuristic. Cloud keys are only auto-detected with DESK_BRAIN_AUTODETECT=1.
 
 Nothing here can size a trade. This module returns text; the code decides.
 """
@@ -88,9 +88,14 @@ def active() -> str:
         return "heuristic"
     if _ollama_up():
         return "ollama"
-    for name in ("groq", "gemini", "openrouter", "anthropic"):
-        if os.getenv(PROVIDERS[name].env or "", "").strip():
-            return name
+    # A cloud key alone no longer switches the analyst/dialogue seats to a model: the
+    # GEMINI/GROQ keys now feed the advisory-only second opinion (desk/brain_advisor.py), and
+    # they must not change the analyst's score, which gates trades. Opt in explicitly with
+    # DESK_BRAIN=<provider> or DESK_BRAIN_AUTODETECT=1.
+    if os.getenv("DESK_BRAIN_AUTODETECT", "").strip().lower() in ("1", "true", "yes"):
+        for name in ("groq", "gemini", "openrouter", "anthropic"):
+            if os.getenv(PROVIDERS[name].env or "", "").strip():
+                return name
     return "heuristic"
 
 

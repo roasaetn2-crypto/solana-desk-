@@ -27,6 +27,7 @@ from datetime import datetime, timezone
 import requests
 
 from config import AGENT, ENTRY, EXECUTION, PAPER, RISK
+from desk.brain_advisor import ADVISOR
 from desk import (analyst, brain, chain, dexscreener, devcheck, dialogue, exits, goplus, gmgn,
                   guard, heartbeat, helius, meme, pumpportal, regime, scanner,
                   signals)
@@ -355,6 +356,7 @@ class SolanaAgent:
         tokens, source = self._scan(force_demo)
         with self.lock:
             self.data_source = source
+        ADVISOR.new_cycle()
 
         # rank by volume churn: the loudest pools first
         tokens.sort(key=lambda t: t["volume_h1"] / max(t["mcap_usd"], 1), reverse=True)
@@ -538,6 +540,7 @@ class SolanaAgent:
                     "flags": chips, "regime": self.regime.get("tag"),
                     "checklist": sizes.get("guard", {}).get("checklist"),
                 }
+                self._advise(t, f, dev, sc, sec, links, decision)   # advisory only, never blocks
                 with self.lock:
                     self.decisions.appendleft(decision)
                 journal("decision", **decision)
@@ -654,6 +657,35 @@ class SolanaAgent:
         journal("cycle", **self.stats, equity=self.broker.equity())
         self._snapshot_equity()
         return {"cycle": cycle, "source": source, "stats": dict(self.stats)}
+
+    def _advise(self, t: dict, f: dict, dev: dict, sc: dict, sec: dict, links: dict,
+                decision: dict) -> None:
+        """Ask the AI second opinion about this coin, in a worker thread.
+
+        ADVISORY ONLY: the result is stored on the decision record and logged. Nothing
+        here is read by the risk engine, the broker, the kills or the mode, and a failure
+        is swallowed. With no API keys set this does nothing.
+        """
+        try:
+            if not ADVISOR.enabled() or str(t.get("mint", "")).startswith("DEMO"):
+                return
+            sym, mint = t.get("symbol"), t["mint"]
+
+            def done(res):
+                decision["brain"] = res if res is not None else \
+                    {"status": "unavailable", "advisory_only": True}
+
+            def log(line: str):
+                self.emit("brain", line, symbol=sym, mint=mint)
+                print(f"[desk] {line}", flush=True)
+
+            summary = ADVISOR.summarize(t, f, dev, sc, {**sec, "regime": self.regime.get("tag")}, links)
+            decision["brain"] = {"status": "pending", "advisory_only": True}
+            state = ADVISOR.submit(mint, summary, done, log)
+            if state == "skipped":
+                decision.pop("brain", None)
+        except Exception:
+            pass
 
     def _caution(self, t: dict, ticket: float, sec: dict, brk: dict, stop: float,
                  acct: Account) -> tuple[bool, float, str, dict, list]:
@@ -884,6 +916,7 @@ class SolanaAgent:
                 "data_source": self.data_source,
                 "analyst": analyst.analyst_name(),
                 "brain": brain.health(),
+                "advisor": ADVISOR.status(),
                 "rpc": {**helius.health(), "endpoint": chain.rpc_source()},
                 "execution": self.mode_info(),
                 "stats": dict(self.stats),
