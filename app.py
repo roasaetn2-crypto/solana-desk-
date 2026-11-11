@@ -81,58 +81,8 @@ def _authed(request: Request) -> bool:
     return _master(request) or _device(request) is not None
 
 
-LOGIN_HTML = """<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<meta name="theme-color" content="#080c12" />
-<title>Unlock \u2014 Solana Desk</title>
-<style>
-  *{box-sizing:border-box}
-  body{margin:0;min-height:100vh;display:grid;place-items:center;
-       background:#080c12;color:#e6edf5;
-       font-family:Inter,system-ui,-apple-system,sans-serif;padding:20px}
-  .card{width:100%;max-width:360px;background:#0d131b;border:1px solid #1c2735;
-        border-radius:14px;padding:26px 22px}
-  h1{font-size:16px;margin:0 0 4px;letter-spacing:.2px}
-  .sub{font-size:12px;color:#7d8ea3;margin:0 0 20px;line-height:1.5}
-  label{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;
-        color:#6b7c91;font-weight:600;margin:0 0 6px}
-  input{width:100%;padding:11px 12px;border-radius:9px;border:1px solid #1c2735;
-        background:#0a0f16;color:#e6edf5;font-size:14px;font-family:inherit;margin-bottom:14px}
-  input:focus{outline:none;border-color:#2ee59d}
-  button{width:100%;padding:11px;border-radius:9px;border:0;
-         background:linear-gradient(180deg,#2ee59d,#1fbf82);color:#04110b;
-         font-weight:700;font-size:13.5px;font-family:inherit;cursor:pointer}
-  button.ghost{background:#131c27;color:#c3d0de;border:1px solid #1c2735;margin-top:8px}
-  .err{margin-top:12px;font-size:12px;color:#ff4d6d}
-  .ok{margin-top:12px;font-size:12px;color:#2ee59d;line-height:1.5}
-  .div{display:flex;align-items:center;gap:10px;margin:20px 0 16px;color:#3d4d61;
-       font-size:10px;text-transform:uppercase;letter-spacing:1px}
-  .div:before,.div:after{content:"";flex:1;height:1px;background:#1c2735}
-</style></head>
-<body>
-  <div class="card">
-    <h1>\U0001f6f0\ufe0f Solana Desk</h1>
-    <p class="sub">This desk is locked. Enter the key, or pair this device so it never asks again.</p>
+LOGIN_HTML = (WEB / "login.html").read_text(encoding="utf-8")
 
-    <form method="post" action="/login">
-      <label>Access key</label>
-      <input type="password" name="token" placeholder="\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
-             autofocus autocomplete="current-password" />
-      <button type="submit">Unlock</button>
-    </form>
-
-    <div class="div">or</div>
-
-    <form method="post" action="/pair">
-      <label>Pair this device</label>
-      <input type="text" name="name" placeholder="Device name (e.g. Pixel 7)" />
-      <input type="password" name="token" placeholder="Access key (one time)" />
-      <button class="ghost" type="submit">Pair &amp; stay signed in</button>
-    </form>
-    __ERROR__
-  </div>
-</body></html>"""
 
 DEVICES_HTML = """<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8" />

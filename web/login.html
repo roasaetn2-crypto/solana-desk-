@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0a0810" />
+  <title>Unlock — Solana Desk</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%90%B1%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body class="page-login">
+  <div class="login-card">
+    <div class="login-cat">
+      <div class="cat-dock" data-mood="sleep" aria-hidden="true">
+        <div class="mascot-wrap">
+          <svg class="mascot-svg" viewBox="0 0 160 180" xmlns="http://www.w3.org/2000/svg" focusable="false">
+            <ellipse class="cat-shadow" cx="80" cy="170" rx="38" ry="7" fill="rgba(0,0,0,.28)"/>
+            <g class="cat-tail">
+              <path d="M104 132 C148 148 154 92 126 64" fill="none" stroke="#e8d5b8" stroke-width="16" stroke-linecap="round"/>
+              <path d="M104 132 C148 148 154 92 126 64" fill="none" stroke="#f4f0e6" stroke-width="11" stroke-linecap="round"/>
+              <circle cx="126" cy="64" r="9" fill="#f4f0e6"/>
+              <circle cx="123" cy="58" r="4.2" fill="#f2b2c2"/>
+            </g>
+            <g class="cat-body">
+              <ellipse cx="80" cy="138" rx="38" ry="32" fill="#f4f0e6"/>
+              <ellipse cx="80" cy="148" rx="22" ry="16" fill="#fff8ee"/>
+              <ellipse class="paw" cx="58" cy="165" rx="12" ry="8" fill="#efe3d2"/>
+              <ellipse class="paw" cx="102" cy="165" rx="12" ry="8" fill="#efe3d2"/>
+              <path d="M51 164.5 Q58 168 65 164.5" fill="none" stroke="#d7c4ac" stroke-width="1.1" stroke-linecap="round"/>
+              <path d="M95 164.5 Q102 168 109 164.5" fill="none" stroke="#d7c4ac" stroke-width="1.1" stroke-linecap="round"/>
+            </g>
+            <g class="cat-head">
+              <g class="ear ear-left">
+                <path d="M36 72 L26 20 L70 56 Z" fill="#f4f0e6"/>
+                <path d="M38 66 L32 30 L62 54 Z" fill="#f2b2c2"/>
+              </g>
+              <g class="ear ear-right">
+                <path d="M124 72 L134 20 L90 56 Z" fill="#f4f0e6"/>
+                <path d="M122 66 L128 30 L98 54 Z" fill="#f2b2c2"/>
+              </g>
+              <circle cx="80" cy="88" r="46" fill="#f4f0e6"/>
+              <ellipse class="blush" cx="48" cy="102" rx="11" ry="6.5" fill="#ff8aa8"/>
+              <ellipse class="blush" cx="112" cy="102" rx="11" ry="6.5" fill="#ff8aa8"/>
+              <g class="eyes eyes-open">
+                <g class="eye">
+                  <ellipse cx="62" cy="86" rx="12" ry="14.5" fill="#fff"/>
+                  <g class="iris">
+                    <ellipse cx="62" cy="88" rx="8.4" ry="10.4" fill="#a46bff"/>
+                    <ellipse cx="62" cy="93" rx="7" ry="5.4" fill="#5a2eb0" opacity=".48"/>
+                    <ellipse cx="62" cy="88" rx="3.3" ry="6.2" fill="#1a1020"/>
+                    <ellipse cx="65.4" cy="81.6" rx="3.1" ry="3.8" fill="#fff"/>
+                    <circle cx="58.6" cy="91.6" r="1.35" fill="#fff" opacity=".95"/>
+                  </g>
+                  <ellipse class="eyelid" cx="62" cy="86" rx="12" ry="14.5" fill="#f4f0e6"/>
+                </g>
+                <g class="eye">
+                  <ellipse cx="98" cy="86" rx="12" ry="14.5" fill="#fff"/>
+                  <g class="iris">
+                    <ellipse cx="98" cy="88" rx="8.4" ry="10.4" fill="#a46bff"/>
+                    <ellipse cx="98" cy="93" rx="7" ry="5.4" fill="#5a2eb0" opacity=".48"/>
+                    <ellipse cx="98" cy="88" rx="3.3" ry="6.2" fill="#1a1020"/>
+                    <ellipse cx="101.4" cy="81.6" rx="3.1" ry="3.8" fill="#fff"/>
+                    <circle cx="94.6" cy="91.6" r="1.35" fill="#fff" opacity=".95"/>
+                  </g>
+                  <ellipse class="eyelid" cx="98" cy="86" rx="12" ry="14.5" fill="#f4f0e6"/>
+                </g>
+              </g>
+              <g class="eyes eyes-sleep">
+                <path d="M51 90 Q62 100 73 90" fill="none" stroke="#5a2e18" stroke-width="2.4" stroke-linecap="round"/>
+                <path d="M87 90 Q98 100 109 90" fill="none" stroke="#5a2e18" stroke-width="2.4" stroke-linecap="round"/>
+              </g>
+              <g class="eyes eyes-happy">
+                <path d="M51 92 Q62 80 73 92" fill="none" stroke="#5a2e18" stroke-width="2.6" stroke-linecap="round"/>
+                <path d="M87 92 Q98 80 109 92" fill="none" stroke="#5a2e18" stroke-width="2.6" stroke-linecap="round"/>
+              </g>
+              <g class="eyes eyes-sad">
+                <ellipse cx="62" cy="90" rx="11" ry="12" fill="#fff"/>
+                <g class="iris sad-iris">
+                  <ellipse cx="62" cy="95" rx="7.4" ry="8.2" fill="#7a5ad0"/>
+                  <ellipse cx="62" cy="95" rx="3" ry="5" fill="#1a1020"/>
+                  <ellipse cx="64.8" cy="90.5" rx="2.2" ry="2.6" fill="#fff"/>
+                </g>
+                <ellipse cx="98" cy="90" rx="11" ry="12" fill="#fff"/>
+                <g class="iris sad-iris">
+                  <ellipse cx="98" cy="95" rx="7.4" ry="8.2" fill="#7a5ad0"/>
+                  <ellipse cx="98" cy="95" rx="3" ry="5" fill="#1a1020"/>
+                  <ellipse cx="100.8" cy="90.5" rx="2.2" ry="2.6" fill="#fff"/>
+                </g>
+                <path class="tear" d="M112 104 C112 110 118 112 118 118 C118 122 112 122 112 118 C112 112 112 110 112 104 Z" fill="#8ec8ff"/>
+              </g>
+              <path d="M80 104 L74.5 110.5 Q80 115 85.5 110.5 Z" fill="#e07a8a"/>
+              <path class="mouth mouth-neutral" d="M80 112 Q73 119 66 115 M80 112 Q87 119 94 115" fill="none" stroke="#5a2e18" stroke-width="1.7" stroke-linecap="round"/>
+              <path class="mouth mouth-happy" d="M68 112 Q80 126 92 112" fill="none" stroke="#5a2e18" stroke-width="2" stroke-linecap="round"/>
+              <path class="mouth mouth-sad" d="M68 122 Q80 112 92 122" fill="none" stroke="#5a2e18" stroke-width="2" stroke-linecap="round"/>
+              <g class="whiskers" fill="none" stroke="#c4b8a8" stroke-width="1.15" stroke-linecap="round">
+                <path d="M18 98 H48"/>
+                <path d="M20 108 H50"/>
+                <path d="M112 98 H142"/>
+                <path d="M110 108 H140"/>
+              </g>
+              <g class="sparkles">
+                <path class="spark s1" d="M18 44 L20.2 49.2 L25.5 51.5 L20.2 53.8 L18 59 L15.8 53.8 L10.5 51.5 L15.8 49.2 Z" fill="#ffd60a"/>
+                <path class="spark s2" d="M138 36 L140 40.4 L144.5 42.5 L140 44.6 L138 49 L136 44.6 L131.5 42.5 L136 40.4 Z" fill="#ffd60a"/>
+                <path class="spark s3" d="M132 78 L133.2 81 L136.2 82.2 L133.2 83.4 L132 86.4 L130.8 83.4 L127.8 82.2 L130.8 81 Z" fill="#fff6c8"/>
+              </g>
+            </g>
+          </svg>
+          <div class="zzz"><span>z</span><span>z</span><span>z</span></div>
+        </div>
+      </div>
+    </div>
+    <h1>Solana Desk</h1>
+    <p class="sub">This desk is locked. Enter the key, or pair this device so it never asks again.</p>
+    <div class="speech login-speech">Psst… enter the key to wake me.</div>
+
+    <form method="post" action="/login">
+      <label>Access key</label>
+      <input type="password" name="token" placeholder="••••••••"
+             autofocus autocomplete="current-password" />
+      <button type="submit">Unlock</button>
+    </form>
+
+    <div class="div">or</div>
+
+    <form method="post" action="/pair">
+      <label>Pair this device</label>
+      <input type="text" name="name" placeholder="Device name (e.g. Pixel 7)" />
+      <input type="password" name="token" placeholder="Access key (one time)" />
+      <button class="ghost" type="submit">Pair &amp; stay signed in</button>
+    </form>
+    __ERROR__
+  </div>
+</body>
+</html>

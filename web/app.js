@@ -29,6 +29,78 @@ const ICONS = { entry: "🟢", exit: "🟠", reject: "⚪", thesis: "🧠", erro
 
 let lastState = null;
 
+const CAT_REACT_MS = 4500;
+let catReactUntil = 0;
+let catLastKey = "";
+let catRevertTimer = 0;
+
+function eventKey(e) {
+  if (!e) return "";
+  return [e.time, e.kind, e.message].join("|");
+}
+
+function exitPnl(e, s) {
+  if (!e || e.kind !== "exit") return null;
+  if (e.pnl_usd != null && e.pnl_usd !== "") {
+    const n = Number(e.pnl_usd);
+    return Number.isFinite(n) ? n : null;
+  }
+  const closed = (s.broker && s.broker.closed) || [];
+  const hit = (e.symbol && closed.find((c) => c.symbol === e.symbol)) || closed[0];
+  if (hit && hit.pnl_usd != null) {
+    const n = Number(hit.pnl_usd);
+    return Number.isFinite(n) ? n : null;
+  }
+  const m = /pnl \$?(-?[\d.]+)/i.exec(e.message || "");
+  return m ? Number(m[1]) : null;
+}
+
+function shorten(msg, n = 72) {
+  const t = String(msg || "").replace(/\s+/g, " ").trim();
+  return t.length > n ? t.slice(0, n - 1) + "\u2026" : t;
+}
+
+function renderCat(s) {
+  const dock = $("catDock");
+  if (!dock) return;
+  const ev = (s.events && s.events[0]) || null;
+  const key = eventKey(ev);
+  const now = Date.now();
+  if (key && key !== catLastKey) {
+    catLastKey = key;
+    if (ev && (ev.kind === "entry" || ev.kind === "exit")) {
+      catReactUntil = now + CAT_REACT_MS;
+    }
+  }
+  let mood = s.running ? "scan" : "sleep";
+  if (now < catReactUntil && ev) {
+    if (ev.kind === "entry") mood = "happy";
+    else if (ev.kind === "exit") {
+      const pnl = exitPnl(ev, s);
+      mood = pnl != null && pnl > 0 ? "happy" : "sad";
+    }
+  }
+  dock.dataset.mood = mood;
+
+  const bubble = $("catSpeech");
+  const text = $("catSpeechText");
+  if (!bubble || !text) return;
+  let line = "";
+  if (mood === "sleep") line = s.cycle ? "Paused. I'll wait here." : "Zzz\u2026 tap Start to wake me.";
+  else if (mood === "happy") line = ev && ev.message ? ev.message : "Nice one!";
+  else if (mood === "sad") line = ev && ev.message ? ev.message : "That one stung.";
+  else if (ev && ev.message) line = ev.message;
+  else line = "Sniffing for coins\u2026";
+  text.textContent = shorten(line);
+  bubble.hidden = false;
+
+  clearTimeout(catRevertTimer);
+  if (now < catReactUntil) {
+    catRevertTimer = setTimeout(() => { if (lastState) renderCat(lastState); }, catReactUntil - now + 30);
+  }
+}
+
+
 async function api(path, method = "GET", body = null) {
   const opts = { method, headers: {} };
   if (body !== null) {
@@ -359,6 +431,8 @@ function render(s) {
     $("dlgBadge").textContent = "template";
     $("dialogue").innerHTML = '<div class="empty">The seats have not spoken yet.</div>';
   }
+
+  renderCat(s);
 }
 
 async function refresh() {
