@@ -29,12 +29,15 @@ def rpc_url() -> str:
     Resolved per call, not at import, so the desk can be pointed at a better
     node without a restart and so a missing key is never a crash.
     """
-    return helius.rpc_url() or os.getenv("SOLANA_RPC_URL", PUBLIC_RPC)
+    custom = os.getenv("SOLANA_RPC_URL", "").strip()
+    if custom and not custom.lower().startswith(("http://", "https://")):
+        custom = ""        # a bare key or typo is not a URL: use the public node, never crash
+    return helius.rpc_url() or custom or PUBLIC_RPC
 
 
 def rpc_source() -> str:
     return "helius" if helius.configured() else (
-        "custom" if os.getenv("SOLANA_RPC_URL") else "public")
+        "custom" if rpc_url() != PUBLIC_RPC else "public")
 
 
 # After a Helius HTTP error, skip it for a bit so one 401/429 does not
@@ -170,6 +173,7 @@ def facts(mint: str, session: requests.Session | None = None) -> dict:
         "mint_authority": parsed.get("mintAuthority"),
         "freeze_authority": parsed.get("freezeAuthority"),
         "supply": supply,
+        "decimals": decimals,
         "top_wallet_pct": None,
         "top_10_pct": None,
         "program_held_pct": None,
@@ -232,6 +236,7 @@ def facts(mint: str, session: requests.Session | None = None) -> dict:
         "mint_authority": parsed.get("mintAuthority"),
         "freeze_authority": parsed.get("freezeAuthority"),
         "supply": supply,
+        "decimals": decimals,
         "top_wallet_pct": share(ranked[:1]),
         "top_10_pct": share(ranked[:10]),
         "program_held_pct": share([excluded]),

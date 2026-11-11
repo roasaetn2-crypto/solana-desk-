@@ -12,3 +12,6 @@ python-multipart>=0.0.9
 #
 # Optional, only if you want Claude:
 #   pip install anthropic
+
+# PumpPortal new-token feed (desk/pumpportal.py). Optional: the desk runs without it.
+websocket-client>=1.7
