@@ -3,9 +3,9 @@
 Fresh coins (scalp, under 6 hours) get 15s/30s tabs, built from the desk's
 own price ticks so we do not invent a GeckoTerminal 15s candle — that API
 does not exist. Older coins (swing) get 15m/1H/4H from GeckoTerminal OHLCV,
-fetched through the scanner's rate limiter and cache. If the budget is empty
-or the endpoint is cooling, we return cached or tick-built bars and never
-sleep, so the chart cannot add a new 429 storm.
+fetched through the scanner's rate limiter and cache. The agent cycle prefetches
+one open-position pool at a time and the dashboard reads the last-good copy, so
+a poll never adds a request and a 429 still returns real candles.
 """
 from __future__ import annotations
 
@@ -37,9 +37,20 @@ _TICKS: dict[str, deque] = defaultdict(lambda: deque(maxlen=MAX_TICKS))
 # test hook: when set, network OHLCV is not used
 _fetch_ohlcv = None
 
+# Last-good OHLCV per "pool:tf". The dashboard reads this; only the agent cycle
+# (prefetch) refreshes it, one pool per cycle, through the scanner's host limiter.
+# A 429 therefore still returns real candles instead of an empty or flat chart.
+REFRESH_S = {"1m": 60, "15m": 300, "1H": 900, "4H": 1800}          # re-fetch when older
+LAST_GOOD_S = {"1m": 300, "15m": 900, "1H": 7200, "4H": 21600}     # serve stale up to this
+MISS_RETRY_S = 60                                                  # min gap between miss fetches
+_OHLCV: dict[str, dict] = {}
+_ATTEMPT: dict[str, float] = {}
+
 
 def reset() -> None:
     _TICKS.clear()
+    _OHLCV.clear()
+    _ATTEMPT.clear()
 
 
 def tabs_for(*, horizon: str | None = None, age_hours: float | None = None) -> list[str]:
@@ -122,26 +133,19 @@ def _pool_address(mint: str) -> str | None:
     return None
 
 
-def _network_ohlcv(mint: str, tf: str, session=None) -> list[dict]:
-    """One cached, rate-limited GeckoTerminal OHLCV call. Never sleeps."""
-    if _fetch_ohlcv is not None:
-        body = _fetch_ohlcv(mint, tf)
-        if body is None:
-            return []
-        if isinstance(body, list):
-            return body[-MAX_CANDLES:]
-        return _parse_ohlcv(body)
+def _ohlcv_key(pool: str, tf: str) -> str:
+    return f"{pool}:{tf}"
+
+
+def _fetch_and_store(pool: str, tf: str, session, now: float) -> list[dict]:
+    """One GeckoTerminal OHLCV call via the scanner's cache, budget and host cooldown."""
     spec = _TF.get(tf, (None, None))[1]
     if not spec:
-        return []
-    pool = _pool_address(mint)
-    if not pool:
         return []
     timeframe, aggregate = spec
     from desk import scanner
     import requests
     s = session or requests.Session()
-    now = time.time()
     ep = {
         "id": f"gt:ohlcv:{pool}:{timeframe}:{aggregate}",
         "source": "geckoterminal",
@@ -150,8 +154,81 @@ def _network_ohlcv(mint: str, tf: str, session=None) -> list[dict]:
         "label": f"ohlcv {tf} pool={pool[:8]}…",
         "kind": "gt_ohlcv",
     }
-    body, _fresh = scanner._fetch_endpoint(s, ep, now)
-    return _parse_ohlcv(body) if body else []
+    key = _ohlcv_key(pool, tf)
+    _ATTEMPT[key] = now
+    body, fresh = scanner._fetch_endpoint(s, ep, now)
+    candles = _parse_ohlcv(body) if body else []
+    if candles and fresh:
+        _OHLCV[key] = {"at": now, "candles": candles}
+    return candles
+
+
+def _network_ohlcv(mint: str, tf: str, session=None) -> list[dict]:
+    """Candles for the dashboard, served from the last-good cache. Never sleeps.
+
+    A fresh entry is returned as is. A stale one is returned too (up to
+    LAST_GOOD_S) and left for the agent cycle's prefetch to refresh. Only a
+    complete miss fetches, at most once per MISS_RETRY_S per pool and timeframe.
+    """
+    if _fetch_ohlcv is not None:
+        body = _fetch_ohlcv(mint, tf)
+        if body is None:
+            return []
+        if isinstance(body, list):
+            return body[-MAX_CANDLES:]
+        return _parse_ohlcv(body)
+    if not _TF.get(tf, (None, None))[1]:
+        return []
+    pool = _pool_address(mint)
+    if not pool:
+        return []
+    now = time.time()
+    key = _ohlcv_key(pool, tf)
+    row = _OHLCV.get(key)
+    if row and now - row["at"] <= LAST_GOOD_S.get(tf, 600):
+        return row["candles"]
+    if now - _ATTEMPT.get(key, 0.0) < MISS_RETRY_S:
+        return []
+    return _fetch_and_store(pool, tf, session, now)
+
+
+def prefetch(session, positions, now: float | None = None):
+    """Refresh OHLCV for at most ONE open-position pool. Call once per agent cycle.
+
+    `positions` is a list of (mint, horizon). Scalps need 1m candles (the 15s and
+    30s tabs fall back to them); swings need 15m, 1H and 4H. Takes the
+    most overdue (mint, tf) pair, missing ones first, and spends one call, or none if the host is cooling.
+    Returns the (mint, tf) fetched, or None.
+    """
+    if _fetch_ohlcv is not None:
+        return None
+    from desk import scanner
+    now = time.time() if now is None else now
+    if scanner.host_cooling("geckoterminal", now):
+        return None
+    wanted = []                                   # (level, mint, tf, pool)
+    for mint, horizon in positions or []:
+        if not mint or str(mint).startswith("DEMO"):
+            continue
+        pool = _pool_address(mint)
+        if not pool:
+            continue
+        for level, tf in enumerate(SWING_TABS if horizon == "swing" else ["1m"]):
+            wanted.append((level, mint, tf, pool))
+    wanted.sort(key=lambda w: w[0])               # first tab of every position before any second tab
+    due = []
+    for _level, mint, tf, pool in wanted:
+        row = _OHLCV.get(_ohlcv_key(pool, tf))
+        if row is None:
+            due.append((-1.0, mint, tf, pool))
+        elif now - row["at"] >= REFRESH_S[tf]:
+            due.append((row["at"] - now, mint, tf, pool))   # older is more negative
+    if not due:
+        return None
+    due.sort(key=lambda d: d[0])                  # stable: missing first, then oldest
+    _, mint, tf, pool = due[0]
+    _fetch_and_store(pool, tf, session, now)
+    return mint, tf
 
 
 def series(mint: str, tf: str | None = None, *,

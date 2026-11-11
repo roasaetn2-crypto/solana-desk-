@@ -688,6 +688,11 @@ class SolanaAgent:
     def _manage_positions(self):
         live_mints = [m for m in self.broker.s["positions"] if not m.startswith("DEMO")]
         quotes = scanner.quote_many(live_mints, self.session) if live_mints else {}
+        try:    # one OHLCV refresh per cycle so the dashboard chart never has to fetch
+            candle_chart.prefetch(self.session, [
+                (m, (p or {}).get("horizon")) for m, p in self.broker.s["positions"].items()])
+        except Exception:
+            pass
         for mint in list(self.broker.s["positions"]):
             if mint.startswith("DEMO"):
                 q = scanner.demo_quote(mint, self.broker.s["positions"][mint]["last"])
