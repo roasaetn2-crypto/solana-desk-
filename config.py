@@ -20,6 +20,19 @@ SCAN = {
     "min_sells_ratio_h1": 0.10,    # sells / buys. Below this nobody can sell = honeypot smell
 }
 
+# ---------- Scanner fetch (rate limits, cache, cooldown). Does not change filters. ----------
+SCAN_FETCH = {
+    "gt_per_min": 10,              # well under GeckoTerminal's ~30/min public cap
+    "gt_burst": 2,                 # at most 1-2 live GT calls in a short burst
+    "ds_per_min": 30,              # under profiles/boosts 60/min and search 300/min
+    "ds_burst": 4,
+    "cache_ttl_s": 90,             # reuse an endpoint body this long
+    "pool_ttl_s": 600,             # rolling candidate pool, keyed by mint (~10 min)
+    "quote_ttl_s": 15,             # short cache for open-position price refreshes
+    "cooldown_floor_s": 15,        # even if Retry-After is 1s, back off at least this
+    "cooldown_cap_s": 120,         # exponential 429 cooldown cap; never sleep the cycle
+}
+
 # ---------- Seat 2: chain facts (Solana RPC) ----------
 CHAIN = {
     "max_top_wallet": 0.08,        # biggest real wallet, excl. curve / pool / program accounts

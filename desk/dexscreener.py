@@ -32,13 +32,27 @@ def _i(x) -> int:
 
 
 def best_pair(mint: str, session: requests.Session | None = None) -> dict | None:
-    """The deepest Solana pair for a mint, or None."""
+    """The deepest Solana pair for a mint, or None.
+
+    Reuses the scanner's short-lived pair cache (filled by discovery or by
+    quote_many) so a cycle does not re-hit DexScreener for the same mint.
+    """
+    try:
+        from desk import scanner as _scanner
+        cached = _scanner.cached_raw_pairs(mint)
+    except Exception:
+        cached = None
+    if cached:
+        pairs = [p for p in cached if (p.get("chainId") or "solana") == "solana"]
+        if pairs:
+            return max(pairs, key=lambda p: _f((p.get("liquidity") or {}).get("usd")))
     s = session or requests.Session()
     try:
-        body = s.get(f"{BASE}/latest/dex/tokens/{mint}", headers=HEADERS, timeout=20).json()
+        payload = s.get(f"{BASE}/tokens/v1/solana/{mint}", headers=HEADERS, timeout=20).json()
     except Exception:
         return None
-    pairs = [p for p in (body.get("pairs") or []) if p.get("chainId") == "solana"]
+    raw = payload.get("pairs") if isinstance(payload, dict) else payload
+    pairs = [p for p in (raw or []) if (p.get("chainId") or "solana") == "solana"]
     if not pairs:
         return None
     return max(pairs, key=lambda p: _f((p.get("liquidity") or {}).get("usd")))
