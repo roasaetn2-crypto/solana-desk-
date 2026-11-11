@@ -325,41 +325,6 @@ tbody tr:hover { background: rgba(255,255,255,0.015); }
 .msg .head .arrow { color: var(--muted-2); }
 .msg .body { font-size: 11.5px; color: #cbd8e8; line-height: 1.45; }
 
-/* ---------- hold horizon guide ---------- */
-.horizon-card {
-  background: linear-gradient(180deg, var(--panel-2), var(--bg-2));
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 14px 14px 12px;
-}
-.horizon-kicker {
-  font-size: 10px; font-weight: 600; letter-spacing: .7px;
-  text-transform: uppercase; color: var(--muted-2); margin-bottom: 4px;
-}
-.horizon-title {
-  font-size: 14px; font-weight: 700; color: var(--cream);
-  letter-spacing: .1px; line-height: 1.35; margin: 0 0 12px;
-}
-.horizon-guide { list-style: none; display: flex; flex-direction: column; gap: 8px; }
-.horizon-guide li {
-  display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
-  font-size: 12.5px; line-height: 1.35;
-}
-.horizon-guide li span { color: var(--muted); }
-.horizon-guide li b { font-weight: 650; text-align: right; font-size: 12.5px; }
-.hv-weekly { color: #7ad4ff; }
-.hv-fresh { color: var(--green); }
-.hv-scalp { color: var(--amber); }
-.hv-swing { color: var(--purple); }
-.horizon-note {
-  margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--border-soft);
-  font-size: 11.5px; color: var(--muted); line-height: 1.45;
-}
-.horizon { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
-.hrow { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; }
-.hrow span { color: var(--muted-2); text-transform: uppercase; letter-spacing: .5px; font-size: 9.5px; }
-.hrow b { font-family: var(--mono); font-weight: 600; color: var(--text); text-align: right; }
-
 /* ---------- FOMO buy + ticket charts ---------- */
 .btn-fomo {
   display: inline-flex; align-items: center; justify-content: center;
@@ -445,9 +410,6 @@ td .num.bad  { color: var(--red); }
   .bar-row { grid-template-columns: 62px minmax(0, 1fr) 30px; font-size: 10px; }
   .msg { grid-template-columns: 1fr; gap: 4px; }
   .msg .who { margin-bottom: 2px; }
-  .horizon .hrow { grid-template-columns: 1fr; gap: 2px; }
-  .horizon-guide li { flex-direction: column; gap: 2px; align-items: flex-start; }
-  .horizon-guide li b { text-align: left; }
   .buy-banner { grid-template-columns: 1fr; }
   .pos-card .pos-head { flex-wrap: wrap; }
   .meme-total b { font-size: 30px; }

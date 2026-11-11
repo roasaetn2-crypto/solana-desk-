@@ -969,12 +969,6 @@ function render(s) {
     $("memeNarrative").textContent = "Narrative: " + (n.primary || "\u2014") +
       (n.tags && n.tags.length > 1 ? " (" + n.tags.join(", ") + ")" : "") +
       "  \u00b7  " + (sc.verdict || "");
-    // horizon
-    const h = sc.horizon || {};
-    $("horizonBadge").textContent = h.label || "\u2014";
-    $("hHold").textContent = h.hold || "\u2014";
-    $("hChart").textContent = h.chart || "\u2014";
-    $("hRule").textContent = h.rule || "\u2014";
   } else {
     memeTotal.textContent = "\u2014";
     memeVerdict.textContent = "no coin yet";
