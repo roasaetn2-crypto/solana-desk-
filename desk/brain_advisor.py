@@ -13,9 +13,12 @@ With no key set the advisor is a no-op. With one usable provider it uses that on
 more, the first two usable in the order Gemini, Groq, OpenRouter each give an independent
 opinion, and when they split they run a short debate.
 
-Each provider has its own daily budget and its own cooldown after a 429. Every call has a
-short timeout and runs in a worker thread, so the trading loop never waits on a model.
-API keys travel only in request headers and are redacted from any error text.
+Each provider has its own daily budget, a per-minute call cap, and a cooldown after a 429.
+The last opinion for a mint is reused for 25 minutes unless price or liquidity moved a lot.
+The trading loop only submits coins that already passed the scanner's hard gates and the
+analyst's valid_setup / min-score checks. Every call has a short timeout and runs in a
+worker thread, so the trading loop never waits on a model. API keys travel only in request
+headers and are redacted from any error text.
 """
 from __future__ import annotations
 
@@ -66,11 +69,17 @@ DEADLINE_S = 40.0               # whole review incl. debate
 PER_CYCLE = int(os.getenv("BRAIN_PER_CYCLE", "2"))      # coins reviewed per cycle
 DEBATES_PER_CYCLE = 1
 DEBATE_CALLS_PER_PROVIDER = 2   # hard cap per coin
-CACHE_TTL_S = 6 * 3600
+# Reuse the last opinion for this long unless price or liquidity moved a lot.
+CACHE_TTL_S = 25 * 60
 CACHE_MAX = 500
+MATERIAL_MOVE = 0.25            # 25% change in price or liquidity forces a fresh ask
 DEFAULT_COOLDOWN_S = 120
 MAX_COOLDOWN_S = 3600
 LOW_BUDGET_LEFT = 0.10          # skip the debate when under 10% of a budget remains
+# Review-path only (Desk AI chat calls Provider.call directly and is not paced).
+# 8/min is under Gemini's free RPM and still enough for one opinion + a short debate.
+# 0 disables pacing, used by tests that fire many back-to-back reviews.
+RPM = {"gemini": 8, "groq": 8, "openrouter": 8}
 
 # Free-tier limits: Groq openai/gpt-oss-120b is 30 RPM, 1K RPD, 8K TPM, 200K TPD, so about
 # 400 calls a day of ~500 tokens is the conservative ceiling. Gemini free Flash models allow
@@ -80,6 +89,57 @@ BUDGETS = {"gemini": 200, "groq": 400, "openrouter": 45}
 OPENROUTER_DEBATE_MIN_LEFT = 10   # no debate when OpenRouter has fewer calls than this left
 VERDICTS = ("buy", "watch", "skip")
 _CAUTION = {"skip": 0, "watch": 1, "buy": 2}
+
+
+def should_advise(thesis) -> bool:
+    """True only for real candidates: analyst valid_setup at or above MIN_SCORE.
+
+    Scanner hard gates are applied by the loop before this is consulted. A skip or
+    watch thesis, or a score under the desk minimum, is not sent to any provider.
+    Accepts a TokenThesis or a dict. Fail closed on missing or unreadable fields.
+    """
+    if thesis is None:
+        return False
+    if isinstance(thesis, dict):
+        verdict, score = thesis.get("verdict"), thesis.get("score")
+    else:
+        verdict, score = getattr(thesis, "verdict", None), getattr(thesis, "score", None)
+    try:
+        score = int(score)
+    except (TypeError, ValueError):
+        return False
+    from config import MIN_SCORE
+    return verdict == "valid_setup" and score >= MIN_SCORE
+
+
+def _metrics(summary: dict | None) -> dict:
+    """Price and liquidity snapshot used to decide whether a cached opinion is stale."""
+    out = {}
+    if not summary:
+        return out
+    for k in ("price_usd", "liquidity_usd"):
+        try:
+            v = summary.get(k)
+            if v is not None:
+                out[k] = float(v)
+        except (TypeError, ValueError):
+            pass
+    return out
+
+
+def moved_a_lot(prev: dict, cur: dict, threshold: float = MATERIAL_MOVE) -> bool:
+    """True when price or liquidity changed by `threshold` or more (relative)."""
+    for k in ("price_usd", "liquidity_usd"):
+        a, b = prev.get(k), cur.get(k)
+        if a is None or b is None:
+            continue
+        if a <= 0:
+            if b > 0:
+                return True
+            continue
+        if abs(b - a) / abs(a) >= threshold:
+            return True
+    return False
 
 SYSTEM = """You are an advisory reviewer on a PAPER-trading Solana memecoin desk.
 Judge ONE candidate coin from the JSON fields given and reply with STRICT JSON only:
@@ -196,6 +256,8 @@ class Provider:
         self.day = _day()
         self.used = 0
         self.errors = 0
+        self.rpm = RPM.get(name, 8)
+        self._hits: list[float] = []        # timestamps of reserved calls in the last minute
         self.last_error: str | None = None   # error class only, never text from the provider
         self.last_error_at = 0.0
         self.last_ok_at = 0.0
@@ -209,6 +271,9 @@ class Provider:
         d = _day()
         if d != self.day:
             self.day, self.used = d, 0
+
+    def _trim_hits(self, now: float):
+        self._hits = [t for t in self._hits if now - t < 60.0]
 
     def left(self) -> int:
         with self.lock:
@@ -228,6 +293,28 @@ class Provider:
                 return False
             self.used += 1
             return True
+
+    def pace(self, max_wait: float = 7.0, sleep=time.sleep) -> bool:
+        """Reserve a slot in this provider's 60s review window. Review path only.
+
+        Waits up to max_wait for a slot; returns False if one will not free in time
+        so the caller can skip or go solo. Does not count against the daily budget.
+        rpm <= 0 disables pacing. Desk AI chat does not call this.
+        """
+        if not self.rpm:
+            return True
+        deadline = time.time() + max(0.0, max_wait)
+        while True:
+            with self.lock:
+                now = time.time()
+                self._trim_hits(now)
+                if len(self._hits) < self.rpm:
+                    self._hits.append(now)
+                    return True
+                wait = 60.0 - (now - self._hits[0]) + 0.01
+            if now + wait > deadline:
+                return False
+            sleep(min(wait, max(0.0, deadline - time.time())))
 
     def cool(self, seconds: float | None):
         s = min(MAX_COOLDOWN_S, max(30.0, seconds or DEFAULT_COOLDOWN_S))
@@ -281,10 +368,13 @@ class Provider:
         """Public, non-secret: presence only, never the key, its length or prefix."""
         with self.lock:
             self._roll()
-            cd = max(0, int(self.cooldown_until - time.time()))
-            used = self.used
+            now = time.time()
+            self._trim_hits(now)
+            cd = max(0, int(self.cooldown_until - now))
+            used, hits, rpm = self.used, len(self._hits), self.rpm
         return {"key_present": bool(self.key()), "available": self.available(), "cooling_s": cd,
-                "used_today": used, "budget": self.budget, "last_error": self.last_error,
+                "used_today": used, "budget": self.budget, "rpm": rpm,
+                "used_last_min": hits, "last_error": self.last_error,
                 "last_error_age_s": int(time.time() - self.last_error_at) if self.last_error_at else None,
                 "last_ok_age_s": int(time.time() - self.last_ok_at) if self.last_ok_at else None}
 
@@ -297,9 +387,12 @@ class Provider:
     def snapshot(self) -> dict:
         with self.lock:
             self._roll()
-            cd = max(0, int(self.cooldown_until - time.time()))
+            now = time.time()
+            self._trim_hits(now)
+            cd = max(0, int(self.cooldown_until - now))
             return {"enabled": bool(self.key()), "used_today": self.used, "budget": self.budget,
-                    "cooldown_s": cd, "errors": self.errors}
+                    "cooldown_s": cd, "errors": self.errors, "rpm": self.rpm,
+                    "used_last_min": len(self._hits)}
 
 
 class Gemini(Provider):
@@ -405,7 +498,7 @@ class Advisor:
         self.gemini = Gemini("gemini", "GEMINI_API_KEY", BUDGETS["gemini"])
         self.groq = Groq("groq", "GROQ_API_KEY", BUDGETS["groq"])
         self.openrouter = OpenRouter("openrouter", "OPENROUTER_API_KEY", BUDGETS["openrouter"])
-        self._cache: OrderedDict[str, tuple[float, dict]] = OrderedDict()
+        self._cache: OrderedDict[str, tuple[float, dict, dict]] = OrderedDict()
         self._inflight: set[str] = set()
         self._lock = threading.Lock()
         self._pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="brain")
@@ -439,22 +532,34 @@ class Advisor:
 
     def status(self) -> dict:
         return {"enabled": self.enabled(), "resting": self.resting(), "per_cycle": PER_CYCLE,
+                "opinion_ttl_s": CACHE_TTL_S, "material_move": MATERIAL_MOVE,
                 "models": {"gemini": GEMINI_MODELS, "groq": GROQ_MODEL,
                            "openrouter": OPENROUTER_MODELS},
                 "providers": {p.name: p.snapshot() for p in self.providers()},
                 "cached": len(self._cache)}
 
-    def cached(self, mint: str) -> dict | None:
+    def cached(self, mint: str, summary: dict | None = None) -> dict | None:
+        """Return the last opinion if it is still fresh. A big price or liquidity
+        move makes it stale even inside the TTL; the old entry stays until replaced.
+        """
         with self._lock:
             row = self._cache.get(mint)
-            if row and row[0] > time.time():
-                return row[1]
-            self._cache.pop(mint, None)
-            return None
+            if not row:
+                return None
+            if len(row) == 2:                       # older 2-tuple cache shape
+                exp, res, snap = row[0], row[1], {}
+            else:
+                exp, res, snap = row
+            if exp <= time.time():
+                self._cache.pop(mint, None)
+                return None
+            if summary is not None and moved_a_lot(snap, _metrics(summary)):
+                return None
+            return res
 
-    def _store(self, mint: str, res: dict):
+    def _store(self, mint: str, res: dict, summary: dict | None = None):
         with self._lock:
-            self._cache[mint] = (time.time() + CACHE_TTL_S, res)
+            self._cache[mint] = (time.time() + CACHE_TTL_S, res, _metrics(summary))
             self._cache.move_to_end(mint)
             while len(self._cache) > CACHE_MAX:
                 self._cache.popitem(last=False)
@@ -467,6 +572,7 @@ class Advisor:
         return {
             "symbol": _clean(t.get("symbol") or "?", 20),
             "age_minutes": t.get("age_minutes"),
+            "price_usd": t.get("price_usd"),
             "liquidity_usd": t.get("liquidity_usd"), "mcap_usd": t.get("mcap_usd"),
             "volume_m5": t.get("volume_m5"), "volume_h1": t.get("volume_h1"),
             "buys_h1": t.get("buys_h1"), "sells_h1": t.get("sells_h1"), "buyers_h1": t.get("buyers_h1"),
@@ -485,8 +591,11 @@ class Advisor:
         }
 
     # -- single opinion --
-    def _opinion(self, p: Provider, summary: dict) -> dict | None:
+    def _opinion(self, p: Provider, summary: dict, deadline: float | None = None) -> dict | None:
         user = "Candidate coin data (JSON):\n" + json.dumps(summary, default=str)
+        wait = 7.0 if deadline is None else max(0.0, min(7.0, deadline - time.time()))
+        if not p.pace(max_wait=wait):
+            return {"provider": p.name, "error": f"{p.name} paced (per-minute cap)", "limited": True}
         try:
             out = parse_opinion(p.call(SYSTEM, user))
         except ProviderError as e:
@@ -512,6 +621,9 @@ class Advisor:
 
         def go(p: Provider, prompt: str):
             if time.time() > deadline:
+                return None
+            wait = max(0.0, min(7.0, deadline - time.time()))
+            if not p.pace(max_wait=wait):
                 return None
             try:
                 return parse_chat(p.call(DEBATE_SYSTEM, prompt, 500))
@@ -554,7 +666,7 @@ class Advisor:
     # -- one full review (blocking; run in a worker thread) --
     def review(self, mint: str, summary: dict, log: Callable[[str], None] | None = None) -> dict | None:
         log = log or (lambda s: None)
-        cached = self.cached(mint)
+        cached = self.cached(mint, summary)
         if cached is not None:
             return cached
         if not self.enabled():
@@ -567,7 +679,7 @@ class Advisor:
         ops: dict[str, dict | None] = {}
 
         def run(p: Provider):
-            ops[p.name] = self._opinion(p, summary)
+            ops[p.name] = self._opinion(p, summary, deadline)
 
         def round_(ps):
             threads = [threading.Thread(target=run, args=(p,), daemon=True) for p in ps]
@@ -646,7 +758,7 @@ class Advisor:
                             res["final"] = {"verdict": final, "votes": fin, "agree": fv.count(final)}
                             res["verdict"] = final
                             log(f"brain final: ${sym} {final} ({fv.count(final)}/2)")
-        self._store(mint, res)
+        self._store(mint, res, summary)
         return res
 
     # -- non-blocking entry point for the trading loop --
@@ -654,7 +766,7 @@ class Advisor:
                log: Callable[[str], None] | None = None) -> str:
         """Returns 'cached' (on_done already called), 'queued', or 'skipped'. Never blocks."""
         try:
-            hit = self.cached(mint)
+            hit = self.cached(mint, summary)
             if hit is not None:
                 on_done(hit)
                 return "cached"

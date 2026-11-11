@@ -28,6 +28,7 @@ class _Resp:
 def _reset():
     for p in ADVISOR.providers():
         p.cooldown_until, p.used, p.errors, p.last_error, p.last_error_at = 0.0, 0, 0, None, 0.0
+        p._hits = []
 
 
 class Health(unittest.TestCase):

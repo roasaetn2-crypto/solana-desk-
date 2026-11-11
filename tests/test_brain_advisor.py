@@ -69,6 +69,9 @@ class Base(unittest.TestCase):
         self.addCleanup(self.env.stop)
         os.environ.pop("OPENROUTER_API_KEY", None)
         self.adv = ba.Advisor()
+        # existing tests burst many calls; the real RPM caps are covered in Pace
+        for p in self.adv.providers():
+            p.rpm = 1000
         self.lines = []
         self.addCleanup(self.adv._pool.shutdown, wait=True, cancel_futures=True)
 
@@ -376,6 +379,164 @@ class OpenRouterProvider(Base):
         self.assertNotIn(ORKEY, ba.redact(f"token {ORKEY}"))
 
 
+class Candidates(unittest.TestCase):
+    def test_only_valid_setup_at_or_above_min_score(self):
+        from config import MIN_SCORE
+        self.assertTrue(ba.should_advise({"verdict": "valid_setup", "score": MIN_SCORE}))
+        self.assertTrue(ba.should_advise({"verdict": "valid_setup", "score": MIN_SCORE + 3}))
+        self.assertFalse(ba.should_advise({"verdict": "valid_setup", "score": MIN_SCORE - 1}))
+        self.assertFalse(ba.should_advise({"verdict": "watch", "score": 9}))
+        self.assertFalse(ba.should_advise({"verdict": "skip", "score": 8}))
+        self.assertFalse(ba.should_advise(None))
+        self.assertFalse(ba.should_advise({"verdict": "valid_setup"}))
+        self.assertFalse(ba.should_advise("nope"))
+
+    def test_accepts_a_token_thesis(self):
+        from desk.analyst import TokenThesis
+        from config import MIN_SCORE
+        th = TokenThesis(verdict="valid_setup", score=max(MIN_SCORE, 5), red_flags=[],
+                         green_flags=["crowd"], shape="crowd", invalidation="price fails",
+                         sources=["liquidity_usd"])
+        self.assertTrue(ba.should_advise(th))
+        th.verdict, th.score = "skip", 8
+        self.assertFalse(ba.should_advise(th))
+
+    def test_moved_a_lot_is_25_percent_price_or_liq(self):
+        prev = {"price_usd": 1.0, "liquidity_usd": 100.0}
+        self.assertFalse(ba.moved_a_lot(prev, {"price_usd": 1.24, "liquidity_usd": 110.0}))
+        self.assertTrue(ba.moved_a_lot(prev, {"price_usd": 1.25, "liquidity_usd": 100.0}))
+        self.assertTrue(ba.moved_a_lot(prev, {"price_usd": 1.0, "liquidity_usd": 74.0}))
+        self.assertFalse(ba.moved_a_lot({}, {"price_usd": 2.0}))
+        self.assertTrue(ba.moved_a_lot({"price_usd": 0.0}, {"price_usd": 1.0}))
+
+
+class Freshness(Base):
+    def test_cache_expires_after_ttl(self):
+        os.environ.pop("GROQ_API_KEY")
+        net = Net(gemini=[gem(opinion()), gem(opinion("skip", 90))])
+        a = self.run_review(net)
+        exp, res, snap = self.adv._cache["M1"]
+        self.adv._cache["M1"] = (time.time() - 1, res, snap)
+        b = self.run_review(net)
+        self.assertIsNot(a, b)
+        self.assertEqual(b["verdict"], "skip")
+        self.assertEqual(net.n("gemini"), 2)
+
+    def test_reasks_when_price_or_liquidity_moves_a_lot(self):
+        os.environ.pop("GROQ_API_KEY")
+        net = Net(gemini=[gem(opinion("watch", 40)), gem(opinion("skip", 90))])
+        s1 = {**SUMMARY, "price_usd": 1.0, "liquidity_usd": 20_000}
+        s2 = {**SUMMARY, "price_usd": 1.30, "liquidity_usd": 20_000}
+        with mock.patch.object(ba.requests, "post", net):
+            a = self.adv.review("M1", s1, self.lines.append)
+            b = self.adv.review("M1", s2, self.lines.append)
+        self.assertIsNot(a, b)
+        self.assertEqual(b["verdict"], "skip")
+        self.assertEqual(net.n("gemini"), 2)
+
+    def test_small_move_keeps_cache_and_submit_is_cached(self):
+        os.environ.pop("GROQ_API_KEY")
+        net = Net(gemini=[gem(opinion("watch", 40)), gem(opinion("skip", 90))])
+        s1 = {**SUMMARY, "price_usd": 1.0, "liquidity_usd": 20_000}
+        s2 = {**SUMMARY, "price_usd": 1.10, "liquidity_usd": 21_000}
+        with mock.patch.object(ba.requests, "post", net):
+            a = self.adv.review("M1", s1, self.lines.append)
+            got = []
+            st = self.adv.submit("M1", s2, got.append)
+        self.assertEqual(st, "cached")
+        self.assertIs(got[0], a)
+        self.assertEqual(net.n("gemini"), 1)
+
+    def test_submit_requeues_on_material_move(self):
+        os.environ.pop("GROQ_API_KEY")
+        net = Net(gemini=[gem(opinion("watch", 40)), gem(opinion("skip", 90))])
+        s1 = {**SUMMARY, "price_usd": 1.0, "liquidity_usd": 20_000}
+        s2 = {**SUMMARY, "price_usd": 0.70, "liquidity_usd": 20_000}
+        done = []
+        with mock.patch.object(ba.requests, "post", net):
+            self.assertEqual(self.adv.submit("M1", s1, done.append), "queued")
+            for _ in range(50):
+                if done:
+                    break
+                time.sleep(0.05)
+            self.adv.new_cycle()
+            st = self.adv.submit("M1", s2, done.append)
+            for _ in range(50):
+                if len(done) == 2:
+                    break
+                time.sleep(0.05)
+        self.assertEqual(st, "queued")
+        self.assertEqual(len(done), 2)
+        self.assertEqual(done[1]["verdict"], "skip")
+        self.assertEqual(net.n("gemini"), 2)
+
+
+class Pace(Base):
+    def setUp(self):
+        super().setUp()
+        for name, p in (("gemini", self.adv.gemini), ("groq", self.adv.groq),
+                        ("openrouter", self.adv.openrouter)):
+            p.rpm = ba.RPM[name]
+
+    def test_gemini_caps_at_8_calls_a_minute(self):
+        os.environ.pop("GROQ_API_KEY")
+        os.environ.pop("OPENROUTER_API_KEY", None)
+        self.assertEqual(self.adv.gemini.rpm, 8)
+        net = Net(gemini=[gem(opinion()) for _ in range(20)])
+        for i in range(12):
+            self.run_review(net, mint=f"M{i}")
+        self.assertEqual(net.n("gemini"), 8)
+        self.assertFalse(self.adv.gemini.pace(max_wait=0))
+        self.assertEqual(self.adv.gemini.health()["used_last_min"], 8)
+        self.assertEqual(self.adv.gemini.health()["rpm"], 8)
+        # available() ignores the review pacer, so Desk AI chat can still call this provider
+        self.assertTrue(self.adv.gemini.available())
+
+    def test_openrouter_same_rpm_cap(self):
+        os.environ.pop("GEMINI_API_KEY")
+        os.environ.pop("GROQ_API_KEY")
+        os.environ["OPENROUTER_API_KEY"] = ORKEY
+        net = Net(orr=[groq(opinion()) for _ in range(12)])
+        for i in range(10):
+            self.run_review(net, mint=f"M{i}")
+        self.assertEqual(net.n("openrouter"), 8)
+        self.assertEqual(self.adv.openrouter.rpm, self.adv.gemini.rpm)
+        self.assertFalse(self.adv.openrouter.pace(max_wait=0))
+
+    def test_rpm_window_frees_a_slot(self):
+        os.environ.pop("GROQ_API_KEY")
+        self.adv.gemini.rpm = 2
+        net = Net(gemini=[gem(opinion()) for _ in range(5)])
+        self.run_review(net, mint="A")
+        self.run_review(net, mint="B")
+        self.assertEqual(net.n("gemini"), 2)
+        self.assertFalse(self.adv.gemini.pace(max_wait=0))
+        self.adv.gemini._hits = [time.time() - 61, time.time() - 61]
+        self.run_review(net, mint="C")
+        self.assertEqual(net.n("gemini"), 3)
+
+    def test_rpm_does_not_block_the_other_provider(self):
+        self.adv.gemini.rpm = 1
+        net = Net(gemini=[gem(opinion("skip", 40)), gem(opinion("skip", 40))],
+                  groq_=[groq(opinion("skip", 70)), groq(opinion("skip", 70))])
+        self.run_review(net, mint="A")
+        r = self.run_review(net, mint="B")
+        self.assertEqual(net.n("gemini"), 1)
+        self.assertEqual(r["source"], "groq")
+        self.assertTrue(r.get("solo") or r["source"] == "groq")
+
+    def test_rpm_does_not_block_direct_call_used_by_chat(self):
+        os.environ.pop("GROQ_API_KEY")
+        self.adv.gemini.rpm = 1
+        self.assertTrue(self.adv.gemini.pace(max_wait=0))
+        self.assertFalse(self.adv.gemini.pace(max_wait=0))
+        net = Net(gemini=[gem(opinion("watch", 40))])
+        with mock.patch.object(ba.requests, "post", net):
+            out = self.adv.gemini.call("sys", "user")
+        self.assertTrue(out)
+        self.assertEqual(net.n("gemini"), 1)
+
+
 class Advisory(unittest.TestCase):
     """The verdict must never alter the risk/broker decision, and the risk path can't see it."""
 
@@ -453,6 +614,70 @@ class Advisory(unittest.TestCase):
                 mock.patch.object(dialogue, "_template_debate", return_value=[{"text": "t"}]):
             out = dialogue.debate({}, {}, {}, {}, {}, {}, False, 0, "r", {})
         self.assertEqual(out["backend"], "template")
+
+    def test_analyst_skip_is_not_sent_to_the_advisor(self):
+        from test_guard_integration import Base as GBase
+        from desk.brain_advisor import ADVISOR
+        from desk.analyst import TokenThesis
+
+        class T(GBase):
+            def runTest(self):
+                pass
+        t = T()
+        calls = []
+        skip = TokenThesis(verdict="skip", score=2, red_flags=["thin liquidity"], green_flags=[],
+                           shape="fading", invalidation="n/a", sources=["liquidity_usd"])
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": GKEY, "GROQ_API_KEY": QKEY}), \
+                mock.patch("desk.solana_agent.analyst.analyze_token", return_value=skip), \
+                mock.patch.object(ADVISOR, "submit", side_effect=lambda *a, **k: calls.append((a, k)) or "skipped"):
+            a = t.run_agent()
+            t.doCleanups()
+        self.assertEqual(calls, [])
+        self.assertTrue(a.decisions)
+        self.assertNotIn("brain", a.decisions[0])
+        self.assertEqual(a.decisions[0]["thesis"]["verdict"], "skip")
+
+    def test_analyst_watch_is_not_sent_to_the_advisor(self):
+        from test_guard_integration import Base as GBase
+        from desk.brain_advisor import ADVISOR
+        from desk.analyst import TokenThesis
+
+        class T(GBase):
+            def runTest(self):
+                pass
+        t = T()
+        calls = []
+        watch = TokenThesis(verdict="watch", score=6, red_flags=[], green_flags=["ok"],
+                            shape="crowd", invalidation="n/a", sources=["volume_h1"])
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": GKEY, "GROQ_API_KEY": QKEY}), \
+                mock.patch("desk.solana_agent.analyst.analyze_token", return_value=watch), \
+                mock.patch.object(ADVISOR, "submit", side_effect=lambda *a, **k: calls.append(1) or "skipped"):
+            a = t.run_agent()
+            t.doCleanups()
+        self.assertEqual(calls, [])
+        self.assertEqual(a.decisions[0]["thesis"]["verdict"], "watch")
+
+    def test_valid_setup_below_min_score_is_not_sent(self):
+        from test_guard_integration import Base as GBase
+        from desk.brain_advisor import ADVISOR
+        from desk.analyst import TokenThesis
+        from config import MIN_SCORE
+
+        class T(GBase):
+            def runTest(self):
+                pass
+        t = T()
+        calls = []
+        weak = TokenThesis(verdict="valid_setup", score=max(0, MIN_SCORE - 1), red_flags=[],
+                           green_flags=["ok"], shape="crowd", invalidation="n/a",
+                           sources=["liquidity_usd"])
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": GKEY, "GROQ_API_KEY": QKEY}), \
+                mock.patch("desk.solana_agent.analyst.analyze_token", return_value=weak), \
+                mock.patch.object(ADVISOR, "submit", side_effect=lambda *a, **k: calls.append(1) or "skipped"):
+            a = t.run_agent()
+            t.doCleanups()
+        self.assertEqual(calls, [])
+        self.assertNotIn("brain", a.decisions[0])
 
     def test_no_keys_no_brain_key_on_decision(self):
         from test_guard_integration import Base as GBase

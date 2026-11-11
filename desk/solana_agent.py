@@ -27,7 +27,7 @@ from datetime import date, datetime, timezone
 import requests
 
 from config import AGENT, ENTRY, EXECUTION, EXITS, PAPER, RISK
-from desk.brain_advisor import ADVISOR
+from desk.brain_advisor import ADVISOR, should_advise
 from desk import (analyst, brain, chain, dexscreener, devcheck, dialogue, exits, goplus, gmgn,
                   guard, heartbeat, helius, meme, pumpportal, regime, scanner,
                   signals)
@@ -645,7 +645,7 @@ class SolanaAgent:
                     "flags": chips, "regime": self.regime.get("tag"),
                     "checklist": sizes.get("guard", {}).get("checklist"),
                 }
-                self._advise(t, f, dev, sc, sec, links, decision)   # advisory only, never blocks
+                self._advise(t, f, dev, sc, sec, links, decision, th)   # advisory only, never blocks
                 with self.lock:
                     self.decisions.appendleft(decision)
                 journal("decision", **decision)
@@ -764,15 +764,19 @@ class SolanaAgent:
         return {"cycle": cycle, "source": source, "stats": dict(self.stats)}
 
     def _advise(self, t: dict, f: dict, dev: dict, sc: dict, sec: dict, links: dict,
-                decision: dict) -> None:
+                decision: dict, thesis=None) -> None:
         """Ask the AI second opinion about this coin, in a worker thread.
 
         ADVISORY ONLY: the result is stored on the decision record and logged. Nothing
         here is read by the risk engine, the broker, the kills or the mode, and a failure
-        is swallowed. With no API keys set this does nothing.
+        is swallowed. With no API keys set this does nothing. Only real candidates
+        (analyst valid_setup at or above MIN_SCORE, after the scanner hard gates) are
+        sent; a skip/watch or a weak score is left to the rule-based analyst alone.
         """
         try:
             if not ADVISOR.enabled() or str(t.get("mint", "")).startswith("DEMO"):
+                return
+            if not should_advise(thesis):
                 return
             sym, mint = t.get("symbol"), t["mint"]
 
