@@ -380,6 +380,7 @@ td .num.bad  { color: var(--red); }
 
 
 
+
 /* ---------- brand + cat mascot ---------- */
 .brand { align-items: center; gap: 14px; min-width: 0; }
 .titles { min-width: 0; padding-top: 2px; flex: 1; }
@@ -406,65 +407,134 @@ td .num.bad  { color: var(--red); }
   width: 100%; height: 100%;
   transform-origin: 50% 90%;
 }
-.pose {
+.mood {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.38s ease;
+  pointer-events: none;
+}
+.cat-dock[data-mood="neutral"] .mood-neutral,
+.cat-dock:not([data-mood]) .mood-neutral { opacity: 1; }
+.cat-dock[data-mood="sleep"] .mood-sleep { opacity: 1; }
+.cat-dock[data-mood="scan"] .mood-scan { opacity: 1; }
+.cat-dock[data-mood="happy"] .mood-happy { opacity: 1; }
+.cat-dock[data-mood="sad"] .mood-sad { opacity: 1; }
+
+.frame {
   position: absolute;
   inset: 0;
   width: 100%; height: 100%;
   object-fit: contain;
   object-position: center bottom;
   opacity: 0;
-  transition: opacity 0.38s ease;
-  pointer-events: none;
   user-select: none;
   -webkit-user-drag: none;
+  pointer-events: none;
 }
-.cat-dock[data-mood="neutral"] .pose-neutral,
-.cat-dock:not([data-mood]) .pose-neutral { opacity: 1; }
-.cat-dock[data-mood="sleep"] .pose-sleep { opacity: 1; }
-.cat-dock[data-mood="scan"] .pose-scan { opacity: 1; }
-.cat-dock[data-mood="happy"] .pose-happy { opacity: 1; }
-.cat-dock[data-mood="sad"] .pose-sad { opacity: 1; }
+.mood .frame-open,
+.mood .frame-a { opacity: 1; }
 
-.zzz { display: none; }
-.cat-dock[data-mood="sleep"] .zzz { display: block; }
-
-@keyframes breathe {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
+/* blink: flash the closed-eye frame over the open one */
+@keyframes blink-on {
+  0%, 82%, 93%, 100% { opacity: 0; }
+  84%, 91% { opacity: 1; }
 }
-@keyframes scan-bob {
-  0%, 100% { transform: translateY(0) rotate(-1.2deg); }
-  50% { transform: translateY(-5px) rotate(1.6deg); }
+@keyframes blink-off {
+  0%, 82%, 93%, 100% { opacity: 1; }
+  84%, 91% { opacity: 0; }
+}
+.cat-dock[data-mood="neutral"] .mood-neutral .frame-blink,
+.cat-dock[data-mood="happy"] .mood-happy .frame-blink,
+.cat-dock[data-mood="sad"] .mood-sad .frame-blink,
+.cat-dock[data-mood="scan"] .mood-scan .frame-blink {
+  z-index: 3;
+  animation: blink-on 3.8s steps(1, end) infinite;
+}
+.cat-dock[data-mood="neutral"] .mood-neutral .frame-open,
+.cat-dock[data-mood="happy"] .mood-happy .frame-open,
+.cat-dock[data-mood="sad"] .mood-sad .frame-open {
+  animation: blink-off 3.8s steps(1, end) infinite;
+}
+
+/* scan: glance left/right, blink covers both */
+@keyframes glance-a {
+  0%, 42% { opacity: 1; }
+  50%, 92% { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes glance-b {
+  0%, 42% { opacity: 0; }
+  50%, 92% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.cat-dock[data-mood="scan"] .mood-scan .frame-a { animation: glance-a 3.4s ease-in-out infinite; }
+.cat-dock[data-mood="scan"] .mood-scan .frame-b { animation: glance-b 3.4s ease-in-out infinite; }
+.cat-dock[data-mood="scan"] .mood-scan .frame-blink { animation: blink-on 4.2s steps(1, end) infinite; }
+
+@keyframes idle-live {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  28% { transform: translateY(-4px) rotate(0); }
+  56% { transform: translateY(0) rotate(0); }
+  74% { transform: translateY(-1px) rotate(-6deg); }
+  78% { transform: translateY(-1px) rotate(3deg); }
+  82% { transform: translateY(-2px) rotate(0); }
+}
+@keyframes scan-tilt {
+  0%, 42% { transform: translateY(-3px) rotate(-5deg); }
+  50%, 92% { transform: translateY(-5px) rotate(6deg); }
+  100% { transform: translateY(-3px) rotate(-5deg); }
 }
 @keyframes hop {
   0%, 100% { transform: translateY(0) scale(1); }
-  22% { transform: translateY(-18px) scale(1.04, 0.96); }
+  22% { transform: translateY(-20px) scale(1.05, 0.95); }
   40% { transform: translateY(0) scale(1); }
-  58% { transform: translateY(-10px) scale(1.03, 0.97); }
+  58% { transform: translateY(-11px) scale(1.04, 0.96); }
   74% { transform: translateY(0) scale(1); }
 }
+@keyframes happy-bob {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50% { transform: translateY(-6px) rotate(2deg); }
+}
 @keyframes droop {
-  0%, 100% { transform: translateY(5px) rotate(-2.2deg); }
-  50% { transform: translateY(7px) rotate(-1deg); }
+  0%, 100% { transform: translateY(5px) rotate(-2.4deg); }
+  50% { transform: translateY(8px) rotate(-1deg); }
 }
 @keyframes snooze {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(3px); }
+  50% { transform: translateY(4px); }
 }
 @keyframes zzz-rise {
   0% { opacity: 0; transform: translate(0, 8px) scale(0.7); }
   25% { opacity: 1; }
-  100% { opacity: 0; transform: translate(12px, -20px) scale(1.15); }
+  100% { opacity: 0; transform: translate(14px, -22px) scale(1.15); }
+}
+@keyframes sparkle {
+  0%, 100% { opacity: 0; transform: scale(0.4) rotate(0deg); }
+  40% { opacity: 1; transform: scale(1.15) rotate(20deg); }
+  70% { opacity: 0.75; transform: scale(0.9) rotate(-8deg); }
+}
+@keyframes tear-fall {
+  0%, 12% { opacity: 0; transform: translateY(0) scale(0.6); }
+  22% { opacity: 1; transform: translateY(2px) scale(1); }
+  80% { opacity: 1; transform: translateY(18px) scale(1); }
+  100% { opacity: 0; transform: translateY(26px) scale(0.8); }
 }
 
-.cat-dock[data-mood="neutral"] .mascot { animation: breathe 3.4s ease-in-out infinite; }
-.cat-dock[data-mood="scan"] .mascot { animation: scan-bob 2.4s ease-in-out infinite; }
+.cat-dock[data-mood="neutral"] .mascot { animation: idle-live 3.6s ease-in-out infinite; }
+.cat-dock[data-mood="scan"] .mascot { animation: scan-tilt 3.4s ease-in-out infinite; }
 .cat-dock[data-mood="sleep"] .mascot { animation: snooze 3.4s ease-in-out infinite; }
 .cat-dock[data-mood="sad"] .mascot { animation: droop 2.6s ease-in-out infinite; }
-.cat-dock[data-mood="happy"] .mascot.is-hop { animation: hop 0.95s ease-in-out 0s 2; }
+.cat-dock[data-mood="happy"] .mascot { animation: happy-bob 0.9s ease-in-out infinite; }
+.cat-dock[data-mood="happy"] .mascot.is-hop { animation: hop 0.95s ease-in-out 0s 2, happy-bob 0.9s ease-in-out 1.9s infinite; }
+
+.zzz, .fx-sparkles, .fx-tear { display: none; }
+.cat-dock[data-mood="sleep"] .zzz { display: block; }
+.cat-dock[data-mood="happy"] .fx-sparkles { display: block; }
+.cat-dock[data-mood="sad"] .fx-tear { display: block; }
 
 .zzz {
-  position: absolute; top: 6px; right: 2px; z-index: 2;
+  position: absolute; top: 6px; right: 2px; z-index: 4;
   font-family: var(--sans); font-weight: 800; color: var(--pink);
   pointer-events: none; line-height: 1;
   text-shadow: 0 1px 0 rgba(0,0,0,.25);
@@ -473,6 +543,30 @@ td .num.bad  { color: var(--red); }
 .zzz span:nth-child(1) { font-size: 12px; right: 10px; top: 20px; animation-delay: 0s; }
 .zzz span:nth-child(2) { font-size: 15px; right: 0; top: 6px; animation-delay: 0.7s; }
 .zzz span:nth-child(3) { font-size: 18px; right: -10px; top: -8px; animation-delay: 1.4s; }
+
+.fx-sparkles {
+  position: absolute; inset: 0; z-index: 4; pointer-events: none;
+  overflow: visible;
+}
+.fx-sparkles .sp { fill: #ffd60a; transform-box: fill-box; transform-origin: 50% 50%; animation: sparkle 0.9s ease-in-out infinite; }
+.fx-sparkles .s2 { animation-delay: 0.18s; fill: #fff1a8; }
+.fx-sparkles .s3 { animation-delay: 0.36s; fill: #ffd60a; }
+.fx-sparkles .s4 { animation-delay: 0.52s; fill: #fff6c8; }
+
+.fx-tear {
+  position: absolute;
+  left: 38%;
+  top: 46%;
+  width: 8px; height: 12px;
+  background: #8ec8ff;
+  border: 1.5px solid #3a7aa8;
+  border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%;
+  clip-path: polygon(50% 0, 100% 55%, 50% 100%, 0 55%);
+  z-index: 4;
+  pointer-events: none;
+  animation: tear-fall 2s ease-in infinite;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.2) inset;
+}
 
 .speech {
   margin-top: 8px;
@@ -537,7 +631,6 @@ td .num.bad  { color: var(--red); }
 }
 .page-login .div:before, .page-login .div:after { content: ""; flex: 1; height: 1px; background: var(--border); }
 
-/* ---------- phones: Pixel 7 (~412px) hero header ---------- */
 @media (max-width: 760px) {
   .topbar { padding: 12px 12px 10px; align-items: flex-start; }
   .mascot-wrap { width: 132px; height: 132px; }
@@ -546,11 +639,12 @@ td .num.bad  { color: var(--red); }
   .brand { width: 100%; }
 }
 
-/* ---------- reduced motion: keep the pose, drop the motion ---------- */
 @media (prefers-reduced-motion: reduce) {
-  .mascot, .pose, .zzz span, .speech, .log-row, .toast, .btn {
+  .mascot, .frame, .zzz span, .fx-sparkles .sp, .fx-tear, .speech, .log-row, .toast, .btn, .mood {
     animation: none !important;
     transition: none !important;
   }
+  .mood .frame-open, .mood .frame-a { opacity: 1 !important; }
+  .mood .frame-blink, .mood .frame-b { opacity: 0 !important; }
   .toast { transform: translateX(-50%) translateY(0); }
 }
