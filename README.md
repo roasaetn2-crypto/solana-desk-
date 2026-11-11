@@ -42,6 +42,7 @@ Seven seats. Each has one job, one file, and a hard boundary. Evidence seats (2b
 | 5 | **Paper broker** | `desk/broker.py` | Simulated fills and rule-based exits: stop −35%, take half at 2× once, volume decay, max hold 24h, no quote = close | Sign anything |
 
 **Ops** (`desk/ops.py`) wraps the desk: append-only `journal.jsonl`, a SQLite `desk.db` bench, alerts, and a `KILL` file kill switch.
+A read-only backtest (`desk/backtest.py`, also a Backtest card on the dashboard) replays that journal against other gate settings and never changes the live desk.
 
 ### The typed thesis
 

@@ -83,6 +83,21 @@ variables only and never appear in the UI, state API, logs or URLs.
 Cuts multiply, with a floor of a quarter of the ticket. A ticket that falls under the $2
 fee floor after cuts is refused.
 
+
+## 5b. Backtest (read only)
+
+The dashboard Backtest card and `GET /api/backtest` (same login as the rest of
+the desk) replay recorded journal tickets against other gate settings: a 0–100
+score of 50/55/60/65/70, max chase, min alive 6h, and the price-gap cap. Sizing
+and exits stay the desk's own paper rules ($20 book, $5 scalp with a 20% stop,
+$3.33 swing with a 30% stop, max 4 positions, $2 fee floor).
+
+A coin that would have been taken but has no later recorded price is marked
+unknown. Prices are never invented. The run does not change live settings; any
+retune is a separate, logged step. Early samples are thin — often only hours of
+tickets, and a deploy wipes `journal.jsonl` unless `DESK_DATA_DIR` points at a
+disk.
+
 ## 6. Environment variables
 
 | Name | Needed for | Notes |
@@ -91,6 +106,8 @@ fee floor after cuts is refused.
 | `HEALTHCHECKS_PING_WHEN_PAUSED=1` | optional | keep pinging while the loop is paused (default: a paused loop is silent, so you hear about it) |
 | `GMGN_API_KEY` | GMGN | free key from gmgn.ai/ai. GMGN may restrict by IP. Never needs a private key |
 | `DESK_OFFLINE=1` | tests | turns every optional lookup into "unknown" |
+| `DESK_DATA_DIR` | optional | folder for `journal.jsonl`, the paper ledger and `desk.db`. Use a mounted disk so a deploy does not wipe history |
+| `OLD_DESK_DB` | optional | path to the previous desk's sqlite file, included in a local backtest only |
 
 ## 7. Sources and licences
 
@@ -101,8 +118,9 @@ files from these repositories are included. Both repositories are MIT licensed
 - galleonlabs/hypergrok-trading-desk: `desk-risk-limits` (tighten-only limits, daily loss
   stop), `desk-trade-lifecycle` (ticket, checklist, review stage), `desk-post-trade-review`,
   `desk-monitoring` (heartbeat), `desk-incident-response` (stop adding, look, contain).
-  `desk-execution-protocol` and `desk-strategy-lab` were read but nothing from them was
-  ported: the desk never sends orders, and there is no backtest lab here.
+  `desk-execution-protocol` was read but nothing from it was ported: the desk never
+  sends orders. A read-only journal replay lives in `desk/backtest.py` and on the
+  Backtest card; it never auto-applies a setting.
   `desk-operating-model` informed the role split between seats. Skipped all `hyperliquid-*`.
 - tradermonty/claude-trading-skills: `pre-trade-discipline-gate` (checklist),
   `drawdown-circuit-breaker` (loss-streak cooldown, daily loss), `position-sizer`

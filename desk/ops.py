@@ -12,7 +12,17 @@ import requests
 
 from config import BENCH_MINUTES, DEFAULT_BENCH
 
-JOURNAL = Path("journal.jsonl")
+def data_dir() -> Path:
+    """Runtime files. Set DESK_DATA_DIR to a mounted disk so deploys do not wipe the journal."""
+    raw = (os.environ.get("DESK_DATA_DIR") or "").strip()
+    return Path(raw) if raw else Path(".")
+
+
+def data_file(name: str) -> Path:
+    return data_dir() / name
+
+
+JOURNAL = Path("journal.jsonl")  # default; journal() uses data_file so DESK_DATA_DIR is honoured
 KILL_FILE = Path("KILL")
 
 
@@ -20,7 +30,9 @@ KILL_FILE = Path("KILL")
 def journal(kind: str, **fields) -> dict:
     row = {"time": datetime.now(timezone.utc).isoformat(), "kind": kind, **fields}
     try:
-        with JOURNAL.open("a", encoding="utf-8") as f:
+        path = data_file("journal.jsonl")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(row, default=str) + "\n")
     except Exception as e:
         # The journal is an audit trail, not a gate. A read-only volume must not

@@ -38,9 +38,25 @@ from desk import equity_curve
 from desk import live as live_mod
 from desk.broker import PaperBroker
 from desk.netutil import offline
-from desk.ops import Bench, alert, journal, killed
+from desk.ops import Bench, alert, data_file, journal, killed
 from desk.risk import (Account, check_live_trade, check_token_trade,
                        live_sizing_breakdown, sizing_base, sizing_breakdown)
+
+
+
+_TOKEN_SNAP_KEYS = (
+    "mint", "symbol", "price_usd", "mcap_usd", "liquidity_usd",
+    "volume_m5", "volume_h1", "volume_h6", "volume_h24",
+    "buys_h1", "sells_h1", "buyers_h1", "change_m5", "change_h1",
+    "age_minutes", "source",
+)
+
+
+def token_snap(t: dict | None) -> dict:
+    """Small token snapshot for the journal / backtest. No secrets, no raw dumps."""
+    if not t:
+        return {}
+    return {k: t[k] for k in _TOKEN_SNAP_KEYS if t.get(k) is not None}
 
 
 def _now() -> str:
@@ -60,12 +76,12 @@ def _demo_links(mint: str) -> dict:
 
 
 class SolanaAgent:
-    def __init__(self, ledger="paper_ledger.json", bench_path="desk.db",
-                 live_ledger="live_ledger.json"):
-        self.paper = PaperBroker(ledger)
-        self.live = live_mod.LiveBroker(live_ledger)
+    def __init__(self, ledger=None, bench_path=None,
+                 live_ledger=None):
+        self.paper = PaperBroker(ledger if ledger is not None else data_file("paper_ledger.json"))
+        self.live = live_mod.LiveBroker(live_ledger if live_ledger is not None else data_file("live_ledger.json"))
         self.mode = EXECUTION["default_mode"]          # always paper on boot
-        self.bench = Bench(bench_path)
+        self.bench = Bench(str(bench_path if bench_path is not None else data_file("desk.db")))
         # MERGE: count why tokens were benched, so autotune can loosen the gate that blocks most
         self.reject_reasons: Counter = Counter()
         _sit = self.bench.sit
@@ -374,6 +390,8 @@ class SolanaAgent:
                     self.stats["free_rejects"] += 1
                     self.emit("reject", f"{t['symbol']}: cut at scanner ({k})",
                               stage="scanner", reason=k, symbol=t["symbol"], mint=t["mint"])
+                    journal("reject", stage="scanner", mint=t["mint"], symbol=t["symbol"],
+                            reason=k, token=token_snap(t))
                     continue
 
                 if chain_left <= 0 or analyst_left <= 0:
@@ -561,7 +579,16 @@ class SolanaAgent:
                         self.bench.sit(t["mint"], bad)
                         self.emit("reject", f"{t['symbol']}: entry confirm failed ({bad})",
                                   stage="confirm", reason=bad, symbol=t["symbol"], mint=t["mint"])
-                        journal("reject", stage="confirm", mint=t["mint"], symbol=t["symbol"], reason=bad)
+                        snap = {
+                            "scan_price": t.get("price_usd"),
+                            "confirm_price": (cq or {}).get("price_usd") if cq else None,
+                            "scan_liq": t.get("liquidity_usd"),
+                            "confirm_liq": (cq or {}).get("liquidity_usd") if cq else None,
+                        }
+                        if snap["scan_price"] and snap["confirm_price"]:
+                            snap["gap_pct"] = abs(snap["confirm_price"] / snap["scan_price"] - 1) * 100
+                        journal("reject", stage="confirm", mint=t["mint"], symbol=t["symbol"],
+                                reason=bad, token=token_snap(t), **snap)
                         continue
 
                 cl = (sizes.get("guard") or {}).get("checklist")
@@ -698,6 +725,10 @@ class SolanaAgent:
                 q = scanner.demo_quote(mint, self.broker.s["positions"][mint]["last"])
             else:
                 q = quotes.get(mint)
+            if q and q.get("price_usd") and not mint.startswith("DEMO"):
+                journal("quote", mint=mint, symbol=self.broker.s["positions"][mint].get("symbol"),
+                        price_usd=q.get("price_usd"), volume_h6=q.get("volume_h6"),
+                        volume_h24=q.get("volume_h24"), liquidity_usd=q.get("liquidity_usd"))
             sig = self.broker.exit_signal(mint, q)
             if sig:
                 fraction, reason = sig

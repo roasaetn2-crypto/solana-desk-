@@ -780,3 +780,20 @@ td .num.bad  { color: var(--red); }
 .flag.halve { color: var(--amber); border-color: rgba(255,181,71,0.35); background: var(--amber-dim); }
 .flag.block { color: #fff; border-color: rgba(255,69,58,0.5); background: rgba(255,69,58,0.25); }
 .activity-row .sub.review { font-size: 10.5px; opacity: 0.8; }
+
+/* ---------- backtest card (compact, phone-first) ---------- */
+.bt-note { font-size: 11.5px; color: var(--muted); margin: -4px 0 10px; line-height: 1.4; }
+.bt-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.bt-table th, .bt-table td {
+  text-align: right; padding: 7px 6px; font-size: 12px;
+  border-bottom: 1px solid #161616; white-space: nowrap;
+}
+.bt-table th:first-child, .bt-table td:first-child { text-align: left; padding-left: 2px; }
+.bt-table th { color: var(--muted); font-weight: 600; font-size: 10px; letter-spacing: 0.5px; text-transform: uppercase; }
+.bt-table td { color: #ddd; font-family: var(--mono); font-weight: 600; }
+.bt-table tr.current td { color: #fff; background: #1a1a1a; }
+.bt-table tr.current td:first-child { box-shadow: inset 2px 0 0 var(--green); }
+.bt-tag { font-family: var(--sans); font-size: 10px; color: var(--green); font-weight: 700; margin-left: 6px; letter-spacing: 0.3px; }
+.bt-pos { color: var(--green) !important; }
+.bt-neg { color: var(--red) !important; }
+.bt-caveat { font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.4; }

@@ -17,13 +17,14 @@ from pathlib import Path
 
 from config import EXITS, PAPER  # noqa: F401
 from desk import exits
+from desk.ops import data_file
 
 LEDGER = Path("paper_ledger.json")
 
 
 class PaperBroker:
-    def __init__(self, path: Path | str = LEDGER):
-        self.path = Path(path)
+    def __init__(self, path: Path | str | None = None):
+        self.path = Path(path) if path is not None else data_file("paper_ledger.json")
         if self.path.exists():
             self.s = json.loads(self.path.read_text())
         else:

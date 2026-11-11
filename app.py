@@ -23,6 +23,7 @@ Endpoints
     GET  /devices              list paired devices, revoke them
     GET  /api/state            full agent + broker + event snapshot
     GET  /api/chart            OHLC for one ticket (query: mint, tf)
+    GET  /api/backtest         read-only gate replay over the journal (never changes settings)
     GET  /api/devices          paired device list (JSON)
     DELETE /api/devices/{id}   revoke one device
     POST /api/agent/start      start the background loop
@@ -40,6 +41,7 @@ from contextlib import asynccontextmanager
 import hashlib
 import hmac
 import os
+import time
 from pathlib import Path
 
 from fastapi import Body, FastAPI, Form, Request
@@ -240,6 +242,23 @@ def state(request: Request):
 @app.get("/api/chart")
 def chart(mint: str = "", tf: str = ""):
     return agent.chart(mint, tf or None)
+
+
+_BACKTEST_CACHE: dict = {"t": 0.0, "data": None}
+
+
+@app.get("/api/backtest")
+def backtest():
+    """Replay recorded tickets against other gate settings. Read-only; never applies a change."""
+    now = time.time()
+    cached = _BACKTEST_CACHE.get("data")
+    if cached is not None and now - _BACKTEST_CACHE["t"] < 30:
+        return cached
+    from desk.backtest import report
+    data = report()
+    _BACKTEST_CACHE["t"] = now
+    _BACKTEST_CACHE["data"] = data
+    return data
 
 
 @app.get("/api/health")

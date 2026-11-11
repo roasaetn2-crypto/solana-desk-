@@ -1054,10 +1054,73 @@ function render(s) {
   renderCat(s);
 }
 
+
+let lastBacktest = null;
+let backtestAt = 0;
+
+function renderBacktest(data) {
+  const body = $("backtestBody");
+  const badge = $("backtestBadge");
+  const note = $("backtestNote");
+  if (!body) return;
+  if (!data || data.ok === false) {
+    body.innerHTML = '<div class="empty">Backtest unavailable.</div>';
+    return;
+  }
+  const hours = data.hours != null ? Number(data.hours).toFixed(1) + "h" : "—";
+  if (badge) badge.textContent = data.thin ? "thin data · read only" : "read only";
+  if (note) {
+    note.textContent = (data.candidates || 0) + " candidates · " + (data.price_points || 0) +
+      " prices · " + hours + " recorded. Replays gates only; never changes the live desk.";
+  }
+  const rows = (data.rows || []).filter((r, i, arr) => {
+    if (r.current) return true;
+    // keep the score sweep plus current; hide the extra isolated rows on the phone card
+    return String(r.id || "").startsWith("score_");
+  });
+  const tr = rows.map((r) => {
+    const wr = r.win_rate == null ? "—" : Math.round(r.win_rate * 100) + "%";
+    const pnlCls = r.pnl_usd > 0 ? "bt-pos" : (r.pnl_usd < 0 ? "bt-neg" : "");
+    const tag = r.current ? '<span class="bt-tag">now</span>' : "";
+    return `<tr class="${r.current ? "current" : ""}">
+      <td>${esc(r.label)}${tag}</td>
+      <td>${r.trades}</td>
+      <td>${wr}</td>
+      <td class="${pnlCls}">${fmtMoney(r.pnl_usd)}</td>
+      <td>${fmtMoney(r.max_drawdown_usd)}</td>
+      <td>${r.unknown}</td>
+    </tr>`;
+  }).join("");
+  const caveat = (data.caveats && data.caveats[0]) ? `<div class="bt-caveat">${esc(data.caveats[0])}</div>` : "";
+  body.innerHTML = `<table class="bt-table">
+    <thead><tr><th>setting</th><th>trades</th><th>win</th><th>pnl</th><th>max dd</th><th>unk</th></tr></thead>
+    <tbody>${tr || '<tr><td colspan="6">No recorded tickets yet.</td></tr>'}</tbody>
+  </table>${caveat}`;
+}
+
+async function refreshBacktest(force) {
+  const now = Date.now();
+  if (!force && lastBacktest && now - backtestAt < 60000) {
+    renderBacktest(lastBacktest);
+    return;
+  }
+  try {
+    const data = await api("/api/backtest");
+    lastBacktest = data;
+    backtestAt = now;
+    renderBacktest(data);
+  } catch (e) {
+    if (!lastBacktest && $("backtestBody")) {
+      $("backtestBody").innerHTML = '<div class="empty">Backtest unavailable.</div>';
+    }
+  }
+}
+
 async function refresh() {
   try {
     const s = await api("/api/state");
     render(s);
+    refreshBacktest(false);
   } catch (e) {
     console.error(e);
   }
@@ -1140,5 +1203,7 @@ if (equityTabs) {
 window.addEventListener("resize", () => { if (lastState) drawEquity(lastState); });
 
 refresh();
+refreshBacktest(true);
 setInterval(refresh, 2000);
+setInterval(() => refreshBacktest(false), 60000);
 setInterval(tickAges, 1000);
