@@ -19,7 +19,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from config import ANALYST_MAX_TOKENS, ANALYST_VALID_SCORE, ANALYST_MAX_RED_FOR_VALID
+import config
+from config import ANALYST_MAX_TOKENS, ANALYST_MAX_RED_FOR_VALID
 from desk import brain
 
 
@@ -195,7 +196,7 @@ def heuristic_thesis(t: dict, f: dict, links: dict) -> TokenThesis:
 
     score = max(0, min(10, int(round(score))))
     serious = [r for r in red if "honeypot" not in r and "authority" not in r]
-    if score >= ANALYST_VALID_SCORE and len(serious) <= ANALYST_MAX_RED_FOR_VALID:
+    if score >= config.ANALYST_VALID_SCORE and len(serious) <= ANALYST_MAX_RED_FOR_VALID:
         verdict = "valid_setup"
     elif score >= 5:
         verdict = "watch"

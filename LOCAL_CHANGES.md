@@ -23,3 +23,23 @@ Testing the access-gate tests needs `httpx2` in the venv (test-only, not in requ
 - `QUICKSTART.md` step 4 downloads a zip from `sites.super.myninja.ai`. Never use it. The repo code is the source.
 - `/devices`, `/api/mode`, `/api/agent/*`, `/api/kill` are behind the DESK_TOKEN gate. If `DESK_TOKEN` is unset the desk is fully open (start.sh refuses to start without it; run.sh --open does not).
 - `render.yaml` has `autoDeploy: true`: any push to the repo redeploys Render.
+
+# Branch `merge-best` (on top of `disable-live`): old-desk ideas ported, PAPER only
+
+| Piece | From | Where |
+|---|---|---|
+| Scalp vs swing horizon picked at entry (pool age < 6h = scalp) | old `agents/timeframe.py` | `desk/exits.py`, `config.EXITS["profiles"]` |
+| Hard stop that only moves up (breakeven after TP1), armed trail, timeout only if under +5% | old `agents/risk.py` | `desk/exits.py` |
+| Laddered take-profit: 33% at 1.5x, 50% of the rest at 2x, remainder trails | new desk's half-at-1.5x, extended | `desk/exits.py` |
+| Needs 3 quote misses in a row before a "no quote" close (was 1) | fix | `config.EXITS["missing_quote_closes"]` |
+| Second-source price + liquidity confirm before the fill; fills at the fresh price | old `agents/research.py` (price gap 25% paper, liq ratio 0.5) | `desk/solana_agent.py`, `config.ENTRY` |
+| h1 gain cap 250% ("chase") | old scanner `max_h1_change_pct` | `desk/scanner.py` |
+| Compounding: size from realized equity (start + closed P&L), same caps, 2% of pool, daily loss stop | new | `desk/risk.py`, `PaperBroker.realized_equity()` |
+| Self-tune of 4 PAPER entry gates inside hard floors, every change logged | old autotune idea | `desk/autotune.py`, `config.AUTOTUNE` |
+| Demo pools no longer feed the feed or the P&L | fix | `config.AGENT["demo_when_empty"]=False` + demo never fills |
+| Exit-rule replay on the old desk's recorded ticks | new | `scripts/replay_exits.py` |
+
+Not changed: stop/size/daily-loss caps (`RISK`), scam kills (mint/freeze authority, top wallet, top 10, dev checks, meme community), LIVE (still disabled).
+The old `desk/` repo is untouched. Old tests that pinned stale numbers (RiskEngine, take-half) were synced to the current config; 
+new tests: `tests/test_merge_best.py` (exits, compounding, entry confirm end-to-end with mocked network, autotune floors).
+Render free disk is ephemeral: `paper_ledger.json`, `autotune.json`, `desk.db` reset on every restart/redeploy/sleep.

@@ -16,6 +16,7 @@ SCAN = {
     "min_mcap_usd": 15_000,
     "max_mcap_usd": 25_000_000,
     "min_trades_h1": 60,
+    "max_h1_change_pct": 250.0,    # MERGE (old desk scanner.max_h1_change_pct, paper 250): do not buy a vertical chart
     "min_sells_ratio_h1": 0.10,    # sells / buys. Below this nobody can sell = honeypot smell
 }
 
@@ -48,17 +49,42 @@ RISK = {
     "max_open_positions": 4,
     "max_daily_loss_pct": 0.03,    # down 3% on the day -> desk stops until tomorrow
     "min_ticket_usd": 10,          # below this, fees eat the edge
+    "compound": True,              # MERGE: size off REALIZED equity (start + closed P&L), so wins are reinvested
+                                   # and losses shrink size. Still capped by every cap below + 2% of pool.
     "quiet_hours": (0, 0),         # local hours with no new entries. (0,0) = trade 24/7.
                                    # Was (1, 7); disabled so the paper desk can trade now.
 }
 
 # ---------- Seat 5: exits (paper broker applies these, no model involved) ----------
 EXITS = {
-    "stop_pct": 0.35,              # -35% from entry -> close all
-    "take_half_at": 1.5,           # 2x -> sell half, let the rest ride
+    # legacy single-profile keys (kept: dashboard + volume-decay rule read them)
+    "stop_pct": 0.35,              # fallback stop for positions opened before profiles existed
+    "take_half_at": 1.5,
     "volume_decay_ratio": 0.20,    # h6 volume / (h24/4) under this -> close
     "volume_decay_min_minutes": 30,
     "max_hold_hours": 24,
+    # MERGE (from old desk agents/timeframe.py + agents/risk.py): the horizon is picked at entry.
+    # A pool younger than scalp_max_age_hours is a scalp (tight stop, short clock); older = swing.
+    # Ladder: sell tp1_frac at tp1_at (stop then moves to breakeven, never down), sell tp2_frac of
+    # what is left at tp2_at, and the remainder trails trail_pct below its peak.
+    "scalp_max_age_hours": 6.0,
+    "missing_quote_closes": 3,     # close only after N quote misses in a row (one API blip is not an exit)
+    "profiles": {
+        "scalp": {"stop_pct": 0.20, "tp1_at": 1.5, "tp1_frac": 0.33, "tp2_at": 2.0, "tp2_frac": 0.5,
+                  "trail_pct": 0.20, "timeout_hours": 3.0, "timeout_min_gain": 0.05,
+                  "max_hold_hours": 6.0},
+        "swing": {"stop_pct": 0.30, "tp1_at": 1.5, "tp1_frac": 0.33, "tp2_at": 2.0, "tp2_frac": 0.5,
+                  "trail_pct": 0.30, "timeout_hours": 24.0, "timeout_min_gain": 0.05,
+                  "max_hold_hours": 72.0},
+    },
+}
+
+# ---------- Entry confirmation (MERGE, from old desk agents/research.py + scanner gates) ----------
+# Re-quote the coin on a second source right before the paper fill. The paper fill uses the fresh price.
+ENTRY = {
+    "max_price_gap_pct": 25.0,     # old desk research.max_price_gap_pct_paper (LIVE was 10)
+    "min_confirm_liq_ratio": 0.5,  # old desk research.confirm_liq_ratio_min: 2nd source must show >= 50% of the liquidity
+    "require_confirm_quote": True, # no confirming quote -> no trade
 }
 
 PAPER = {
@@ -96,6 +122,7 @@ BENCH_MINUTES = {
     "skip": 60, "watch": 15, "score": 20,
     "age": 10, "liquidity": 10, "volume": 10, "mcap": 15, "trades": 10,
 }
+BENCH_MINUTES.update({"chase": 20, "price_gap": 10, "liq_unconfirmed": 15, "no_confirm_quote": 5})
 DEFAULT_BENCH = 30
 
 # ---------- Meme coin value framework ----------
@@ -146,6 +173,26 @@ AGENT = {
     "cycle_seconds": 30,           # how often the agent wakes up
     "chain_budget": 24,            # RPC fact checks per cycle
     "analyst_budget": 6,           # analyst calls per cycle: caps the bill
-    "demo_when_empty": True,       # if a live scan returns nothing usable, feed a demo batch
+    "demo_when_empty": False,      # MERGE: no synthetic pools in paper P&L (demo can still be stepped by hand, never filled)
     "max_events": 400,             # ring buffer size for the agent log
+}
+
+
+# ---------- Self-tune (MERGE, from old desk autotune idea): PAPER entry gates only ----------
+# Never touches stops, caps, daily loss, scam kills (mint/freeze/top wallet/dev) or live. Every change is logged.
+AUTOTUNE = {
+    "enabled": True,
+    "interval_minutes": 30,
+    "idle_loosen_hours": 2.0,      # no paper entry for this long -> loosen the most-blocking gate one notch
+    "min_closed_to_judge": 6,      # closed paper trades needed before win rate counts
+    "tighten_below_win_rate": 0.35,
+    "loosen_above_win_rate": 0.55,
+    "window_trades": 10,
+    # gate: (where, key, step toward LOOSER, hard floor/ceiling for the loose end, tight end)
+    "gates": {
+        "score":      {"loose_end": 4,       "tight_end": 8,       "step": 1},
+        "volume_h1":  {"loose_end": 4_000,   "tight_end": 20_000,  "step": 1_000},
+        "trades_h1":  {"loose_end": 30,      "tight_end": 120,     "step": 10},
+        "top_10":     {"loose_end": 0.45,    "tight_end": 0.25,    "step": 0.03},
+    },
 }

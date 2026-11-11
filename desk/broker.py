@@ -15,7 +15,8 @@ import time
 from datetime import date
 from pathlib import Path
 
-from config import EXITS, PAPER
+from config import EXITS, PAPER  # noqa: F401
+from desk import exits
 
 LEDGER = Path("paper_ledger.json")
 
@@ -45,6 +46,10 @@ class PaperBroker:
         held = sum(p["qty"] * marks.get(m, p["last"]) for m, p in self.s["positions"].items())
         return round(self.s["cash"] + held, 2)
 
+    def realized_equity(self) -> float:
+        """Starting bankroll + closed-trade P&L. Unrealized gains are not sized against (compounding)."""
+        return round(PAPER["starting_equity_usd"] + sum(c.get("pnl_usd", 0.0) for c in self.s["closed"]), 2)
+
     def day_pnl(self) -> float:
         return round(self.equity() - self.s["day_start"], 2)
 
@@ -58,7 +63,8 @@ class PaperBroker:
         self._save()
 
     # ---------- orders ----------
-    def buy(self, mint: str, symbol: str, ticket_usd: float, price: float) -> dict:
+    def buy(self, mint: str, symbol: str, ticket_usd: float, price: float,
+            horizon: str = "swing") -> dict:
         fill = price * (1 + PAPER["slippage_pct"])
         fee = ticket_usd * PAPER["fee_pct"]
         qty = (ticket_usd - fee) / fill
@@ -66,9 +72,10 @@ class PaperBroker:
         self.s["positions"][mint] = {"symbol": symbol, "qty": qty, "entry": fill,
                                      "last": fill, "opened": time.time(),
                                      "cost": ticket_usd, "half_taken": False}
+        exits.init_state(self.s["positions"][mint], horizon)
         self._save()
         return {"side": "buy", "mint": mint, "symbol": symbol, "qty": qty, "fill": fill,
-                "fee": fee, "ticket_usd": ticket_usd}
+                "fee": fee, "ticket_usd": ticket_usd, "horizon": horizon}
 
     def sell(self, mint: str, fraction: float, price: float, reason: str) -> dict:
         p = self.s["positions"][mint]
@@ -99,24 +106,7 @@ class PaperBroker:
 
     def _exit_signal(self, mint, q, now):
         p = self.s["positions"][mint]
-        now = now or time.time()
-        held_min = (now - p["opened"]) / 60
-        if q is None:
-            return (1.0, "no quote, cannot measure, close")
-        price = q["price_usd"]
-        p["last"] = price
-        if price <= p["entry"] * (1 - EXITS["stop_pct"]):
-            return (1.0, f"stop -{int(EXITS['stop_pct'] * 100)}%")
-        if not p["half_taken"] and price >= p["entry"] * EXITS["take_half_at"]:
-            p["half_taken"] = True
-            return (0.5, f"take half at {EXITS['take_half_at']}x")
-        if held_min >= EXITS["volume_decay_min_minutes"] and q.get("volume_h24", 0) > 0:
-            ratio = q["volume_h6"] / (q["volume_h24"] / 4)
-            if ratio < EXITS["volume_decay_ratio"]:
-                return (1.0, f"volume decay {ratio:.2f}")
-        if held_min >= EXITS["max_hold_hours"] * 60:
-            return (1.0, "max hold time")
-        return None
+        return exits.evaluate(p, q, now or time.time())
 
     def snapshot(self) -> dict:
         return {
@@ -128,7 +118,9 @@ class PaperBroker:
                 {"mint": m, "symbol": p["symbol"], "qty": p["qty"], "entry": p["entry"],
                  "last": p["last"], "cost": p["cost"],
                  "pnl_pct": round((p["last"] / p["entry"] - 1) * 100, 2),
-                 "opened": p["opened"], "half_taken": p["half_taken"]}
+                 "opened": p["opened"], "half_taken": p["half_taken"],
+                 "horizon": p.get("horizon"), "stage": p.get("stage", 0),
+                 "stop_price": p.get("stop_price"), "peak": p.get("peak")}
                 for m, p in self.s["positions"].items()
             ],
             "closed": list(reversed(self.s["closed"][-30:])),

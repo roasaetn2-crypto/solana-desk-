@@ -129,6 +129,8 @@ def free_kill(t: dict) -> str | None:
         return "mcap"
     if t["buys_h1"] + t["sells_h1"] < SCAN["min_trades_h1"]:
         return "trades"
+    if t.get("change_h1", 0) > SCAN["max_h1_change_pct"]:
+        return "chase"
     if t["buys_h1"] and t["sells_h1"] / t["buys_h1"] < SCAN["min_sells_ratio_h1"]:
         return "no_sells"
     return None

@@ -8,7 +8,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
-from config import EXITS, MIN_SCORE, RISK
+import config
+from config import EXITS, RISK
 
 
 @dataclass
@@ -16,6 +17,7 @@ class Account:
     equity: float
     day_pnl: float
     open_positions: int
+    realized_equity: float | None = None   # MERGE: compounding base (start + closed P&L)
 
 
 def in_quiet_hours(now: datetime | None = None) -> bool:
@@ -40,22 +42,32 @@ def in_quiet_hours(now: datetime | None = None) -> bool:
     return start <= h < end if start < end else (h >= start or h < end)
 
 
+def sizing_base(account: Account) -> float:
+    """Equity that position size scales with. Compounding: realized profits are reinvested and
+    realized losses shrink size. Unrealized gains are never sized against."""
+    if RISK.get("compound") and account.realized_equity is not None:
+        return max(0.0, account.realized_equity)
+    return account.equity
+
+
 def check_token_trade(thesis, account: Account, liquidity_usd: float,
-                      now: datetime | None = None) -> tuple[bool, float, str]:
-    """Return (approved, ticket_usd, reason)."""
+                      now: datetime | None = None,
+                      stop_pct: float | None = None) -> tuple[bool, float, str]:
+    """Return (approved, ticket_usd, reason). stop_pct = the stop of the profile this trade will use."""
     if account.day_pnl <= -RISK["max_daily_loss_pct"] * account.equity:
         return False, 0.0, "daily loss limit hit, desk halted until tomorrow"
     if in_quiet_hours(now):
         return False, 0.0, "quiet hours, no new entries"
     if thesis.verdict != "valid_setup":
         return False, 0.0, f"analyst verdict: {thesis.verdict}"
-    if thesis.score < MIN_SCORE:
-        return False, 0.0, f"score {thesis.score} < {MIN_SCORE}"
+    if thesis.score < config.MIN_SCORE:
+        return False, 0.0, f"score {thesis.score} < {config.MIN_SCORE}"
     if account.open_positions >= RISK["max_open_positions"]:
         return False, 0.0, "max open positions"
 
-    by_risk = RISK["max_risk_per_trade"] * account.equity / EXITS["stop_pct"]
-    by_size = RISK["max_position_pct"] * account.equity
+    base, stop = sizing_base(account), (stop_pct or EXITS["stop_pct"])
+    by_risk = RISK["max_risk_per_trade"] * base / stop
+    by_size = RISK["max_position_pct"] * base
     by_pool = RISK["max_pool_share"] * liquidity_usd
     ticket = round(min(by_risk, by_size, by_pool), 2)
     if ticket < RISK["min_ticket_usd"]:
@@ -63,10 +75,11 @@ def check_token_trade(thesis, account: Account, liquidity_usd: float,
     return True, ticket, "approved"
 
 
-def sizing_breakdown(account: Account, liquidity_usd: float) -> dict:
+def sizing_breakdown(account: Account, liquidity_usd: float, stop_pct: float | None = None) -> dict:
     """The three caps, for the dashboard. The smallest one wins."""
-    by_risk = RISK["max_risk_per_trade"] * account.equity / EXITS["stop_pct"]
-    by_size = RISK["max_position_pct"] * account.equity
+    base, stop = sizing_base(account), (stop_pct or EXITS["stop_pct"])
+    by_risk = RISK["max_risk_per_trade"] * base / stop
+    by_size = RISK["max_position_pct"] * base
     by_pool = RISK["max_pool_share"] * liquidity_usd
     return {
         "by_risk": round(by_risk, 2),
@@ -93,8 +106,8 @@ def check_live_trade(thesis, day_pnl: float, open_positions: int, liquidity_usd:
         return False, 0.0, "quiet hours, no new entries"
     if thesis.verdict != "valid_setup":
         return False, 0.0, f"analyst verdict: {thesis.verdict}"
-    if thesis.score < MIN_SCORE:
-        return False, 0.0, f"score {thesis.score} < {MIN_SCORE}"
+    if thesis.score < config.MIN_SCORE:
+        return False, 0.0, f"score {thesis.score} < {config.MIN_SCORE}"
     if open_positions >= RISK["max_open_positions"]:
         return False, 0.0, "max open positions"
 

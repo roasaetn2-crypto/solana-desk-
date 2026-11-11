@@ -20,14 +20,16 @@ import os
 import hashlib
 import random
 import threading
-from collections import deque
+import time
+from collections import Counter, deque
 from datetime import datetime, timezone
 
 import requests
 
-from config import AGENT, EXECUTION
-from desk import (analyst, brain, chain, dexscreener, devcheck, dialogue, helius,
+from config import AGENT, ENTRY, EXECUTION, RISK
+from desk import (analyst, brain, chain, dexscreener, devcheck, dialogue, exits, helius,
                   meme, scanner)
+from desk.autotune import AutoTune
 from desk import live as live_mod
 from desk.broker import PaperBroker
 from desk.ops import Bench, alert, journal, killed
@@ -58,6 +60,17 @@ class SolanaAgent:
         self.live = live_mod.LiveBroker(live_ledger)
         self.mode = EXECUTION["default_mode"]          # always paper on boot
         self.bench = Bench(bench_path)
+        # MERGE: count why tokens were benched, so autotune can loosen the gate that blocks most
+        self.reject_reasons: Counter = Counter()
+        _sit = self.bench.sit
+
+        def _counting_sit(mint, reason, *a, **k):
+            self.reject_reasons[reason] += 1
+            return _sit(mint, reason, *a, **k)
+        self.bench.sit = _counting_sit
+        self.started_at = time.time()
+        self.last_entry_ts: float | None = None
+        self.autotune = AutoTune(self)
         self.session = requests.Session()
         self.lock = threading.RLock()
         self._stop = threading.Event()
@@ -306,10 +319,16 @@ class SolanaAgent:
                         t["liquidity_usd"], caps)
                     sizes = live_sizing_breakdown(t["liquidity_usd"], caps)
                 else:
+                    horizon = exits.horizon_for(t.get("age_minutes"))
+                    stop = exits.profile(horizon)["stop_pct"]
                     acct = Account(equity=self.broker.equity(), day_pnl=self.broker.day_pnl(),
-                                   open_positions=self.broker.open_count())
-                    ok, ticket, reason = check_token_trade(th, acct, t["liquidity_usd"])
-                    sizes = sizing_breakdown(acct, t["liquidity_usd"])
+                                   open_positions=self.broker.open_count(),
+                                   realized_equity=self.broker.realized_equity())
+                    ok, ticket, reason = check_token_trade(th, acct, t["liquidity_usd"],
+                                                           stop_pct=stop)
+                    sizes = {**sizing_breakdown(acct, t["liquidity_usd"], stop),
+                             "horizon": horizon, "stop_pct": stop,
+                             "sizing_base": round(acct.realized_equity, 2)}
                 # the seats talk to each other before anything is filled
                 convo = dialogue.debate(t, f, ds, dev, sc, th.model_dump(), ok, ticket,
                                         reason, sizes)
@@ -348,13 +367,46 @@ class SolanaAgent:
                               stage="risk", reason=reason, symbol=t["symbol"])
                     continue
 
+                # MERGE: demo pools are analysis-only, they never touch paper P&L
+                if t["mint"].startswith("DEMO"):
+                    self.emit("info", f"{t['symbol']}: demo pool, analysed but not filled")
+                    continue
+
+                # MERGE (old desk research.py): confirm price + liquidity on a second read before filling
+                buy_price = t["price_usd"]
+                if self.mode != "live":
+                    cq = scanner.quote(t["mint"], self.session)
+                    bad = None
+                    if not cq or not cq.get("price_usd"):
+                        bad = "no_confirm_quote" if ENTRY["require_confirm_quote"] else None
+                    else:
+                        gap = abs(cq["price_usd"] / t["price_usd"] - 1) * 100 if t["price_usd"] else 999
+                        liq_ratio = (cq["liquidity_usd"] / t["liquidity_usd"]) if t["liquidity_usd"] else 0
+                        if gap > ENTRY["max_price_gap_pct"]:
+                            bad = "price_gap"
+                        elif liq_ratio < ENTRY["min_confirm_liq_ratio"]:
+                            bad = "liq_unconfirmed"
+                        else:
+                            buy_price = cq["price_usd"]
+                            ticket = round(min(ticket, RISK["max_pool_share"] * cq["liquidity_usd"]), 2)
+                            if ticket < RISK["min_ticket_usd"]:
+                                bad = "liq_unconfirmed"
+                    if bad:
+                        self.stats["risk_rejects"] += 1
+                        self.bench.sit(t["mint"], bad)
+                        self.emit("reject", f"{t['symbol']}: entry confirm failed ({bad})",
+                                  stage="confirm", reason=bad, symbol=t["symbol"], mint=t["mint"])
+                        journal("reject", stage="confirm", mint=t["mint"], symbol=t["symbol"], reason=bad)
+                        continue
+
                 # seat 5: paper fill + alert
                 flags = "; ".join(th.red_flags[:2]) or "none"
                 alert(f"VALID SETUP ${t['symbol']} score {th.score}/10 | ticket ${ticket}\n"
                       f"mcap ${t['mcap_usd']:,.0f} liq ${t['liquidity_usd']:,.0f}\n"
                       f"red flags: {flags}\nhttps://dexscreener.com/solana/{t['mint']}")
                 try:
-                    fill = self.broker.buy(t["mint"], t["symbol"], ticket, t["price_usd"])
+                    fill = self.broker.buy(t["mint"], t["symbol"], ticket, buy_price,
+                                           horizon=sizes.get("horizon", "swing"))
                 except live_mod.LiveError as e:
                     self.stats["errors"] += 1
                     self.emit("error", f"{t['symbol']}: live order refused \u2014 {e}",
@@ -364,6 +416,7 @@ class SolanaAgent:
                     continue
                 journal("entry", **fill)
                 self.stats["entries"] += 1
+                self.last_entry_ts = time.time()
                 tag = "LIVE BUY" if self.mode == "live" else "PAPER BUY"
                 self.emit("entry", f"{tag} ${t['symbol']} \u2014 ticket ${ticket} "
                                    f"(score {th.score}/10)",
@@ -379,6 +432,10 @@ class SolanaAgent:
                 continue
 
         self.last_cycle_at = _now()
+        try:
+            self.autotune.tick()
+        except Exception as e:   # tuning must never break a cycle
+            self.emit("error", f"autotune failed ({type(e).__name__}: {e})")
         journal("cycle", **self.stats, equity=self.broker.equity())
         return {"cycle": cycle, "source": source, "stats": dict(self.stats)}
 
@@ -446,6 +503,7 @@ class SolanaAgent:
                 "rpc": {**helius.health(), "endpoint": chain.rpc_source()},
                 "execution": self.mode_info(),
                 "stats": dict(self.stats),
+                "autotune": self.autotune.snapshot(),
                 "broker": self.broker.snapshot(),
                 "events": list(self.events)[:120],
                 "decisions": list(self.decisions)[:40],

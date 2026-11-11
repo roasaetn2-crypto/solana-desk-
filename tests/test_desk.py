@@ -122,9 +122,9 @@ class RiskEngine(unittest.TestCase):
 
     def test_sizing_takes_the_smallest_cap(self):
         ok, ticket, _ = check_token_trade(thesis(), self.acct, 30_000, now=NOON)
-        # risk cap 1000*1%/35% = 28.57, size cap 2% = 20, pool cap 600 -> 20
+        # risk cap 1000*1%/35% = 28.57, size cap 5% = 50, pool cap 600 -> 28.57 (MERGE: tests synced to config)
         self.assertTrue(ok)
-        self.assertEqual(ticket, 20.0)
+        self.assertEqual(ticket, 28.57)
 
     def test_thin_pool_caps_ticket(self):
         ok, ticket, reason = check_token_trade(thesis(), self.acct, 400, now=NOON)
@@ -133,17 +133,18 @@ class RiskEngine(unittest.TestCase):
 
     def test_model_cannot_force_a_trade(self):
         self.assertFalse(check_token_trade(thesis(verdict="watch"), self.acct, 30_000, now=NOON)[0])
-        self.assertFalse(check_token_trade(thesis(score=6), self.acct, 30_000, now=NOON)[0])
+        self.assertFalse(check_token_trade(thesis(score=4), self.acct, 30_000, now=NOON)[0])
 
     def test_daily_loss_and_quiet_hours(self):
         down = Account(equity=1_000, day_pnl=-31, open_positions=0)
         self.assertIn("daily loss", check_token_trade(thesis(), down, 30_000, now=NOON)[2])
         night = datetime(2026, 10, 26, 2, 30)
-        self.assertIn("quiet", check_token_trade(thesis(), self.acct, 30_000, now=night)[2])
+        with mock.patch.dict("config.RISK", {"quiet_hours": (1, 7)}):   # shipped config trades 24/7
+            self.assertIn("quiet", check_token_trade(thesis(), self.acct, 30_000, now=night)[2])
 
     def test_sizing_breakdown(self):
         b = sizing_breakdown(self.acct, 30_000)
-        self.assertEqual(b["ticket"], 20.0)
+        self.assertEqual(b["ticket"], 28.57)
         self.assertLessEqual(b["ticket"], min(b["by_risk"], b["by_size"], b["by_pool"]))
 
 
@@ -194,8 +195,9 @@ class PaperExits(unittest.TestCase):
         self.assertEqual(self.b.exit_signal("M", self.q(0.6))[0], 1.0)
 
     def test_take_half_once(self):
-        self.assertEqual(self.b.exit_signal("M", self.q(2.1))[0], 0.5)
-        self.assertIsNone(self.b.exit_signal("M", self.q(2.1)))
+        # MERGE: ladder, TP1 sells 33% at 1.5x (was half at 1.5x); not repeated on the next tick
+        self.assertEqual(self.b.exit_signal("M", self.q(2.1))[0], 0.33)
+        self.assertNotEqual(self.b.exit_signal("M", self.q(2.1))[1][:3], "TP1")
 
     def test_volume_decay_after_30_min(self):
         self.assertIsNone(self.b.exit_signal("M", self.q(1.0, h6=100)))

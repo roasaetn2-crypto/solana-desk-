@@ -286,7 +286,8 @@ class LiveBroker(PaperBroker):
             raise LiveError("max open positions")
 
     # ---------- orders ----------
-    def buy(self, mint: str, symbol: str, ticket_usd: float, price: float) -> dict:
+    def buy(self, mint: str, symbol: str, ticket_usd: float, price: float,
+            horizon: str | None = None) -> dict:
         if LIVE_DISABLED:
             raise LiveError(LIVE_DISABLED_MSG)
         self._guard_buy(mint, ticket_usd)
