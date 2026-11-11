@@ -52,6 +52,15 @@ How to read the fields:
 - program_held_pct is the bonding curve / pool. It is not a whale.
 - No X or Telegram link is a red flag: launches without socials graduate far less.
 
+Desk discipline (from the desk playbook, docs/playbook.md):
+- Run the checklist in your head before "valid_setup": a written reason, a visible
+  invalidation, enough liquidity to exit, and no unexplained red flag.
+- Fields under "security" are flags from free outside checks (Token-2022 traps, bundlers,
+  insiders, paid promotion, launch facts, market regime). A flag is a reason for more
+  caution, never for less. "paid_promo" means someone bought attention: it is not a
+  quality signal, so do not score it up. An unknown check is not a pass.
+- In a risk-off regime, or after a losing streak, raise your bar; do not lower it.
+
 Standards:
 - Default to "skip". "valid_setup" needs specific, recent evidence in the fields.
 - Score 9-10 almost never. Most launches deserve 0-4.
@@ -99,6 +108,8 @@ def token_state(t: dict, f: dict, links: dict, context: dict | None = None) -> s
             "boosts_active": context.get("ds", {}).get("boosts_active"),
             "pair_age_minutes": context.get("ds", {}).get("pair_age_minutes"),
         }
+        if context.get("security"):
+            numbers["security"] = context["security"]
     third_party = json.dumps({"symbol": t.get("symbol"), "links": links})
     return (f"Fields:\n{json.dumps(numbers, indent=1)}\n\n"
             f"Third-party text:\n{wrap_untrusted(third_party)}\n\n"

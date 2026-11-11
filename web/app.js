@@ -45,6 +45,22 @@ function shortCa(mint) {
   if (mint.length <= 8) return mint;
   return mint.slice(0, 4) + "\u2026" + mint.slice(-4);
 }
+function flagsHtml(row) {
+  const flags = (row && Array.isArray(row.flags)) ? row.flags : [];
+  const cl = row && row.checklist;
+  let out = "";
+  if (cl && cl.total) {
+    out += `<span class="flag ${cl.ok ? "info" : "block"}" title="pre-trade checklist">\u2713 ${cl.passed}/${cl.total}</span>`;
+  }
+  const seen = new Set();
+  for (const f of flags) {
+    if (!f || seen.has(f.t)) continue;
+    seen.add(f.t);
+    const sev = ["block", "halve", "info"].includes(f.sev) ? f.sev : "info";
+    out += `<span class="flag ${sev}" title="${esc((f.src || "") + " \u00b7 " + sev)}">${esc(f.label || f.t)}</span>`;
+  }
+  return out ? `<div class="flags">${out}</div>` : "";
+}
 function tokenMetaHtml(row) {
   if (!row || !row.mint) return "";
   const created = row.created_at != null && row.created_at !== "" ? Number(row.created_at) : NaN;
@@ -55,7 +71,7 @@ function tokenMetaHtml(row) {
     <span>Age <b class="age" data-created-at="${esc(createdAttr)}">${esc(age)}</b></span>
     <a class="ca" href="https://solscan.io/token/${encodeURIComponent(row.mint)}" target="_blank" rel="noopener noreferrer">${esc(ca)}</a>
     <button type="button" class="copy-ca" data-ca="${esc(row.mint)}" aria-label="Copy contract address">Copy</button>
-  </div>`;
+  </div>${flagsHtml(row)}`;
 }
 function tickAges() {
   document.querySelectorAll(".age[data-created-at]").forEach((el) => {
@@ -630,7 +646,8 @@ function renderActivity(s) {
       <div class="face" style="background:${bought ? "#00d35a" : "#ff453a"}">${bought ? "B" : "S"}</div>
       <div>
         <div class="ttl">${esc(title)}</div>
-        <div class="sub">broker \u00b7 ${esc(reason)} \u00b7 ${esc(timeManila(r.time))}</div>
+        <div class="sub" ${r.review ? `title="${esc(r.review)}"` : ""}>broker \u00b7 ${esc(reason)} \u00b7 ${esc(timeManila(r.time))}</div>
+        ${r.review ? `<div class="sub review">${esc(r.review)}</div>` : ""}
       </div>
       <div>
         <div class="amt ${cls}">${amt}</div>
@@ -785,6 +802,22 @@ function render(s) {
     rpcEl.textContent = "RPC: " + (rpc.endpoint || "public") +
       (rpc.configured ? " · holder counts on" : " · free public node");
     rpcEl.classList.toggle("warn", !rpc.configured);
+  }
+
+  const gd = s.guard || {};
+  const gl = $("guardLine");
+  if (gl) {
+    const rg = (gd.regime && gd.regime.tag) || "UNKNOWN";
+    const bk = gd.breaker || {};
+    gl.textContent = "Guard: market " + rg.toLowerCase().replace("_", "-") + " \u00b7 breaker " +
+      (bk.state || "ok") + (bk.state && bk.state !== "ok" ? " (" + bk.reason + ")" : "") +
+      (gd.coach && gd.coach.summary ? " \u00b7 " + gd.coach.summary : "");
+  }
+  const ig = s.integrations || {};
+  const sl = $("sourcesLine");
+  if (sl) {
+    sl.textContent = "Sources: " + Object.keys(ig).map((k) => k.replace("_", " ") + " " +
+      (ig[k].status || "?")).join(" \u00b7 ");
   }
 
   // active seat from most recent event

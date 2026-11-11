@@ -528,7 +528,7 @@ With no `DESK_TOKEN` the desk is open to anyone who can reach the port.
   Solana Desk is LOCKED
 
   Open:  http://localhost:8000
-  Key:   G6AFs8eoUR0Wc9EzKUyAkG2i
+  Key:   <your-desk-key>
   Paired devices: 0
 
   On your phone: open the URL, then 'Pair this device'.

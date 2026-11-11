@@ -769,3 +769,14 @@ td .num.bad  { color: var(--red); }
 @media (prefers-reduced-motion: reduce) {
   .confetti { display: none !important; }
 }
+
+/* signal flags on tickets: compact chips */
+.flags { display: flex; flex-wrap: wrap; gap: 4px; margin: 3px 0 2px; }
+.flag {
+  font-size: 10px; line-height: 1.5; padding: 0 7px; border-radius: 999px;
+  border: 1px solid var(--border); color: var(--muted); background: var(--panel-2);
+  white-space: nowrap;
+}
+.flag.halve { color: var(--amber); border-color: rgba(255,181,71,0.35); background: var(--amber-dim); }
+.flag.block { color: #fff; border-color: rgba(255,69,58,0.5); background: rgba(255,69,58,0.25); }
+.activity-row .sub.review { font-size: 10.5px; opacity: 0.8; }

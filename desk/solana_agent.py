@@ -27,8 +27,9 @@ from datetime import datetime, timezone
 import requests
 
 from config import AGENT, ENTRY, EXECUTION, PAPER, RISK
-from desk import (analyst, brain, chain, dexscreener, devcheck, dialogue, exits, helius,
-                  meme, scanner)
+from desk import (analyst, brain, chain, dexscreener, devcheck, dialogue, exits, goplus, gmgn,
+                  guard, heartbeat, helius, meme, pumpportal, regime, scanner,
+                  signals)
 from desk import chart as candle_chart
 from desk import links as fomo_links
 from desk.age import created_at_of
@@ -36,9 +37,10 @@ from desk.autotune import AutoTune
 from desk import equity_curve
 from desk import live as live_mod
 from desk.broker import PaperBroker
+from desk.netutil import offline
 from desk.ops import Bench, alert, journal, killed
 from desk.risk import (Account, check_live_trade, check_token_trade,
-                       live_sizing_breakdown, sizing_breakdown)
+                       live_sizing_breakdown, sizing_base, sizing_breakdown)
 
 
 def _now() -> str:
@@ -90,10 +92,14 @@ class SolanaAgent:
         self.tokens_seen: dict[str, dict] = {}
         self.stats = {"cycles": 0, "seen": 0, "free_rejects": 0, "chain_rejects": 0,
                       "dev_rejects": 0, "meme_rejects": 0, "analyst_calls": 0,
-                      "risk_rejects": 0, "entries": 0, "exits": 0, "dialogues": 0,
+                      "risk_rejects": 0, "sec_rejects": 0, "guard_rejects": 0, "entries": 0, "exits": 0, "dialogues": 0,
                       "errors": 0}
         self.equity_curve: deque = deque(maxlen=equity_curve.MAX_POINTS)
         self.curve_marks: deque = deque(maxlen=equity_curve.MAX_MARKS)
+        # discipline layer (paper only, tighten-only)
+        self.regime: dict = {"tag": "UNKNOWN", "halve": False}
+        self.breaker: dict = {"state": "ok", "mult": 1.0, "reason": "ok"}
+        self.reviews: deque = deque(maxlen=50)
 
     # ---------- execution mode ----------
     @property
@@ -214,6 +220,7 @@ class SolanaAgent:
                 "entry": ev.get("entry"),
                 "fill": ev.get("fill"),
                 "message": ev.get("message"),
+                "review": ev.get("review"),
             }
             if ev.get("kind") == "exit" and row["usd"] is None and ev.get("fill") is not None and ev.get("qty") is not None:
                 row["usd"] = round(float(ev["fill"]) * float(ev["qty"]), 2)
@@ -253,10 +260,23 @@ class SolanaAgent:
             self.running = True
             self._thread = threading.Thread(target=self._loop, name="solana-agent", daemon=True)
             self._thread.start()
+        if not offline():
+            # optional, free, fail-open: both are no-ops until configured / reachable
+            heartbeat.start(self._heartbeat_status)
+            pumpportal.start()
         if not self.equity_curve:
             self._snapshot_equity()
         self.emit("info", "Solana Agent started. Watching new Solana pools.")
         return {"ok": True, "message": "agent started"}
+
+    def _heartbeat_status(self) -> tuple[bool, float | None]:
+        age = None
+        if self.last_cycle_at:
+            try:
+                age = time.time() - datetime.fromisoformat(self.last_cycle_at).timestamp()
+            except ValueError:
+                age = None
+        return self.running, age
 
     def stop(self):
         with self.lock:
@@ -321,6 +341,23 @@ class SolanaAgent:
         for warning in report.get("warnings") or []:
             self.emit("info", f"scanner: {warning}", stage="scanner")
 
+        # discipline layer: market regime tag and drawdown breaker. Paper only, tighten-only.
+        brk = {"state": "ok", "mult": 1.0, "reason": "ok"}
+        if self.mode != "live":
+            self.regime = ({"tag": "UNKNOWN", "halve": False} if (force_demo or offline())
+                           else regime.current(self.session))
+            brk = guard.circuit_breaker(self.broker.s["closed"], self.broker.day_pnl(),
+                                        self.broker.s["day_start"])
+            if brk["state"] != self.breaker.get("state"):
+                self.emit("info" if brk["state"] == "ok" else "warn",
+                          f"breaker: {brk['state']} ({brk['reason']})", stage="guard")
+            self.breaker = brk
+            if brk["mult"] <= 0:
+                with self.lock:
+                    for t in tokens:
+                        self.tokens_seen[t["mint"]] = t
+                tokens = []          # positions are still managed; only new entries pause
+
         for t in tokens:
             try:
                 with self.lock:
@@ -372,6 +409,19 @@ class SolanaAgent:
                             reason=k, dev=dev)
                     continue
 
+                # seat 2b+: free security / launch / promo signals (fail open to "unknown")
+                sec = signals.security(t["mint"], self.session)
+                if sec["block"]:
+                    k = "sec_" + sec["block"][0]
+                    self.bench.sit(t["mint"], k)
+                    self.stats["sec_rejects"] += 1
+                    self.emit("reject", f"{t['symbol']}: security flag blocked it "
+                                        f"({', '.join(sec['block'])})",
+                              stage="security", reason=k, symbol=t["symbol"], mint=t["mint"])
+                    journal("reject", stage="security", mint=t["mint"], symbol=t["symbol"],
+                            reason=k, security=sec)
+                    continue
+
                 # seat 2c: what gives this coin value (community / dev / narrative / distribution / utility)
                 links = _demo_links(t["mint"]) if t["mint"].startswith("DEMO") \
                     else scanner.socials(t["mint"], self.session)
@@ -406,10 +456,13 @@ class SolanaAgent:
 
                 # seat 3: analyst
                 th = analyst.analyze_token(t, f, links,
-                                           context={"scorecard": sc, "dev": dev, "ds": ds})
+                                           context={"scorecard": sc, "dev": dev, "ds": ds,
+                                                    "security": {"flags": [c["t"] for c in sec["chips"]],
+                                                                 "regime": self.regime.get("tag")}})
                 analyst_left -= 1
                 self.stats["analyst_calls"] += 1
 
+                chips = list(sec["chips"])
                 # seat 4: risk engine. Live money gets live caps, not paper percentages.
                 if self.mode == "live":
                     caps = {"max_trade": EXECUTION["live_max_trade_usd"],
@@ -431,6 +484,10 @@ class SolanaAgent:
                     sizes = {**sizing_breakdown(acct, t["liquidity_usd"], stop),
                              "horizon": horizon, "stop_pct": stop,
                              "sizing_base": round(acct.realized_equity, 2)}
+                    if ok:
+                        ok, ticket, reason, guard_info, chips = self._caution(
+                            t, ticket, sec, brk, stop, acct)
+                        sizes["guard"] = guard_info
                 # the seats talk to each other before anything is filled
                 convo = dialogue.debate(t, f, ds, dev, sc, th.model_dump(), ok, ticket,
                                         reason, sizes)
@@ -448,6 +505,8 @@ class SolanaAgent:
                     "dialogue": convo["messages"], "dialogue_backend": convo["backend"],
                     "approved": ok, "ticket_usd": ticket, "reason": reason,
                     "sizes": sizes, "time": _now(), "source": t.get("source"),
+                    "flags": chips, "regime": self.regime.get("tag"),
+                    "checklist": sizes.get("guard", {}).get("checklist"),
                 }
                 with self.lock:
                     self.decisions.appendleft(decision)
@@ -503,6 +562,12 @@ class SolanaAgent:
                         journal("reject", stage="confirm", mint=t["mint"], symbol=t["symbol"], reason=bad)
                         continue
 
+                cl = (sizes.get("guard") or {}).get("checklist")
+                if cl is not None and self.mode != "live":
+                    cl["items"].append({"name": "price confirmed on a second read", "ok": True})
+                    cl["passed"] += 1
+                    cl["total"] += 1
+
                 # seat 5: paper fill + alert
                 flags = "; ".join(th.red_flags[:2]) or "none"
                 alert(f"VALID SETUP ${t['symbol']} score {th.score}/10 | ticket ${ticket}\n"
@@ -519,6 +584,12 @@ class SolanaAgent:
                             reason=str(e))
                     continue
                 journal("entry", **fill)
+                pos_row = self.broker.s["positions"].get(t["mint"])
+                if pos_row is not None and self.mode != "live":
+                    # entry context for the ticket chips and the exit review (paper ledger only)
+                    pos_row["meta"] = {"flags": chips, "decimals": f.get("decimals"),
+                                       "regime": self.regime.get("tag")}
+                    self.broker._save()
                 self.stats["entries"] += 1
                 self.last_entry_ts = time.time()
                 tag = "LIVE BUY" if self.mode == "live" else "PAPER BUY"
@@ -544,6 +615,47 @@ class SolanaAgent:
         journal("cycle", **self.stats, equity=self.broker.equity())
         self._snapshot_equity()
         return {"cycle": cycle, "source": source, "stats": dict(self.stats)}
+
+    def _caution(self, t: dict, ticket: float, sec: dict, brk: dict, stop: float,
+                 acct: Account) -> tuple[bool, float, str, dict, list]:
+        """Paper-only caution layer. Can shrink or refuse a ticket, never grow or admit one.
+
+        Cuts: security halve-flags, RISK_OFF regime, drawdown breaker, high Jupiter
+        impact. They multiply (floor 0.25x). Then the pre-trade checklist must pass.
+        """
+        chips = list(sec["chips"])
+        cuts: list[tuple[str, float]] = []
+        if sec["halve"]:
+            cuts.append(("security", 0.5))
+        if self.regime.get("halve"):
+            cuts.append(("regime", 0.5))
+            chips.append(signals.chip("regime_risk_off", "halve", "regime"))
+        if brk["mult"] < 1.0:
+            cuts.append(("breaker", brk["mult"]))
+            chips.append(signals.chip("breaker_reduce", "halve", "guard"))
+        jup = signals.entry_impact(t["mint"], ticket, self.session)
+        chips += signals.impact_chips(jup)
+        if jup.get("halve"):
+            cuts.append(("jupiter", 0.5))
+        mult, names = guard.size_multiplier(cuts)
+        new_ticket = round(ticket * mult, 2)
+        floor = PAPER.get("min_ticket_usd", RISK["min_ticket_usd"])
+        checklist = guard.pretrade_checklist(
+            stop_pct=stop, ticket=new_ticket,
+            max_ticket=RISK["max_position_pct"] * sizing_base(acct),
+            breaker=brk, block_flags=sec["block"], quote_confirmed=None,
+            paper_only=self.mode != "live")
+        info = {"mult": mult, "cuts": names, "breaker": brk["state"], "ticket_before": ticket,
+                "jupiter_impact_pct": jup.get("impact_pct"), "checklist": checklist}
+        if not checklist["ok"]:
+            self.stats["guard_rejects"] += 1
+            return False, 0.0, "pre-trade checklist failed: " + "; ".join(checklist["failed"]), info, chips
+        if new_ticket < floor:
+            self.stats["guard_rejects"] += 1
+            return (False, 0.0, f"ticket ${new_ticket} below fee floor ${floor} after caution cuts "
+                                f"({', '.join(names)})", info, chips)
+        reason = "approved" if not names else f"approved, size x{mult:g} ({', '.join(names)})"
+        return True, new_ticket, reason, info, chips
 
     def _scan(self, force_demo: bool) -> tuple[list[dict], str]:
         if self.mode == "live":
@@ -585,6 +697,14 @@ class SolanaAgent:
                 pos = self.broker.s["positions"][mint]
                 price = pos["last"]
                 entry = pos.get("entry")
+                snap = {"peak": pos.get("peak"), "opened": pos.get("opened"),
+                        "horizon": pos.get("horizon"), "meta": dict(pos.get("meta") or {}),
+                        "qty": pos.get("qty") or 0.0}
+                exit_jup = None
+                if self.mode != "live" and not mint.startswith("DEMO"):
+                    # advisory only: how hard would this sell move the price? (quote, never a swap)
+                    exit_jup = signals.exit_impact(mint, snap["qty"] * fraction,
+                                                   snap["meta"].get("decimals"), self.session)
                 try:
                     fill = self.broker.sell(mint, fraction, price, reason)
                 except live_mod.LiveError as e:
@@ -596,9 +716,11 @@ class SolanaAgent:
                 self.stats["exits"] += 1
                 if "pnl_usd" in fill:
                     self.bench.sit(mint, "exited")
+                review = self._review(mint, fill, fraction, entry, snap, exit_jup)
                 self.emit("exit", f"EXIT {fill['symbol']} {int(fraction * 100)}% — {reason}"
                            + (f" (pnl ${fill['pnl_usd']})" if "pnl_usd" in fill else ""),
-                          fraction=fraction, entry=entry, **fill)
+                          fraction=fraction, entry=entry, review=review["note"],
+                          exit_flags=review["exit_flags"], **fill)
                 mult = None
                 if entry and fill.get("fill"):
                     try:
@@ -608,6 +730,36 @@ class SolanaAgent:
                         mult = None
                 self._mark_trade("sell", fill, fraction=fraction, entry=entry, mult=mult,
                                  mcap_usd=self._mcap_of(mint))
+
+    def _review(self, mint: str, fill: dict, fraction: float, entry, snap: dict,
+                exit_jup: dict | None) -> dict:
+        """Post-trade note for every exit. Journaled and shown; never changes a setting."""
+        meta = snap.get("meta") or {}
+        flags = [c.get("t") for c in meta.get("flags") or []]
+        held = (time.time() - snap["opened"]) if snap.get("opened") else None
+        rv = guard.review_exit(
+            symbol=fill.get("symbol") or "?", reason=fill.get("reason") or "",
+            entry=entry, exit_price=fill.get("fill"), peak=snap.get("peak"), held_s=held,
+            pnl_usd=fill.get("pnl_usd"), horizon=snap.get("horizon"), flags=flags,
+            regime=meta.get("regime"))
+        exit_flags = []
+        if exit_jup and exit_jup.get("available"):
+            exit_flags = [signals.chip(f, "info", "jupiter") for f in exit_jup.get("flags") or []]
+            if exit_jup.get("impact_pct") is not None:
+                rv["note"] += f" | jupiter sell impact {exit_jup['impact_pct']}%"
+                rv["jupiter_sell_impact_pct"] = exit_jup["impact_pct"]
+        rv["exit_flags"] = exit_flags
+        rv["time"] = _now()
+        rv["mint"] = mint
+        rv["fraction"] = fraction
+        try:
+            journal("review", **{k: v for k, v in rv.items() if k != "exit_flags"})
+        except Exception:
+            pass
+        if "pnl_usd" in fill:                    # final close: feeds the coach
+            with self.lock:
+                self.reviews.appendleft(rv)
+        return rv
 
     # ---------- read-only views for the dashboard ----------
     def chart(self, mint: str, tf: str | None = None) -> dict:
@@ -644,6 +796,8 @@ class SolanaAgent:
                 row["created_at"] = created
                 if tok.get("mcap_usd") is not None:
                     row["mcap_usd"] = tok.get("mcap_usd")
+                meta = (self.broker.s["positions"].get(row.get("mint")) or {}).get("meta") or {}
+                row["flags"] = meta.get("flags") or []
                 positions.append(row)
             broker["positions"] = positions
             decisions = []
@@ -661,7 +815,9 @@ class SolanaAgent:
                     created = created_at_of(tok)
                     age_h = ((time.time() - created) / 3600.0) if created else (
                         float(tok["age_minutes"]) / 60.0 if tok.get("age_minutes") is not None else None)
+                    meta = (self.broker.s["positions"].get(ev["mint"]) or {}).get("meta") or {}
                     latest_buy = fomo_links.with_url({
+                        "flags": meta.get("flags") or [],
                         "symbol": ev.get("symbol"),
                         "mint": ev["mint"],
                         "ticket_usd": ev.get("ticket_usd"),
@@ -691,6 +847,14 @@ class SolanaAgent:
                 "curve_marks": list(self.curve_marks),
                 "latest_realized": self._latest_realized(broker),
                 "activity": self._activity(seen)[:60],
+                "guard": {
+                    "breaker": dict(self.breaker),
+                    "regime": dict(self.regime),
+                    "coach": guard.coach(list(self.reviews)),
+                    "reviews": [{k: r.get(k) for k in ("symbol", "note", "won", "pnl_usd", "time")}
+                                for r in list(self.reviews)[:10]],
+                },
+                "integrations": self.integrations(),
                 "events": list(self.events)[:120],
                 "decisions": decisions,
                 "transcripts": list(self.transcripts)[:12],
@@ -707,6 +871,26 @@ class SolanaAgent:
                 },
             }
 
+    def integrations(self) -> dict:
+        """Status of each optional free source. Never includes a URL or a key."""
+        hb = heartbeat.health()
+        pp = pumpportal.health()
+        gm = gmgn.health()
+        return {
+            "healthchecks": {"status": ("on" if hb["configured"] else
+                                        "code ready, waiting on signup"),
+                             "last_ok": hb.get("last_ok"), "fails": hb.get("fails")},
+            "goplus": {"status": "on", "max_per_min": goplus.MAX_PER_MIN},
+            "gmgn": {"status": "on" if gm["configured"] else "waiting on key",
+                     "sleeping": gm["sleeping"]},
+            "jupiter": {"status": "on (quotes only)", "max_rps": 0.5},
+            "pumpportal": {"status": "on" if pp["connected"] else (
+                               "connecting" if pp["enabled"] else "off"),
+                           "tracked": pp["tracked"], "received": pp["received"]},
+            "dexscreener_promo": {"status": "on"},
+            "regime": {"status": "on", "tag": self.regime.get("tag")},
+        }
+
     def reset(self):
         with self.lock:
             self.broker.reset()
@@ -720,6 +904,7 @@ class SolanaAgent:
             self.data_source = "idle"
             self.equity_curve.clear()
             self.curve_marks.clear()
+            self.reviews.clear()
         self._snapshot_equity()
         self.emit("info", f"Desk reset: {self.mode} book back to start, bench cleared.")
         return {"ok": True}
