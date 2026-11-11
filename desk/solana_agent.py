@@ -443,9 +443,18 @@ class SolanaAgent:
         report = scanner.fetch_report()
         self.emit("scan",
                   f"cycle {cycle}: {len(tokens)} pools from {source} "
-                  f"(gt={counts['geckoterminal']} ds={counts['dexscreener']}, "
-                  f"calls gt={report['geckoterminal']['calls']} ds={report['dexscreener']['calls']})",
+                  f"(gt={counts['geckoterminal']} ds={counts['dexscreener']} "
+                  f"jup={counts['jupiter']} pp={counts['pumpportal']}, "
+                  f"calls gt={report['geckoterminal']['calls']} ds={report['dexscreener']['calls']} "
+                  f"jup={report['jupiter']['calls']}"
+                  + (f", cooling {','.join(f'{h} {s}s' for h, s in report['cooling'].items())}"
+                     if report.get('cooling') else "") + ")",
                   count=len(tokens), source=source, **counts)
+        print(f"scan: cycle {cycle}: {len(tokens)} pools from {source} "
+              f"(gt={counts['geckoterminal']} ds={counts['dexscreener']} jup={counts['jupiter']} "
+              f"pp={counts['pumpportal']}; calls gt={report['geckoterminal']['calls']} "
+              f"ds={report['dexscreener']['calls']} jup={report['jupiter']['calls']}; "
+              f"cooling={report.get('cooling') or {}})", flush=True)
         for warning in report.get("warnings") or []:
             self.emit("info", f"scanner: {warning}", stage="scanner")
 

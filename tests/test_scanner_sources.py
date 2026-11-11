@@ -188,7 +188,7 @@ class FetchAndMerge(unittest.TestCase):
 
         tokens = scanner.new_tokens(self._session(router))
         self.assertEqual(tokens, [])
-        self.assertEqual(scanner.source_label(tokens), "geckoterminal+dexscreener-empty")
+        self.assertEqual(scanner.source_label(tokens), "all-sources-empty")
 
     def test_one_search_query_per_cycle(self):
         searches = []

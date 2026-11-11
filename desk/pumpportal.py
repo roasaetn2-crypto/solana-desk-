@@ -14,7 +14,9 @@ What it keeps (tiny, in memory): per new mint the launch time, creator wallet an
 how much of the supply the creator bought in the launch transaction. Token names,
 symbols and URIs are attacker-controlled text and are discarded unread.
 
-What it is used for: flags on a ticket.
+What it is used for: flags on a ticket, and a list of freshly launched mints
+(recent_mints) that the scanner hydrates with market stats from Jupiter's free
+token API, so new launches stay visible when GeckoTerminal/DexScreener 429.
   dev_buy_big      creator bought >= 10% of supply in the launch tx   (HALVE)
   serial_launcher  creator launched >= 3 tokens in the last 6 hours   (HALVE)
 Those only ever make a paper ticket smaller. It also gives an exact launch time.
@@ -140,6 +142,24 @@ def lookup(mint: str, now: float | None = None) -> dict:
     return {"available": True, "source": "pumpportal", "flags": halve, "block": [],
             "halve": halve, "launched_at": row["t"], "dev_buy_pct": row["dev_buy_pct"],
             "creator_launches_6h": len(recent)}
+
+
+def recent_mints(now: float | None = None, min_age_s: float = 120.0,
+                 max_age_s: float = 6 * 3600.0, limit: int = 100) -> list[str]:
+    """Mints seen launching between min_age_s and max_age_s ago, newest first."""
+    now = time.time() if now is None else now
+    out: list[str] = []
+    with _lock:
+        for mint, row in reversed(_mints.items()):
+            age = now - row["t"]
+            if age < min_age_s:
+                continue
+            if age > max_age_s:
+                break                     # OrderedDict is in arrival order
+            out.append(mint)
+            if len(out) >= limit:
+                break
+    return out
 
 
 def _run() -> None:

@@ -31,6 +31,17 @@ SCAN_FETCH = {
     "quote_ttl_s": 15,             # short cache for open-position price refreshes
     "cooldown_floor_s": 30,        # even if Retry-After is 1s, back off at least this (per host)
     "cooldown_cap_s": 120,         # exponential 429 cooldown cap; never sleep the cycle
+    "cooldown_jitter": 0.15,       # up to +15% on every cooldown so probes never sync up
+    # Jupiter tokens v2 (free, keyless): 1 cached discovery list + 1 PumpPortal hydrate per cycle
+    "jup_enabled": True,
+    "jup_per_min": 6,
+    "jup_burst": 3,
+    "jup_batch": 100,              # mints per search call (Jupiter's max)
+    "jup_rehydrate_s": 60,         # re-price a PumpPortal mint at most this often
+    "pp_max_age_s": 6 * 3600,      # hydrate PumpPortal launches up to this old
+    "pp_hot_trades": 15,           # a launch with this many 1h trades (or the volume below) is "hot"
+    "pp_hot_volume_usd": 1_500,
+    "pp_cold_recheck_s": 300,      # re-check a quiet launch this often (late movers)
 }
 
 # ---------- Seat 2: chain facts (Solana RPC) ----------

@@ -5,6 +5,14 @@ a minute (we stay at <= 10, and only 1-2 calls per cycle). DexScreener is the
 second source. Endpoints are rotated, cached, and cooled on 429 so a cycle
 never sleeps on a rate limit. A rolling mint-keyed pool keeps candidates
 alive when one source is cooling.
+
+Jupiter's free, keyless token API (tokens/v2) is the third host. It serves
+two jobs: a rotated discovery list (top trending / top traded, 1h), and
+hydrating the mints the PumpPortal websocket saw launch (one batched search
+call, up to 100 mints). Rows from that second job carry source="pumpportal".
+Render's shared outbound IP gets 429s from GeckoTerminal and DexScreener for
+hours at a time, so these two keep the candidate pool filled. Every host has
+its own token bucket and its own jittered 429 cooldown.
 """
 from __future__ import annotations
 
@@ -23,6 +31,15 @@ GT = "https://api.geckoterminal.com/api/v2"
 DS = "https://api.dexscreener.com"
 DEX = "https://api.dexscreener.com/latest/dex/tokens"
 DS_TOKENS_V1 = "https://api.dexscreener.com/tokens/v1/solana"
+# Jupiter tokens v2: free, no key. lite-api first; api.jup.ag if lite-api is retired.
+JUP_BASES = ("https://lite-api.jup.ag/tokens/v2", "https://api.jup.ag/tokens/v2")
+_jup_base = [0]
+SOURCES = ("geckoterminal", "dexscreener", "jupiter", "pumpportal")
+# Which HTTP host a source's calls go to (pumpportal rows are hydrated through Jupiter).
+_SOURCE_HOST = {"geckoterminal": "geckoterminal", "dexscreener": "dexscreener",
+                "jupiter": "jupiter", "pumpportal": "jupiter"}
+# Same-mint precedence inside the pool TTL: a higher number is not replaced by a lower one.
+_RANK = {"geckoterminal": 3, "dexscreener": 2, "jupiter": 1, "pumpportal": 1}
 HEADERS = {
     "Accept": "application/json",
     "User-Agent": "solana-trading-desk/1.1 (paper-scanner; +https://github.com/roasaetn2-crypto/solana-desk-)",
@@ -44,13 +61,10 @@ _DEX_ALIAS = {
 }
 
 # Fetch outcome of the last new_tokens() call. The agent prints this.
-LAST: dict = {
-    "geckoterminal": {"pools": 0, "calls": 0, "errors": []},
-    "dexscreener": {"pools": 0, "calls": 0, "errors": []},
-}
+LAST: dict = {name: {"pools": 0, "calls": 0, "errors": []} for name in SOURCES}
 
 # Cumulative HTTP counters (not reset each cycle) for simulations and tests.
-CALLS: dict = {"geckoterminal": 0, "dexscreener": 0, "429": 0}
+CALLS: dict = {"geckoterminal": 0, "dexscreener": 0, "jupiter": 0, "429": 0}
 
 # ---------- rate limit / cache / cooldown state ----------
 
@@ -79,14 +93,15 @@ class TokenBucket:
         return False
 
 
-def _new_buckets() -> tuple[TokenBucket, TokenBucket]:
-    return (
-        TokenBucket(SCAN_FETCH["gt_per_min"], SCAN_FETCH["gt_burst"]),
-        TokenBucket(SCAN_FETCH["ds_per_min"], SCAN_FETCH["ds_burst"]),
-    )
+def _new_buckets() -> dict[str, TokenBucket]:
+    return {
+        "geckoterminal": TokenBucket(SCAN_FETCH["gt_per_min"], SCAN_FETCH["gt_burst"]),
+        "dexscreener": TokenBucket(SCAN_FETCH["ds_per_min"], SCAN_FETCH["ds_burst"]),
+        "jupiter": TokenBucket(SCAN_FETCH["jup_per_min"], SCAN_FETCH["jup_burst"]),
+    }
 
 
-_gt_bucket, _ds_bucket = _new_buckets()
+_BUCKETS = _new_buckets()
 _cycle = 0
 # endpoint id -> {"until": ts, "strikes": int}  (non-429 errors only)
 _COOL: dict[str, dict] = {}
@@ -101,17 +116,37 @@ _POOL: dict[str, dict] = {}
 _PAIR_CACHE: dict[str, dict] = {}
 # mint -> {"exp": ts, "q": dict}
 _QUOTE_CACHE: dict[str, dict] = {}
+# mint -> {"exp": ts, "row": raw Jupiter token}  (socials / quote fallback)
+_JUP_ROWS: dict[str, dict] = {}
+# mint -> ts of the last Jupiter hydrate (PumpPortal mints), so we rotate through them
+_JUP_HYDRATED: dict[str, float] = {}
 
 
 def _host_of(source: str) -> TokenBucket:
-    return _gt_bucket if source == "geckoterminal" else _ds_bucket
+    return _BUCKETS[_SOURCE_HOST.get(source, source)]
+
+
+def _jup_enabled() -> bool:
+    """Jupiter discovery / PumpPortal hydrate. Off under DESK_OFFLINE=1 like other optional lookups."""
+    from desk.netutil import offline
+    return bool(SCAN_FETCH.get("jup_enabled", True)) and not offline()
+
+
+def _jitter(seconds: float) -> float:
+    """Spread retries so probes never sync up. Only ever lengthens: a server's
+    Retry-After is a floor we must not undercut."""
+    j = float(SCAN_FETCH.get("cooldown_jitter", 0.15))
+    return seconds * random.uniform(1.0, 1.0 + j)
 
 
 def reset_runtime() -> None:
     """Clear limiter / cache / cooldown / cycle state. Used by tests."""
-    global _cycle, _gt_bucket, _ds_bucket
+    global _cycle, _BUCKETS
     _cycle = 0
-    _gt_bucket, _ds_bucket = _new_buckets()
+    _BUCKETS = _new_buckets()
+    _jup_base[0] = 0
+    _JUP_ROWS.clear()
+    _JUP_HYDRATED.clear()
     _COOL.clear()
     _HOST_COOL.clear()
     _EP_CACHE.clear()
@@ -120,6 +155,7 @@ def reset_runtime() -> None:
     _QUOTE_CACHE.clear()
     CALLS["geckoterminal"] = 0
     CALLS["dexscreener"] = 0
+    CALLS["jupiter"] = 0
     CALLS["429"] = 0
     _reset_last()
     from desk import chart
@@ -157,8 +193,8 @@ def _age_minutes(iso: str | None) -> float:
 
 
 def _reset_last() -> None:
-    LAST["geckoterminal"] = {"pools": 0, "calls": 0, "errors": []}
-    LAST["dexscreener"] = {"pools": 0, "calls": 0, "errors": []}
+    for name in SOURCES:
+        LAST[name] = {"pools": 0, "calls": 0, "errors": []}
 
 
 def _note(source: str, message: str) -> None:
@@ -176,8 +212,9 @@ def fetch_report() -> dict:
         for err in row["errors"]:
             warnings.append(f"{name} {err}")
     return {
-        "geckoterminal": dict(LAST["geckoterminal"]),
-        "dexscreener": dict(LAST["dexscreener"]),
+        **{name: dict(LAST[name]) for name in SOURCES},
+        "cooling": {h: round(host_cooling_until(h) - time.time())
+                    for h in ("geckoterminal", "dexscreener", "jupiter") if host_cooling(h)},
         "warnings": warnings,
         "calls_total": dict(CALLS),
         "cycle": _cycle,
@@ -185,27 +222,23 @@ def fetch_report() -> dict:
 
 
 def source_label(tokens: list[dict]) -> str:
-    gt = sum(1 for t in tokens if t.get("source") == "geckoterminal")
-    ds = sum(1 for t in tokens if t.get("source") == "dexscreener")
-    parts = []
-    if gt:
-        parts.append("geckoterminal")
-    if ds:
-        parts.append("dexscreener")
+    counts = source_counts(tokens)
+    parts = [name for name in SOURCES if counts[name]]
     if parts:
         return "+".join(parts)
-    return "geckoterminal+dexscreener-empty"
+    return "all-sources-empty"
 
 
 def source_counts(tokens: list[dict]) -> dict[str, int]:
-    return {
-        "geckoterminal": sum(1 for t in tokens if t.get("source") == "geckoterminal"),
-        "dexscreener": sum(1 for t in tokens if t.get("source") == "dexscreener"),
-    }
+    return {name: sum(1 for t in tokens if t.get("source") == name) for name in SOURCES}
 
 
 def _host_name(endpoint_id: str) -> str:
-    return "geckoterminal" if endpoint_id.startswith("gt:") else "dexscreener"
+    if endpoint_id.startswith("gt:"):
+        return "geckoterminal"
+    if endpoint_id.startswith("jup:"):
+        return "jupiter"
+    return "dexscreener"
 
 
 def host_cooling_until(source: str, now: float | None = None) -> float:
@@ -306,6 +339,52 @@ def parse_dex_pair(pair: dict) -> dict | None:
     }
 
 
+def _jup_stats_vol(st: dict) -> float:
+    return _f(st.get("buyVolume")) + _f(st.get("sellVolume"))
+
+
+def parse_jup_token(row: dict, source: str = "jupiter") -> dict | None:
+    """One Jupiter tokens/v2 row -> the desk's token dict (same keys as parse_pool)."""
+    if not isinstance(row, dict):
+        return None
+    mint = row.get("id")
+    if not isinstance(mint, str) or not (30 <= len(mint) <= 50) or mint in _QUOTE_MINTS:
+        return None
+    s5 = row.get("stats5m") or {}
+    s1 = row.get("stats1h") or {}
+    s6 = row.get("stats6h") or {}
+    s24 = row.get("stats24h") or {}
+    first = row.get("firstPool") or {}
+    created_at = _created_at_iso(first.get("createdAt") or row.get("createdAt"))
+    age = round(max(0.0, (time.time() - created_at) / 60.0), 1) if created_at else 0.0
+    launchpad = (row.get("launchpad") or "").lower()
+    if launchpad == "pump.fun":
+        dex = "pumpswap" if row.get("graduatedPool") else "pump-fun"
+    else:
+        dex = launchpad or "jupiter"
+    symbol = str(row.get("symbol") or "?")[:24]
+    buys = _i(s1.get("numBuys"))
+    return {
+        "mint": mint,
+        "symbol": symbol,
+        "name": f"{symbol} / SOL",
+        "pool": row.get("graduatedPool") or first.get("id") or mint,
+        "dex": dex,
+        "price_usd": _f(row.get("usdPrice")),
+        "mcap_usd": _f(row.get("mcap")) or _f(row.get("fdv")),
+        "liquidity_usd": _f(row.get("liquidity")),
+        "volume_m5": _jup_stats_vol(s5), "volume_h1": _jup_stats_vol(s1),
+        "volume_h6": _jup_stats_vol(s6), "volume_h24": _jup_stats_vol(s24),
+        "buys_h1": buys, "sells_h1": _i(s1.get("numSells")),
+        "buyers_h1": _i(s1.get("numTraders")) or buys,
+        "change_m5": _f(s5.get("priceChange")), "change_h1": _f(s1.get("priceChange")),
+        "change_h6": _f(s6.get("priceChange")),
+        "age_minutes": age,
+        "created_at": created_at,
+        "source": source,
+    }
+
+
 # ---------- HTTP: one shot, no in-cycle sleep ----------
 
 def _parse_retry_after(raw, default: float) -> float:
@@ -337,7 +416,7 @@ def _cool(endpoint_id: str, source: str, wait: float, label: str, status: int, r
             return                      # one log line per cooldown start
         rec = _HOST_COOL.get(source) or {"until": 0.0, "strikes": 0}
         rec["strikes"] = int(rec.get("strikes") or 0) + 1
-        exp = min(cap, max(wait, SCAN_FETCH["cooldown_floor_s"]) * (2 ** (rec["strikes"] - 1)))
+        exp = _jitter(min(cap, max(wait, SCAN_FETCH["cooldown_floor_s"]) * (2 ** (rec["strikes"] - 1))))
         rec["until"] = now + exp
         _HOST_COOL[source] = rec
         CALLS["429"] += 1
@@ -346,7 +425,7 @@ def _cool(endpoint_id: str, source: str, wait: float, label: str, status: int, r
     floor = min(10.0, wait)
     rec = _COOL.get(endpoint_id) or {"until": 0.0, "strikes": 0}
     rec["strikes"] = int(rec.get("strikes") or 0) + 1
-    exp = min(cap, max(wait, floor) * (2 ** max(0, rec["strikes"] - 1)))
+    exp = _jitter(min(cap, max(wait, floor) * (2 ** max(0, rec["strikes"] - 1))))
     rec["until"] = now + exp
     _COOL[endpoint_id] = rec
     _note(source, f"{label} -> {status} {reason}, cooling {exp:.0f}s")
@@ -355,7 +434,8 @@ def _cool(endpoint_id: str, source: str, wait: float, label: str, status: int, r
 def note_429(source: str, label: str, retry_after=None) -> None:
     """For other modules that call a scanner host directly (promo, dexscreener)."""
     wait = _parse_retry_after(retry_after, SCAN_FETCH["cooldown_floor_s"])
-    _cool(f"{'gt' if source == 'geckoterminal' else 'ds'}:external", source, wait, label,
+    prefix = {"geckoterminal": "gt", "jupiter": "jup"}.get(source, "ds")
+    _cool(f"{prefix}:external", source, wait, label,
           429, "Too Many Requests")
 
 
@@ -378,6 +458,8 @@ def _get_once(s: requests.Session, url: str, params: dict | None, source: str,
         _cool(endpoint_id, source, 8.0, label, r.status_code, r.reason or "server error")
         return None
     if r.status_code != 200:
+        if source == "jupiter" and r.status_code in (401, 403, 404, 410):
+            _jup_base[0] = (_jup_base[0] + 1) % len(JUP_BASES)   # try the other Jupiter base next
         if r.status_code in (401, 403, 408):
             _cool(endpoint_id, source, 30.0, label, r.status_code, r.reason or "error")
         else:
@@ -429,6 +511,21 @@ def _fetch_endpoint(s: requests.Session, ep: dict, now: float):
     return body, True
 
 
+def _fetch_live(s: requests.Session, ep: dict, now: float):
+    """Like _fetch_endpoint but never serves a cached body (the URL varies per call)."""
+    source = ep["source"]
+    if is_cooling(ep["id"], now) or not _host_of(source).allow(1, now=now):
+        return None
+    r = _get_once(s, ep["url"], ep.get("params"), source, ep["label"], ep["id"])
+    if r is None:
+        return None
+    try:
+        return r.json()
+    except ValueError:
+        _note(source, f"{ep['label']} -> 200 but body was not JSON")
+        return None
+
+
 # ---------- rolling pool ----------
 
 def _stamp(t: dict, now: float) -> dict:
@@ -458,12 +555,11 @@ def _keep(t: dict | None) -> dict | None:
 
 
 def _put_pool(t: dict, now: float) -> None:
-    """Insert into the rolling pool. A live GeckoTerminal row wins over DexScreener
-    for the same mint while it is still inside the pool TTL (same-cycle merge)."""
+    """Insert into the rolling pool. For the same mint, inside the pool TTL, a
+    GeckoTerminal row beats DexScreener, which beats Jupiter / PumpPortal."""
     mint = t["mint"]
     prev = _POOL.get(mint)
-    if (prev and prev["token"].get("source") == "geckoterminal"
-            and t.get("source") == "dexscreener"
+    if (prev and _RANK.get(prev["token"].get("source"), 0) > _RANK.get(t.get("source"), 0)
             and now - prev["at"] < SCAN_FETCH["pool_ttl_s"]):
         return
     _POOL[mint] = {"token": _stamp(t, now), "at": now}
@@ -493,6 +589,104 @@ def _gt_endpoints() -> list[dict]:
          "params": {"page": 2, "include": "base_token,dex"},
          "label": "/networks/solana/new_pools page=2", "kind": "gt_pools"},
     ]
+
+
+def _jup_endpoints() -> list[dict]:
+    base = JUP_BASES[_jup_base[0]]
+    return [
+        {"id": "jup:toptrending:1h", "source": "jupiter",
+         "url": f"{base}/toptrending/1h", "params": {"limit": 100},
+         "label": "jupiter toptrending/1h", "kind": "jup_tokens"},
+        {"id": "jup:toptraded:1h", "source": "jupiter",
+         "url": f"{base}/toptraded/1h", "params": {"limit": 100},
+         "label": "jupiter toptraded/1h", "kind": "jup_tokens"},
+    ]
+
+
+def _jup_search_ep(mints: list[str], ep_id: str, label: str) -> dict:
+    return {"id": ep_id, "source": "jupiter",
+            "url": f"{JUP_BASES[_jup_base[0]]}/search",
+            "params": {"query": ",".join(mints)},
+            "label": f"{label} n={len(mints)}", "kind": "jup_tokens"}
+
+
+def _remember_jup(rows, now: float) -> None:
+    for row in rows if isinstance(rows, list) else []:
+        if isinstance(row, dict) and isinstance(row.get("id"), str):
+            _JUP_ROWS[row["id"]] = {"at": now, "row": row}
+    if len(_JUP_ROWS) > 4000:                       # bounded: drop the oldest quarter
+        for m, _ in sorted(_JUP_ROWS.items(), key=lambda kv: kv[1]["at"])[:1000]:
+            _JUP_ROWS.pop(m, None)
+
+
+def _absorb_jup(body, now: float, source: str = "jupiter") -> int:
+    rows = body if isinstance(body, list) else []
+    _remember_jup(rows, now)
+    n = 0
+    max_age_min = SCAN["max_age_hours"] * 60
+    for row in rows:
+        t = _keep(parse_jup_token(row, source))
+        # The trending lists are mostly months-old tokens; the age cut would reject them
+        # every bench period and flood the log, so only launch-window rows enter the pool.
+        if t and t["created_at"] and t["age_minutes"] <= max_age_min:
+            _put_pool(t, now)
+            n += 1
+    return n
+
+
+def _is_hot(t: dict | None) -> bool:
+    """A launch with some real trading: worth re-pricing every minute."""
+    if not t:
+        return False
+    return (t["buys_h1"] + t["sells_h1"] >= SCAN_FETCH["pp_hot_trades"]
+            or t["volume_h1"] >= SCAN_FETCH["pp_hot_volume_usd"])
+
+
+def _hydrate_order(mints: list[str], now: float) -> list[str]:
+    """Hot launches due a refresh first, then never-priced ones (newest first), then cold ones."""
+    hot, fresh, cold = [], [], []
+    for m in mints:
+        row = _JUP_HYDRATED.get(m)
+        if row is None:
+            fresh.append(m)
+        elif row["hot"]:
+            if now - row["at"] >= SCAN_FETCH["jup_rehydrate_s"]:
+                hot.append(m)
+        elif now - row["at"] >= SCAN_FETCH["pp_cold_recheck_s"]:
+            cold.append(m)
+    return hot + fresh + cold
+
+
+def _hydrate_pumpportal(s: requests.Session, now: float) -> int:
+    """One Jupiter search call for up to 100 mints PumpPortal saw launch."""
+    from desk import pumpportal
+    mints = pumpportal.recent_mints(now, min_age_s=SCAN["min_age_minutes"] * 60,
+                                    max_age_s=SCAN_FETCH["pp_max_age_s"], limit=3000)
+    pick = _hydrate_order(mints, now)[:int(SCAN_FETCH["jup_batch"])]
+    if not pick:
+        return 0
+    body = _fetch_live(s, _jup_search_ep(pick, "jup:pumpportal", "jupiter search (pumpportal mints)"), now)
+    if not isinstance(body, list):
+        return 0
+    _remember_jup(body, now)
+    parsed = {}
+    for row in body:
+        t = parse_jup_token(row, "pumpportal")
+        if t:
+            parsed[t["mint"]] = t
+    n = 0
+    for m in pick:
+        t = parsed.get(m)
+        hot = _is_hot(t)
+        _JUP_HYDRATED[m] = {"at": now, "hot": hot}
+        t = _keep(t) if hot else None       # dead launches never reach the agent (no reject spam)
+        if t:
+            _put_pool(t, now)
+            n += 1
+    if len(_JUP_HYDRATED) > 6000:
+        for m in [m for m, r in _JUP_HYDRATED.items() if now - r["at"] > SCAN_FETCH["pp_max_age_s"]]:
+            _JUP_HYDRATED.pop(m, None)
+    return n
 
 
 def _ds_rotation() -> list[dict]:
@@ -657,11 +851,17 @@ def new_tokens(session: requests.Session | None = None) -> list[dict]:
     cycle = _cycle
     _cycle += 1
 
-    for ep in _schedule(cycle):
+    planned = _schedule(cycle)
+    if _jup_enabled():
+        jup = _jup_endpoints()
+        planned.append(jup[cycle % len(jup)])       # one cached Jupiter discovery list per cycle
+    for ep in planned:
         body, _fresh = _fetch_endpoint(s, ep, now)
         if body is None:
             continue
-        if ep["kind"] == "gt_pools":
+        if ep["kind"] == "jup_tokens":
+            _absorb_jup(body, now)
+        elif ep["kind"] == "gt_pools":
             _absorb_gt(body, now)
         elif ep["kind"] == "ds_pairs":
             _absorb_pairs(body, now)
@@ -670,9 +870,15 @@ def new_tokens(session: requests.Session | None = None) -> list[dict]:
             if mints:
                 _hydrate_mints(s, mints, now)
 
+    if _jup_enabled():
+        try:
+            _hydrate_pumpportal(s, now)                # PumpPortal launches, priced via Jupiter
+        except Exception as e:                         # never let the fallback break a cycle
+            _note("pumpportal", f"hydrate failed ({type(e).__name__})")
+
     tokens = _pool_tokens(now)
-    LAST["geckoterminal"]["pools"] = sum(1 for t in tokens if t["source"] == "geckoterminal")
-    LAST["dexscreener"]["pools"] = sum(1 for t in tokens if t["source"] == "dexscreener")
+    for name, n in source_counts(tokens).items():
+        LAST[name]["pools"] = n
     return tokens
 
 
@@ -749,8 +955,14 @@ def quote_many(mints: list[str], session: requests.Session | None = None) -> dic
         }
         body, fresh = _fetch_endpoint(s, ep, now)
         if body is None:
-            # fall back to any stale quote / pair cache
+            # DexScreener cooling / 429: price from Jupiter, then any stale quote
+            jq = _jup_quotes(s, chunk, now)
             for mint in chunk:
+                if mint in jq:
+                    out[mint] = jq[mint]
+                    _QUOTE_CACHE[mint] = {"exp": now + SCAN_FETCH["quote_ttl_s"], "q": jq[mint]}
+                    _record_quote_tick(mint, jq[mint])
+                    continue
                 stale = _QUOTE_CACHE.get(mint)
                 if stale:
                     out[mint] = stale["q"]
@@ -777,6 +989,41 @@ def quote_many(mints: list[str], session: requests.Session | None = None) -> dic
     return out
 
 
+def _quote_from_jup(row: dict) -> dict | None:
+    price = _f(row.get("usdPrice"))
+    if price <= 0:
+        return None
+    return {"price_usd": price, "liquidity_usd": _f(row.get("liquidity")),
+            "volume_h6": _jup_stats_vol(row.get("stats6h") or {}),
+            "volume_h24": _jup_stats_vol(row.get("stats24h") or {}),
+            "volume_m5": _jup_stats_vol(row.get("stats5m") or {})}
+
+
+def _jup_quotes(s: requests.Session, mints: list[str], now: float) -> dict[str, dict]:
+    """Jupiter prices for open positions when DexScreener is cooling. Fresh rows first."""
+    out: dict[str, dict] = {}
+    need = []
+    for m in mints:
+        row = _JUP_ROWS.get(m)
+        if row and now - row["at"] <= SCAN_FETCH["quote_ttl_s"]:
+            q = _quote_from_jup(row["row"])
+            if q:
+                out[m] = q
+                continue
+        need.append(m)
+    if need and _jup_enabled():
+        body = _fetch_live(s, _jup_search_ep(need[:100], "jup:quotes", "jupiter search quotes"), now)
+        if isinstance(body, list):
+            _remember_jup(body, now)
+            for row in body:
+                m = row.get("id") if isinstance(row, dict) else None
+                if m in need:
+                    q = _quote_from_jup(row)
+                    if q:
+                        out[m] = q
+    return out
+
+
 def socials(mint: str, session: requests.Session | None = None) -> dict:
     """X / Telegram / site links as the project published them (DexScreener token info).
     Taken from the listing, never from a search: a search finds fan accounts."""
@@ -790,6 +1037,10 @@ def socials(mint: str, session: requests.Session | None = None) -> dict:
         if p.get("info"):
             info = p["info"]
             break
+    if not info and mint in _JUP_ROWS:          # DexScreener cooling: the listing Jupiter returned
+        row = _JUP_ROWS[mint]["row"]
+        return {"x": row.get("twitter"), "telegram": row.get("telegram"),
+                "website": row.get("website")}
     links = {x.get("type"): x.get("url") for x in info.get("socials", [])}
     sites = info.get("websites") or []
     return {"x": links.get("twitter"), "telegram": links.get("telegram"),
