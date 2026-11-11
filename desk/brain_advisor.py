@@ -77,9 +77,10 @@ DEFAULT_COOLDOWN_S = 120
 MAX_COOLDOWN_S = 3600
 LOW_BUDGET_LEFT = 0.10          # skip the debate when under 10% of a budget remains
 # Review-path only (Desk AI chat calls Provider.call directly and is not paced).
-# 8/min is under Gemini's free RPM and still enough for one opinion + a short debate.
-# 0 disables pacing, used by tests that fire many back-to-back reviews.
-RPM = {"gemini": 8, "groq": 8, "openrouter": 8}
+# Gemini: 8/min stays under the free RPM and still fits one opinion + a short debate.
+# OpenRouter: 3/min is tighter because the free ":free" budget is ~45 calls/day
+# (enough for one debate: 1 opinion + 2 debate turns). 0 disables pacing.
+RPM = {"gemini": 8, "groq": 8, "openrouter": 3}
 
 # Free-tier limits: Groq openai/gpt-oss-120b is 30 RPM, 1K RPD, 8K TPM, 200K TPD, so about
 # 400 calls a day of ~500 tokens is the conservative ceiling. Gemini free Flash models allow

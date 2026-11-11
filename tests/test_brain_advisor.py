@@ -492,16 +492,20 @@ class Pace(Base):
         # available() ignores the review pacer, so Desk AI chat can still call this provider
         self.assertTrue(self.adv.gemini.available())
 
-    def test_openrouter_same_rpm_cap(self):
+    def test_openrouter_caps_below_gemini(self):
         os.environ.pop("GEMINI_API_KEY")
         os.environ.pop("GROQ_API_KEY")
         os.environ["OPENROUTER_API_KEY"] = ORKEY
+        self.assertEqual(self.adv.openrouter.rpm, 3)
+        self.assertLess(self.adv.openrouter.rpm, self.adv.gemini.rpm)
         net = Net(orr=[groq(opinion()) for _ in range(12)])
-        for i in range(10):
+        for i in range(8):
             self.run_review(net, mint=f"M{i}")
-        self.assertEqual(net.n("openrouter"), 8)
-        self.assertEqual(self.adv.openrouter.rpm, self.adv.gemini.rpm)
+        self.assertEqual(net.n("openrouter"), 3)
+        self.assertEqual(self.adv.openrouter.health()["used_last_min"], 3)
         self.assertFalse(self.adv.openrouter.pace(max_wait=0))
+        self.run_review(net, mint="M99")
+        self.assertEqual(net.n("openrouter"), 3)
 
     def test_rpm_window_frees_a_slot(self):
         os.environ.pop("GROQ_API_KEY")
