@@ -287,6 +287,8 @@ class SolanaAgent:
 
     def _loop(self):
         while not self._stop.is_set():
+            if not offline():
+                pumpportal.start()          # restart the feed if its thread died
             if killed():
                 self._liquidate("KILL file found")
                 with self.lock:
@@ -884,9 +886,9 @@ class SolanaAgent:
             "gmgn": {"status": "on" if gm["configured"] else "waiting on key",
                      "sleeping": gm["sleeping"]},
             "jupiter": {"status": "on (quotes only)", "max_rps": 0.5},
-            "pumpportal": {"status": "on" if pp["connected"] else (
-                               "connecting" if pp["enabled"] else "off"),
-                           "tracked": pp["tracked"], "received": pp["received"]},
+            "pumpportal": {"status": pumpportal.status_label(pp),
+                           "tracked": pp["tracked"], "received": pp["received"],
+                           "reconnects": pp["reconnects"], "error": pp.get("error")},
             "dexscreener_promo": {"status": "on"},
             "regime": {"status": "on", "tag": self.regime.get("tag")},
         }

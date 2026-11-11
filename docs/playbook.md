@@ -58,7 +58,7 @@ The coach never changes a setting.
 | GoPlus Solana | `desk/goplus.py` | Token-2022 traps: transfer fee, transfer hook, default frozen, non-transferable, closable, balance-mutable authority, malicious creator | 24 / min (limit 30), 1 h cache | on |
 | GMGN (read only) | `desk/gmgn.py` | smart money, KOL, sniper, bundler, insider, fresh-wallet rates, wash and honeypot flags | 20 / min, 10 min cache | waiting on key |
 | Jupiter quote | `desk/jupiter.py` | price impact on entry and exit, quotes only | 1 call / 2 s (0.5 rps) | on |
-| PumpPortal | `desk/pumpportal.py` | launch facts: dev initial buy, serial launcher; one websocket, `subscribeNewToken` only | 1 connection | on |
+| PumpPortal | `desk/pumpportal.py` | launch facts: dev initial buy, serial launcher; one websocket, `subscribeNewToken` only. Starts with the web process, reconnects forever (5 s to 5 min backoff), and reconnects if silent for 2 min | 1 connection | on |
 | DexScreener | `desk/promo.py` | paid-promotion flag from token-profiles and token-boosts | about 1 / min (limit 60) | on |
 
 Rules every source follows: hard timeout (8 s), cache, a rate limiter that skips instead of

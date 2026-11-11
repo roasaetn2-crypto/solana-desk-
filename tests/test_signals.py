@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -357,6 +358,121 @@ class PumpPortal(unittest.TestCase):
         for i in range(pumpportal.MAX_MINTS + 50):
             pumpportal.ingest(_create(f"{i:044d}", creator=f"cr{i:040d}"), now=1000 + i)
         self.assertLessEqual(pumpportal.health()["tracked"], pumpportal.MAX_MINTS)
+
+    def test_stale_helper(self):
+        self.assertFalse(pumpportal.stale(10, 5, 0, window=10))
+        self.assertFalse(pumpportal.stale(14, None, 5, window=10))
+        self.assertTrue(pumpportal.stale(15, None, 5, window=10))
+        self.assertTrue(pumpportal.stale(20, 10, 0, window=10))
+        self.assertFalse(pumpportal.stale(19, 10, 0, window=10))
+
+    def test_status_label(self):
+        self.assertEqual(pumpportal.status_label({"connected": True, "enabled": False}), "on")
+        self.assertEqual(pumpportal.status_label({"connected": False, "enabled": True}), "connecting")
+        self.assertEqual(pumpportal.status_label({"connected": False, "enabled": False}), "off")
+
+    def test_start_is_noop_when_offline(self):
+        self.assertEqual(os.environ.get("DESK_OFFLINE"), "1")
+        self.assertFalse(pumpportal.start())
+        self.assertFalse(pumpportal.health()["enabled"])
+        self.assertEqual(pumpportal.health()["status"], "off")
+
+    def test_import_failure_retries_and_never_gives_up(self):
+        pumpportal._stop.clear()
+        with mock.patch.object(pumpportal, "_ws_mod", side_effect=ImportError("nope")), \
+             mock.patch.object(pumpportal, "BACKOFF_START_S", 0.01), \
+             mock.patch.object(pumpportal, "BACKOFF_MAX_S", 0.02):
+            t = threading.Thread(target=pumpportal._run, name="pp-test", daemon=True)
+            t.start()
+            deadline = time.time() + 1.0
+            while time.time() < deadline and "websocket-client missing" not in str(
+                    pumpportal.health().get("error")):
+                time.sleep(0.02)
+            self.assertTrue(t.is_alive())
+            self.assertIn("websocket-client missing", pumpportal.health()["error"])
+            pumpportal._stop.set()
+            t.join(1)
+        self.assertFalse(t.is_alive())
+
+    def test_stale_socket_reconnects_and_only_subscribes_new_token(self):
+        sent, creates = [], {"n": 0}
+
+        class Timeout(Exception):
+            pass
+
+        class WS:
+            def send(self, s):
+                sent.append(s)
+
+            def settimeout(self, t):
+                pass
+
+            def recv(self):
+                raise Timeout()
+
+            def ping(self):
+                pass
+
+            def close(self):
+                pass
+
+        def create(url, timeout=0):
+            creates["n"] += 1
+            if creates["n"] >= 2:
+                pumpportal._stop.set()
+            return WS()
+
+        class Mod:
+            WebSocketTimeoutException = Timeout
+            create_connection = staticmethod(create)
+
+        clock = {"t": 0}
+
+        def now():
+            clock["t"] += pumpportal.STALE_S
+            return clock["t"]
+
+        pumpportal._stop.clear()
+        with mock.patch.object(pumpportal, "_ws_mod", return_value=Mod), \
+             mock.patch.object(pumpportal, "BACKOFF_START_S", 0.01), \
+             mock.patch.object(pumpportal, "BACKOFF_MAX_S", 0.02), \
+             mock.patch.object(pumpportal, "time") as tmod:
+            tmod.time.side_effect = now
+            th = threading.Thread(target=pumpportal._run, name="pp-stale", daemon=True)
+            th.start()
+            th.join(2)
+        self.assertGreaterEqual(creates["n"], 2)
+        self.assertTrue(all(json.loads(s) == pumpportal.SUB for s in sent))
+        self.assertFalse(th.is_alive())
+        self.assertGreaterEqual(pumpportal.health()["reconnects"], 1)
+
+    def test_start_restarts_dead_thread(self):
+        dead = threading.Thread(target=lambda: None, name="pp-dead", daemon=True)
+        dead.start()
+        dead.join(1)
+        self.assertFalse(dead.is_alive())
+        pumpportal._thread = dead
+        started = {"n": 0}
+
+        def fake_run():
+            started["n"] += 1
+            pumpportal._stop.wait(0.5)
+
+        with mock.patch.object(pumpportal, "offline", return_value=False), \
+             mock.patch.object(pumpportal, "_run", fake_run):
+            self.assertTrue(pumpportal.start())
+            deadline = time.time() + 1.0
+            while time.time() < deadline and not (
+                    pumpportal._thread and pumpportal._thread.is_alive()):
+                time.sleep(0.02)
+            self.assertTrue(pumpportal._thread.is_alive())
+            self.assertEqual(started["n"], 1)
+            self.assertTrue(pumpportal.start())
+            self.assertEqual(started["n"], 1)
+            pumpportal.stop()
+            pumpportal._thread.join(1)
+        self.assertFalse(pumpportal._thread.is_alive())
+        self.assertFalse(pumpportal.health()["enabled"])
 
 
 class Promo(unittest.TestCase):

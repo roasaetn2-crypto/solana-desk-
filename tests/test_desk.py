@@ -2,11 +2,14 @@
 
     python -m unittest discover -s tests -v
 """
+import json
 import os
 import sys
 import tempfile
 import time
 import unittest
+
+os.environ.setdefault("DESK_OFFLINE", "1")
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -393,7 +396,17 @@ class AccessGate(unittest.TestCase):
 
     def test_health_stays_public(self):
         c = self._client("s3cret")
-        self.assertEqual(c.get("/api/health").status_code, 200)
+        r = c.get("/api/health")
+        self.assertEqual(r.status_code, 200)
+        body = r.json()
+        self.assertTrue(body["ok"])
+        pp = body["pumpportal"]
+        self.assertEqual(pp["status"], "off")          # DESK_OFFLINE: feed does not start
+        self.assertFalse(pp["enabled"])
+        self.assertFalse(pp["connected"])
+        snap = json.dumps(body)
+        self.assertNotIn("pumpportal.fun", snap)
+        self.assertNotIn("api-key", snap.lower())
 
     def test_wrong_token_rejected_right_token_accepted(self):
         c = self._client("s3cret")

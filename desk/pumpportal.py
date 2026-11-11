@@ -4,8 +4,11 @@
 
 The only subscription is subscribeNewToken. This module never sends any other
 method, never uses an api-key or the paid trade streams, and never touches a
-wallet. It runs in one daemon thread with exactly one connection at a time,
-reconnecting with exponential backoff (5 s up to 5 min).
+wallet. It runs in one daemon thread with exactly one connection at a time.
+
+The thread starts with the web process (and again if the trading loop starts),
+reconnects with capped exponential backoff (5 s up to 5 min) and never gives
+up, and reconnects if the socket goes stale (no messages for STALE_S seconds).
 
 What it keeps (tiny, in memory): per new mint the launch time, creator wallet and
 how much of the supply the creator bought in the launch transaction. Token names,
@@ -23,6 +26,8 @@ import threading
 import time
 from collections import OrderedDict, deque
 
+from desk.netutil import offline
+
 SUPPLY = 1_000_000_000          # pump.fun mints a fixed 1B supply
 URL = "wss://pumpportal.fun/api/data"
 SUB = {"method": "subscribeNewToken"}      # the ONLY message this module ever sends
@@ -32,26 +37,55 @@ DEV_BUY_BIG = 0.10
 SERIAL_N = 3
 SERIAL_WINDOW_S = 6 * 3600
 BACKOFF_START_S, BACKOFF_MAX_S = 5, 300
+STALE_S = 120
+RECV_TIMEOUT_S = 30
 
 _lock = threading.Lock()
 _mints: OrderedDict = OrderedDict()                 # mint -> {t, creator, dev_buy_pct}
 _creators: dict[str, deque] = {}                    # creator -> launch timestamps
-_state = {"connected": False, "received": 0, "last_msg": None, "reconnects": 0,
-          "error": None, "enabled": False}
+_state = {"connected": False, "received": 0, "last_msg": None, "last_activity": None,
+          "reconnects": 0, "error": None, "enabled": False}
 _thread: threading.Thread | None = None
+_ws = None
 _stop = threading.Event()
+
+
+def _log(msg: str) -> None:
+    print(f"pumpportal: {msg}", flush=True)
+
+
+def _ws_mod():
+    import websocket
+    return websocket
+
+
+def stale(now: float, last_activity: float | None, connected_at: float,
+          window: float = STALE_S) -> bool:
+    """True if the socket has been silent for `window` seconds."""
+    anchor = last_activity if last_activity is not None else connected_at
+    return now - anchor >= window
+
+
+def status_label(h: dict | None = None) -> str:
+    s = h if h is not None else health()
+    if s.get("connected"):
+        return "on"
+    if s.get("enabled"):
+        return "connecting"
+    return "off"
 
 
 def reset() -> None:
     with _lock:
         _mints.clear()
         _creators.clear()
-        _state.update(connected=False, received=0, last_msg=None, reconnects=0, error=None)
+        _state.update(connected=False, received=0, last_msg=None, last_activity=None,
+                      reconnects=0, error=None)
 
 
 def health() -> dict:
     with _lock:
-        return {**_state, "tracked": len(_mints)}
+        return {**_state, "tracked": len(_mints), "status": status_label(_state)}
 
 
 def ingest(raw, now: float | None = None) -> bool:
@@ -109,33 +143,63 @@ def lookup(mint: str, now: float | None = None) -> dict:
 
 
 def _run() -> None:
-    try:
-        import websocket           # websocket-client
-    except Exception as e:
-        with _lock:
-            _state["error"] = f"websocket-client missing ({type(e).__name__})"
-        return
+    """Connect, subscribe, read. Never returns until stop() is called."""
+    global _ws
     backoff = BACKOFF_START_S
     while not _stop.is_set():
+        try:
+            websocket = _ws_mod()
+        except Exception as e:
+            with _lock:
+                _state["error"] = f"websocket-client missing ({type(e).__name__})"
+            _log(f"websocket-client missing ({type(e).__name__}); retry in {backoff}s")
+            _stop.wait(backoff)
+            backoff = min(BACKOFF_MAX_S, backoff * 2)
+            continue
         ws = None
         try:
+            _log("connecting")
             ws = websocket.create_connection(URL, timeout=20)
-            ws.settimeout(60)
+            ws.settimeout(RECV_TIMEOUT_S)
             ws.send(json.dumps(SUB))
+            connected_at = time.time()
             with _lock:
+                _ws = ws
                 _state.update(connected=True, error=None)
+            _log("connected, subscribed subscribeNewToken")
             backoff = BACKOFF_START_S
             while not _stop.is_set():
                 try:
-                    ingest(ws.recv())
+                    raw = ws.recv()
+                    now = time.time()
+                    with _lock:
+                        _state["last_activity"] = now
+                    ingest(raw)
                 except websocket.WebSocketTimeoutException:
-                    ws.ping()                      # quiet period: keepalive, not a new message type
+                    now = time.time()
+                    with _lock:
+                        last = _state.get("last_activity")
+                    if stale(now, last, connected_at):
+                        _log(f"stale ({STALE_S}s with no messages), reconnecting")
+                        with _lock:
+                            _state["error"] = "stale"
+                        break
+                    try:
+                        ws.ping()                      # quiet period: keepalive, not a new message type
+                    except Exception as e:
+                        _log(f"ping failed ({type(e).__name__})")
+                        with _lock:
+                            _state["error"] = type(e).__name__
+                        break
         except Exception as e:
             with _lock:
                 _state["error"] = type(e).__name__
+            _log(f"disconnected ({type(e).__name__})")
         finally:
             with _lock:
                 _state["connected"] = False
+                if _ws is ws:
+                    _ws = None
             try:
                 if ws:
                     ws.close()
@@ -145,13 +209,16 @@ def _run() -> None:
             break
         with _lock:
             _state["reconnects"] += 1
+        _log(f"reconnect in {backoff}s")
         _stop.wait(backoff)
         backoff = min(BACKOFF_MAX_S, backoff * 2)
 
 
 def start() -> bool:
-    """Start the single feed thread (idempotent)."""
+    """Start the single feed thread (idempotent). No-op when DESK_OFFLINE=1."""
     global _thread
+    if offline():
+        return False
     with _lock:
         if _thread and _thread.is_alive():
             return True
@@ -159,10 +226,19 @@ def start() -> bool:
         _state["enabled"] = True
         _thread = threading.Thread(target=_run, name="pumpportal", daemon=True)
         _thread.start()
+    _log("thread started")
     return True
 
 
 def stop() -> None:
+    global _ws
     _stop.set()
     with _lock:
         _state["enabled"] = False
+        ws = _ws
+        _ws = None
+    try:
+        if ws:
+            ws.close()
+    except Exception:
+        pass

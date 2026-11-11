@@ -36,6 +36,7 @@ Endpoints
 """
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 import hashlib
 import hmac
 import os
@@ -45,14 +46,23 @@ from fastapi import Body, FastAPI, Form, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from desk import devices
+from desk import devices, pumpportal
 from desk.ops import KILL_FILE, load_env
 from desk.solana_agent import SolanaAgent
 
 load_env()
 
-app = FastAPI(title="AI Trading Desk \u2014 Solana Agent", version="1.3.0")
+@asynccontextmanager
+async def _lifespan(app):
+    # Feed is independent of the trading loop so a deploy is not "off" until Start.
+    pumpportal.start()
+    yield
+    pumpportal.stop()
+
+
+app = FastAPI(title="AI Trading Desk \u2014 Solana Agent", version="1.3.0", lifespan=_lifespan)
 agent = SolanaAgent()
+
 
 WEB = Path(__file__).parent / "web"
 app.mount("/static", StaticFiles(directory=WEB), name="static")
@@ -234,7 +244,21 @@ def chart(mint: str = "", tf: str = ""):
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "running": agent.running, "cycle": agent.cycle_no}
+    pp = pumpportal.health()
+    return {
+        "ok": True,
+        "running": agent.running,
+        "cycle": agent.cycle_no,
+        "pumpportal": {
+            "status": pp["status"],
+            "connected": pp["connected"],
+            "enabled": pp["enabled"],
+            "received": pp["received"],
+            "tracked": pp["tracked"],
+            "reconnects": pp["reconnects"],
+            "error": pp.get("error"),
+        },
+    }
 
 
 @app.get("/api/mode")
