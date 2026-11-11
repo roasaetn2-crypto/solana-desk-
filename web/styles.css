@@ -797,3 +797,11 @@ td .num.bad  { color: var(--red); }
 .bt-pos { color: var(--green) !important; }
 .bt-neg { color: var(--red) !important; }
 .bt-caveat { font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.4; }
+
+/* daily-loss stop: Continue today (paper only) */
+.risk-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin: 10px 0 0; padding: 10px 14px; border-radius: 11px; font-size: 12.5px;
+  color: var(--amber); background: var(--amber-dim); border: 1px solid rgba(255,181,71,0.3); }
+.risk-banner[hidden] { display: none; }
+.risk-banner.overridden { color: var(--muted); background: transparent; border-color: #1c2735; }
+.risk-banner .btn { flex: 0 0 auto; }

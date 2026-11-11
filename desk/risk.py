@@ -50,12 +50,37 @@ def sizing_base(account: Account) -> float:
     return account.equity
 
 
+DAILY_LOSS_REASON = "daily loss limit hit, desk halted until tomorrow"
+
+
+def daily_loss_hit(account: Account) -> bool:
+    """The 3% daily stop. The limit itself lives in config.RISK and is never changed here."""
+    return account.day_pnl <= -RISK["max_daily_loss_pct"] * account.equity
+
+
+def daily_override_active(mode: str | None, override_date: str | None, today: str) -> bool:
+    """Operator 'Continue today' override. PAPER only, today only.
+
+    It is ignored in any mode other than paper (LIVE can never use it), and it
+    expires by itself at the day roll because the stored date stops matching.
+    """
+    if (mode or "").strip().lower() != "paper":
+        return False
+    return bool(override_date) and str(override_date) == str(today)
+
+
 def check_token_trade(thesis, account: Account, liquidity_usd: float,
                       now: datetime | None = None,
-                      stop_pct: float | None = None) -> tuple[bool, float, str]:
-    """Return (approved, ticket_usd, reason). stop_pct = the stop of the profile this trade will use."""
-    if account.day_pnl <= -RISK["max_daily_loss_pct"] * account.equity:
-        return False, 0.0, "daily loss limit hit, desk halted until tomorrow"
+                      stop_pct: float | None = None,
+                      daily_override: bool = False) -> tuple[bool, float, str]:
+    """Return (approved, ticket_usd, reason). stop_pct = the stop of the profile this trade will use.
+
+    `daily_override` skips ONLY the daily-loss halt (paper, today, operator tapped
+    Continue). Every other gate below still applies. check_live_trade has no
+    such parameter: live can never bypass its daily loss limit.
+    """
+    if daily_loss_hit(account) and not daily_override:
+        return False, 0.0, DAILY_LOSS_REASON
     if in_quiet_hours(now):
         return False, 0.0, "quiet hours, no new entries"
     if thesis.verdict != "valid_setup":

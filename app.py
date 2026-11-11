@@ -30,6 +30,7 @@ Endpoints
     DELETE /api/devices/{id}   revoke one device
     POST /api/agent/start      start the background loop
     POST /api/agent/stop       pause the background loop
+    POST /api/risk/continue    PAPER only: resume entries today after the 3% daily stop
     POST /api/agent/step       run exactly one cycle (query: ?demo=1)
     POST /api/agent/reset      reset paper equity + bench + log
     GET  /api/mode             paper or live, caps, wallet, arming state
@@ -305,6 +306,14 @@ def start():
 @app.post("/api/agent/stop")
 def stop():
     return agent.stop()
+
+
+@app.post("/api/risk/continue")
+def risk_continue():
+    """Operator Continue after the 3% daily stop: PAPER only, today only, logged.
+    Behind the same key / paired-device gate as Start and Pause."""
+    r = agent.continue_today()
+    return JSONResponse(r, status_code=200 if r.get("ok") else 409)
 
 
 @app.post("/api/agent/step")

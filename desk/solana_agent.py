@@ -22,7 +22,7 @@ import random
 import threading
 import time
 from collections import Counter, deque
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import requests
 
@@ -40,6 +40,7 @@ from desk import live as live_mod
 from desk.broker import PaperBroker
 from desk.netutil import offline
 from desk.ops import Bench, alert, data_file, journal, killed
+from desk.risk import daily_loss_hit, daily_override_active
 from desk.risk import (Account, check_live_trade, check_token_trade,
                        live_sizing_breakdown, sizing_base, sizing_breakdown)
 
@@ -268,6 +269,80 @@ class SolanaAgent:
                 }
         return None
 
+    # ---------- daily-loss override (PAPER only, today only) ----------
+    def _paper_only(self) -> bool:
+        """True only when the desk is in PAPER and the active seat 5 is the paper broker."""
+        return self.mode == "paper" and self.broker is self.paper
+
+    def _paper_account(self) -> Account:
+        return Account(equity=self.paper.equity(), day_pnl=self.paper.day_pnl(),
+                       open_positions=self.paper.open_count(),
+                       realized_equity=self.paper.realized_equity())
+
+    def daily_override_today(self) -> bool:
+        """Operator tapped Continue today. Never true in LIVE; expires at the day roll."""
+        if not self._paper_only():
+            return False
+        return daily_override_active(self.mode, self.paper.s.get("daily_loss_override_date"),
+                                     str(date.today()))
+
+    def daily_loss_halted(self) -> bool:
+        """The 3% daily stop is tripped on the paper book today (override or not)."""
+        if not self._paper_only():
+            return False
+        return daily_loss_hit(self._paper_account())
+
+    def risk_status(self) -> dict:
+        with self.lock:
+            self.paper._roll_day()
+            paper = self._paper_only()
+            halted = self.daily_loss_halted()
+            override = self.daily_override_today()
+            return {
+                "mode": self.mode,
+                "daily_loss_limit_pct": RISK["max_daily_loss_pct"],
+                "day": self.paper.s.get("day"),
+                "day_pnl": self.paper.day_pnl() if paper else None,
+                "daily_loss_halted": halted,
+                "override_today": override,
+                "blocking_entries": halted and not override,
+                "can_continue": paper and halted and not override,
+                "override_date": self.paper.s.get("daily_loss_override_date") if paper else None,
+            }
+
+    def continue_today(self) -> dict:
+        """Operator Continue: resume PAPER entries for the rest of today after the daily stop.
+
+        Refuses unless the desk is in PAPER and the daily stop is actually tripped
+        today. The limit is untouched; the override expires at the day roll.
+        """
+        with self.lock:
+            if not self._paper_only():
+                return {"ok": False, "error": "Continue works in PAPER only"}
+            self.paper._roll_day()
+            today = str(date.today())
+            acct = self._paper_account()
+            if not daily_loss_hit(acct):
+                return {"ok": False, "error": "the daily loss stop is not active today",
+                        "risk": self.risk_status()}
+            if self.paper.s.get("daily_loss_override_date") == today:
+                return {"ok": True, "already": True,
+                        "message": "daily stop already overridden for today",
+                        "risk": self.risk_status()}
+            self.paper.s["daily_loss_override_date"] = today
+            self.paper._save()
+            running = self.running
+        row = journal("risk_override", action="continue_today", mode="paper", day=today,
+                      day_pnl=acct.day_pnl, equity=acct.equity,
+                      limit_pct=RISK["max_daily_loss_pct"], loop_running=running)
+        print(f"[desk] risk: operator Continue at {row['time']} — daily stop overridden for "
+              f"{today} (paper, day P&L ${acct.day_pnl:.2f})")
+        self.emit("warn", f"Continue: daily loss stop overridden for {today} "
+                          f"(day P&L ${acct.day_pnl:.2f}). Paper only; resets at day roll.",
+                  stage="risk")
+        return {"ok": True, "message": "paper trading resumed for today",
+                "loop_running": running, "risk": self.risk_status()}
+
     # ---------- lifecycle ----------
     def start(self, persist_intent: bool = True, intent_source: str = "operator"):
         with self.lock:
@@ -342,6 +417,9 @@ class SolanaAgent:
     # ---------- one cycle ----------
     def run_once(self, force_demo: bool = False) -> dict:
         with self.lock:
+            # roll the paper day in a long-running process too, so the daily stop
+            # (and any Continue override) resets at the day roll, not only on restart
+            self.paper._roll_day()
             self.cycle_no += 1
             self.stats["cycles"] += 1
             cycle = self.cycle_no
@@ -512,7 +590,8 @@ class SolanaAgent:
                                    open_positions=self.broker.open_count(),
                                    realized_equity=self.broker.realized_equity())
                     ok, ticket, reason = check_token_trade(th, acct, t["liquidity_usd"],
-                                                           stop_pct=stop)
+                                                           stop_pct=stop,
+                                                           daily_override=self.daily_override_today())
                     sizes = {**sizing_breakdown(acct, t["liquidity_usd"], stop),
                              "horizon": horizon, "stop_pct": stop,
                              "sizing_base": round(acct.realized_equity, 2)}
@@ -936,6 +1015,7 @@ class SolanaAgent:
                                 for r in list(self.reviews)[:10]],
                 },
                 "integrations": self.integrations(),
+                "risk": self.risk_status(),
                 "events": list(self.events)[:120],
                 "decisions": decisions,
                 "transcripts": list(self.transcripts)[:12],

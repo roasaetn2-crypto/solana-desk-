@@ -316,6 +316,31 @@ function renderCat(s) {
 }
 
 
+function renderRisk(s) {
+  const rk = s.risk || {};
+  const banner = $("riskBanner");
+  const btn = $("btnContinue");
+  const txt = $("riskText");
+  if (!banner || !btn || !txt) return;
+  const paper = (rk.mode || (s.execution || {}).mode) === "paper";
+  const pct = Math.round((rk.daily_loss_limit_pct || 0.03) * 100);
+  if (paper && rk.override_today) {
+    banner.hidden = false;
+    banner.classList.add("overridden");
+    txt.textContent = "Daily stop overridden for today \u2014 resets at day roll";
+    btn.hidden = true;
+  } else if (paper && rk.daily_loss_halted) {
+    banner.hidden = false;
+    banner.classList.remove("overridden");
+    txt.textContent = "Daily loss stop hit (" + pct + "%, day P&L $" +
+      Number(rk.day_pnl || 0).toFixed(2) + "). New paper entries paused for today.";
+    btn.hidden = !rk.can_continue;
+  } else {
+    banner.hidden = true;
+    btn.hidden = true;
+  }
+}
+
 async function api(path, method = "GET", body = null) {
   const opts = { method, headers: {} };
   if (body !== null) {
@@ -723,6 +748,7 @@ function render(s) {
   const st = s.stats || {};
   const cfg = s.config || {};
   renderMode(s);
+  renderRisk(s);
 
   // status
   const pill = $("statusPill");
@@ -1138,6 +1164,11 @@ async function act(path, method, msg) {
 }
 
 $("btnStart").onclick = () => act("/api/agent/start", "POST", "Agent started");
+$("btnContinue").onclick = async () => {
+  if (!confirm("Resume PAPER trading for the rest of today? The 3% stop comes back at the day roll.")) return;
+  const r = await act("/api/risk/continue", "POST", null);
+  toast(r && r.ok ? "Paper trading resumed for today" : ((r && r.error) || "Continue refused"));
+};
 $("btnPause").onclick = () => act("/api/agent/stop", "POST", "Agent paused");
 $("btnStep").onclick = async () => {
   toast("Running one cycle…");
