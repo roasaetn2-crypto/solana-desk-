@@ -30,6 +30,8 @@ _KV = (
     ("paper_ledger", lambda: data_file("paper_ledger.json")),
     ("operator_intent", lambda: data_file("operator_intent.json")),
     ("settings", lambda: data_file("autotune.json")),
+    ("operator_settings", lambda: data_file("operator_settings.json")),
+    ("proposals", lambda: data_file("proposals.json")),
 )
 _JOURNAL = "journal"
 

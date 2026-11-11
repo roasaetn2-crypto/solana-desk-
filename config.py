@@ -91,6 +91,7 @@ EXITS = {
     # A pool younger than scalp_max_age_hours is a scalp (tight stop, short clock); older = swing.
     # Ladder: sell tp1_frac at tp1_at (stop then moves to breakeven, never down), sell tp2_frac of
     # what is left at tp2_at, and the remainder trails trail_pct below its peak.
+    "style": "both",               # PAPER trading style: both | scalp (young coins only) | swing (older only)
     "scalp_max_age_hours": 6.0,
     "missing_quote_closes": 3,     # close only after N quote misses in a row (one API blip is not an exit)
     "profiles": {
@@ -147,7 +148,7 @@ BENCH_MINUTES = {
     "skip": 60, "watch": 15, "score": 20,
     "age": 10, "liquidity": 10, "volume": 10, "mcap": 15, "trades": 10,
 }
-BENCH_MINUTES.update({"chase": 20, "price_gap": 10, "liq_unconfirmed": 15, "no_confirm_quote": 5})
+BENCH_MINUTES.update({"style": 30, "chase": 20, "price_gap": 10, "liq_unconfirmed": 15, "no_confirm_quote": 5})
 DEFAULT_BENCH = 30
 
 # ---------- Meme coin value framework ----------

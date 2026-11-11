@@ -32,7 +32,13 @@ Endpoints
     POST /api/agent/stop       pause the background loop
     POST /api/risk/continue    PAPER only: resume entries today after the 3% daily stop
     GET  /api/ai/status        Desk AI chat: keys present? limits (never key values)
-    POST /api/ai/chat          Desk AI: advisory, read-only answer about the PAPER desk
+    POST /api/ai/chat          Desk AI: advisory answer; may return PENDING setting proposals
+    POST /api/ai/recommend     Desk AI: recommend paper settings from recent performance (pending only)
+    GET  /api/settings         every proposable PAPER setting: value, type, bounds; exclusions
+    GET  /api/proposals        pending + recent setting proposals
+    POST /api/proposals        operator preset (scalper / swing / balanced) -> pending proposal
+    POST /api/proposals/{id}/confirm   apply a proposal (re-validated, persisted, journaled)
+    POST /api/proposals/{id}/reject    drop a proposal (journaled)
     POST /api/agent/step       run exactly one cycle (query: ?demo=1)
     POST /api/agent/reset      reset paper equity + bench + log
     GET  /api/mode             paper or live, caps, wallet, arming state
@@ -318,7 +324,99 @@ def ai_chat(payload: dict = Body(...)):
     if why:
         return JSONResponse({"ok": False, "error": why}, status_code=429)
     hist = (payload or {}).get("history")
-    return desk_chat.answer(q, agent.status(), hist if isinstance(hist, list) else None)
+    from desk import settings as desk_settings
+    out = desk_chat.answer(q, agent.status(), hist if isinstance(hist, list) else None,
+                           settings=desk_settings.compact_for_ai())
+    return _with_proposals(out, "desk_ai")
+
+
+def _with_proposals(out: dict, source: str) -> dict:
+    """Validate the model's raw suggestions and store them as ONE pending proposal. Never applies."""
+    from desk import settings as desk_settings
+    raw = out.pop("proposals", None) or []
+    out["proposals"], out["dropped"] = [], []
+    if raw:
+        reason = " · ".join(x.get("reason", "") for x in raw if x.get("reason"))[:300]
+        raw, preset = desk_settings.expand_style(raw)
+        title = desk_settings.PRESETS[preset]["label"] if preset else "Desk AI suggestion"
+        made = desk_settings.create(raw, reason or "Desk AI suggestion", source, title, preset=preset)
+        if made.get("ok"):
+            p = made["proposal"]
+            out["proposals"] = [p]
+            agent.emit("info", f"Desk AI proposed {len(p['changes'])} paper setting change(s); "
+                               "waiting for Confirm", stage="settings")
+        out["dropped"] = made.get("dropped") or (made.get("proposal") or {}).get("dropped") or []
+    return out
+
+
+@app.post("/api/ai/recommend")
+def ai_recommend():
+    """Desk AI recommends PAPER settings from recent paper results + backtest. Pending only."""
+    from desk import desk_chat
+    from desk import settings as desk_settings
+    why = desk_chat.LIMITER.take()
+    if why:
+        return JSONResponse({"ok": False, "error": why}, status_code=429)
+    st = agent.status()
+    try:
+        bt = backtest()
+    except Exception:
+        bt = None
+    out = desk_chat.answer(desk_chat.RECOMMEND_Q, st, None, settings=desk_settings.compact_for_ai(),
+                           perf=desk_chat.performance(st, bt))
+    return _with_proposals(out, "recommend")
+
+
+def _who(request: Request) -> str:
+    dev = _device(request)
+    if dev:
+        return f"device:{dev['name']}"[:40]
+    return "operator key" if DESK_TOKEN else "open desk"
+
+
+@app.get("/api/settings")
+def get_settings():
+    from desk import settings as desk_settings
+    return desk_settings.snapshot()
+
+
+@app.get("/api/proposals")
+def get_proposals():
+    from desk import settings as desk_settings
+    return desk_settings.listing()
+
+
+@app.post("/api/proposals")
+def new_proposal(payload: dict = Body(...)):
+    """Operator-made proposal from a preset button. Still needs Confirm."""
+    from desk import settings as desk_settings
+    preset = str((payload or {}).get("preset", ""))[:20]
+    out = desk_settings.create_preset(preset, "operator")
+    return JSONResponse(out, status_code=200 if out.get("ok") else 400)
+
+
+@app.post("/api/proposals/{pid}/confirm")
+def confirm_proposal(pid: str, request: Request):
+    from desk import settings as desk_settings
+    who = _who(request)
+    out = desk_settings.confirm(pid[:20], who)
+    if out.get("ok"):
+        if any(a["setting"] in ("analyst.valid_score", "scan.min_volume_h1_usd", "scan.min_trades_h1")
+               for a in out["applied"]):
+            agent.autotune._persist()          # keep autotune's saved gate in step
+        agent.emit("warn", "settings confirmed by " + who + ": " + ", ".join(
+            f"{a['label']} {a['from']} -> {a['to']}" for a in out["applied"]), stage="settings")
+    return JSONResponse(out, status_code=200 if out.get("ok") else out.pop("code", 400))
+
+
+@app.post("/api/proposals/{pid}/reject")
+def reject_proposal(pid: str, request: Request):
+    from desk import settings as desk_settings
+    who = _who(request)
+    out = desk_settings.reject(pid[:20], who)
+    if out.get("ok"):
+        agent.emit("info", f"settings proposal {out['proposal']['id']} rejected by {who}", stage="settings")
+    return JSONResponse(out, status_code=200 if out.get("ok") else out.pop("code", 400))
 
 
 @app.get("/api/mode")

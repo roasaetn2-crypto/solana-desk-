@@ -26,7 +26,7 @@ from datetime import date, datetime, timezone
 
 import requests
 
-from config import AGENT, ENTRY, EXECUTION, PAPER, RISK
+from config import AGENT, ENTRY, EXECUTION, EXITS, PAPER, RISK
 from desk.brain_advisor import ADVISOR
 from desk import (analyst, brain, chain, dexscreener, devcheck, dialogue, exits, goplus, gmgn,
                   guard, heartbeat, helius, meme, pumpportal, regime, scanner,
@@ -95,6 +95,13 @@ class SolanaAgent:
         self.started_at = time.time()
         self.last_entry_ts: float | None = None
         self.autotune = AutoTune(self)
+        # Operator-confirmed paper settings win over autotune's restored gates (re-validated).
+        try:
+            from desk import settings as desk_settings
+            if desk_settings.apply_saved():
+                self.autotune._persist()
+        except Exception as e:
+            print(f"[desk] settings: re-apply skipped ({type(e).__name__})")
         self.session = requests.Session()
         self.lock = threading.RLock()
         self._stop = threading.Event()
@@ -492,6 +499,16 @@ class SolanaAgent:
                     journal("reject", stage="scanner", mint=t["mint"], symbol=t["symbol"],
                             reason=k, token=token_snap(t))
                     continue
+
+                # trading style (PAPER, operator-confirmed): scalp only / swing only / both
+                if self.mode != "live" and EXITS.get("style", "both") != "both":
+                    hz = exits.horizon_for(t.get("age_minutes"))
+                    if EXITS.get("style") != hz:
+                        self.bench.sit(t["mint"], "style")
+                        self.stats["free_rejects"] += 1
+                        self.emit("reject", f"{t['symbol']}: {hz} coin, desk is {EXITS.get('style')} only",
+                                  stage="scanner", reason="style", symbol=t["symbol"], mint=t["mint"])
+                        continue
 
                 if chain_left <= 0 or analyst_left <= 0:
                     break
