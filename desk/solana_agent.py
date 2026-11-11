@@ -268,14 +268,20 @@ class SolanaAgent:
         return None
 
     # ---------- lifecycle ----------
-    def start(self):
+    def start(self, persist_intent: bool = True, intent_source: str = "operator"):
         with self.lock:
             if self.running:
+                if persist_intent:
+                    from desk.intent import record_loop_intent
+                    record_loop_intent("running", source=intent_source)
                 return {"ok": True, "message": "agent already running"}
             self._stop.clear()
             self.running = True
             self._thread = threading.Thread(target=self._loop, name="solana-agent", daemon=True)
             self._thread.start()
+        if persist_intent:
+            from desk.intent import record_loop_intent
+            record_loop_intent("running", source=intent_source)
         if not offline():
             # optional, free, fail-open: both are no-ops until configured / reachable
             heartbeat.start(self._heartbeat_status)
@@ -298,6 +304,8 @@ class SolanaAgent:
         with self.lock:
             self.running = False
             self._stop.set()
+        from desk.intent import record_loop_intent
+        record_loop_intent("stopped", source="operator")
         self.emit("info", "Solana Agent paused.")
         return {"ok": True, "message": "agent paused"}
 
@@ -309,6 +317,8 @@ class SolanaAgent:
                 self._liquidate("KILL file found")
                 with self.lock:
                     self.running = False
+                from desk.intent import record_loop_intent
+                record_loop_intent("stopped", source="kill")
                 self.emit("info", "KILL switch: all paper positions closed, agent stopped.")
                 return
             try:

@@ -6,6 +6,9 @@ live_ledger.json
 ledger.json
 desk_devices.json
 desk.log
+autotune_log.jsonl
+autotune.json
+operator_intent.json
 
 # python
 __pycache__/

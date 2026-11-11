@@ -14,7 +14,7 @@ from pathlib import Path
 
 import config
 from config import AUTOTUNE, CHAIN, SCAN
-from desk.ops import journal
+from desk.ops import data_file, journal
 
 STATE = Path("autotune.json")
 LOG = Path("autotune_log.jsonl")
@@ -66,8 +66,10 @@ def notch(name: str, loosen: bool) -> tuple[float, float]:
 
 
 class AutoTune:
-    def __init__(self, agent, state_path: Path | str = STATE, log_path: Path | str = LOG):
-        self.agent, self.state_path, self.log_path = agent, Path(state_path), Path(log_path)
+    def __init__(self, agent, state_path: Path | str | None = None, log_path: Path | str | None = None):
+        self.agent = agent
+        self.state_path = Path(state_path) if state_path is not None else data_file("autotune.json")
+        self.log_path = Path(log_path) if log_path is not None else data_file("autotune_log.jsonl")
         self.last_run = time.time()
         self.last_change_ts = 0.0
         self.history: list[dict] = []
@@ -89,6 +91,11 @@ class AutoTune:
         try:
             self.state_path.write_text(json.dumps(
                 {"gates": {n: get_gate(n) for n in AUTOTUNE["gates"]}, "history": self.history[-50:]}, indent=1))
+        except Exception:
+            pass
+        try:
+            from desk.store import sync_kv_file
+            sync_kv_file("settings", self.state_path)
         except Exception:
             pass
 

@@ -36,6 +36,13 @@ class PaperBroker:
     # ---------- state ----------
     def _save(self):
         self.path.write_text(json.dumps(self.s, indent=1))
+        # paper book only; the live ledger is never pushed here
+        if self.path.name == "paper_ledger.json" or self.path.name.endswith("paper_ledger.json"):
+            try:
+                from desk.store import sync_kv_file
+                sync_kv_file("paper_ledger", self.path)
+            except Exception:
+                pass
 
     def _roll_day(self):
         if self.s["day"] != str(date.today()):

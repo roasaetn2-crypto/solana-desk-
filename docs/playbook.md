@@ -98,6 +98,20 @@ retune is a separate, logged step. Early samples are thin — often only hours o
 tickets, and a deploy wipes `journal.jsonl` unless `DESK_DATA_DIR` points at a
 disk.
 
+
+## 5c. Auto-resume and history
+
+On boot the desk is always in PAPER. If `PAPER_AUTOSTART` is on (the default) and
+the operator's last intent was not Pause/Stop, the paper loop starts by itself
+after a deploy. A deliberate Pause is written to `operator_intent.json` and, when
+Turso is configured, to the remote store, so it survives a restart. LIVE is never
+auto-started.
+
+Set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` to keep the journal, paper book,
+operator intent and autotune gate overrides across deploys. With no URL the desk
+still uses local files, which a Render deploy wipes. Stay on Turso's Free plan;
+do not add a card or enable overages.
+
 ## 6. Environment variables
 
 | Name | Needed for | Notes |
@@ -108,6 +122,11 @@ disk.
 | `DESK_OFFLINE=1` | tests | turns every optional lookup into "unknown" |
 | `DESK_DATA_DIR` | optional | folder for `journal.jsonl`, the paper ledger and `desk.db`. Use a mounted disk so a deploy does not wipe history |
 | `OLD_DESK_DB` | optional | path to the previous desk's sqlite file, included in a local backtest only |
+| `PAPER_AUTOSTART` | optional | default `1`. Auto-starts the PAPER loop after a deploy or restart unless the operator paused it. Set `0` to turn this off. Never auto-starts LIVE |
+| `TURSO_DATABASE_URL` | optional | Turso/libSQL HTTP or `libsql://` URL. With the token, the journal, paper ledger, operator intent and autotune gates survive deploys |
+| `TURSO_AUTH_TOKEN` | optional | Turso database token. Secret. Never commit it |
+| `DATABASE_URL` | optional | accepted if it is a `libsql://` or `*.turso.io` URL; `TURSO_DATABASE_URL` wins when both are set |
+| `DATABASE_AUTH_TOKEN` | optional | fallback token name if `TURSO_AUTH_TOKEN` is unset |
 
 ## 7. Sources and licences
 

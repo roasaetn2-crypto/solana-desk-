@@ -24,6 +24,8 @@ Endpoints
     GET  /api/state            full agent + broker + event snapshot
     GET  /api/chart            OHLC for one ticket (query: mint, tf)
     GET  /api/backtest         read-only gate replay over the journal (never changes settings)
+    (boot)                    restores journal/ledger/intent from Turso when configured;
+                              auto-starts the PAPER loop unless the operator paused it
     GET  /api/devices          paired device list (JSON)
     DELETE /api/devices/{id}   revoke one device
     POST /api/agent/start      start the background loop
@@ -51,13 +53,18 @@ from fastapi.staticfiles import StaticFiles
 from desk import devices, pumpportal
 from desk.ops import KILL_FILE, load_env
 from desk.solana_agent import SolanaAgent
+from desk.store import restore as restore_store
+from desk.intent import maybe_autostart
 
 load_env()
+restore_store()
 
 @asynccontextmanager
 async def _lifespan(app):
     # Feed is independent of the trading loop so a deploy is not "off" until Start.
     pumpportal.start()
+    # PAPER only, and only if the operator did not pause the desk.
+    maybe_autostart(agent)
     yield
     pumpportal.stop()
 

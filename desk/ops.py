@@ -38,6 +38,11 @@ def journal(kind: str, **fields) -> dict:
         # The journal is an audit trail, not a gate. A read-only volume must not
         # stop the desk from trading.
         print(f"[desk] journal write failed ({e}); decision not persisted")
+    try:
+        from desk.store import append_journal
+        append_journal(row)
+    except Exception:
+        pass
     return row
 
 
