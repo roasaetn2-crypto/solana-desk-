@@ -12,7 +12,8 @@
   <meta name="apple-mobile-web-app-title" content="Solana Desk" />
   <link rel="manifest" href="/static/manifest.webmanifest" />
   <link rel="apple-touch-icon" href="/static/assets/icon-192.png" />
-  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="stylesheet" href="/static/styles.css?v=20261112a" />
+  <link rel="stylesheet" href="/static/ai-chat.css?v=20261112a" />
 </head>
 <body class="desk-page">
   <header class="topbar">
@@ -142,37 +143,37 @@
         </div>
         <div class="pipeline" id="pipeline">
           <div class="seat" data-seat="scanner">
-            <div class="num">1</div>
+            <div class="seat-head"><img class="px-head" src="/static/assets/heads/head_market_48.png" srcset="/static/assets/heads/head_market_48.png 1x, /static/assets/heads/head_market_192.png 4x" width="48" height="48" alt="" decoding="async"><div class="num">1</div></div>
             <div class="meta"><div class="name">Scanner</div><div class="desc">GeckoTerminal new Solana pools</div></div>
             <div class="count"><b id="cSeen">0</b> seen</div>
           </div>
           <div class="seat" data-seat="chain">
-            <div class="num">2</div>
+            <div class="seat-head"><img class="px-head" src="/static/assets/heads/head_research_48.png" srcset="/static/assets/heads/head_research_48.png 1x, /static/assets/heads/head_research_192.png 4x" width="48" height="48" alt="" decoding="async"><div class="num">2</div></div>
             <div class="meta"><div class="name">Chain facts</div><div class="desc">mint · freeze · real top 10</div></div>
             <div class="count"><b id="cChain">0</b> cut</div>
           </div>
           <div class="seat" data-seat="dev">
-            <div class="num">2b</div>
+            <div class="seat-head"><img class="px-head" src="/static/assets/heads/head_reviewer_48.png" srcset="/static/assets/heads/head_reviewer_48.png 1x, /static/assets/heads/head_reviewer_192.png 4x" width="48" height="48" alt="" decoding="async"><div class="num">2b</div></div>
             <div class="meta"><div class="name">Dev investigation</div><div class="desc">creator hold · rugs · snipers</div></div>
             <div class="count"><b id="cDev">0</b> cut</div>
           </div>
           <div class="seat" data-seat="meme">
-            <div class="num">2c</div>
+            <div class="seat-head"><img class="px-head" src="/static/assets/heads/head_lead_48.png" srcset="/static/assets/heads/head_lead_48.png 1x, /static/assets/heads/head_lead_192.png 4x" width="48" height="48" alt="" decoding="async"><div class="num">2c</div></div>
             <div class="meta"><div class="name">Meme value</div><div class="desc">community · narrative · utility</div></div>
             <div class="count"><b id="cMeme">0</b> cut</div>
           </div>
           <div class="seat" data-seat="analyst">
-            <div class="num">3</div>
+            <div class="seat-head"><img class="px-head" src="/static/assets/heads/head_strategist_48.png" srcset="/static/assets/heads/head_strategist_48.png 1x, /static/assets/heads/head_strategist_192.png 4x" width="48" height="48" alt="" decoding="async"><div class="num">3</div></div>
             <div class="meta"><div class="name">Analyst</div><div class="desc" id="analystDesc">typed thesis 0–10</div></div>
             <div class="count"><b id="cAnalyst">0</b> calls</div>
           </div>
           <div class="seat" data-seat="risk">
-            <div class="num">4</div>
+            <div class="seat-head"><img class="px-head" src="/static/assets/heads/head_risk_48.png" srcset="/static/assets/heads/head_risk_48.png 1x, /static/assets/heads/head_risk_192.png 4x" width="48" height="48" alt="" decoding="async"><div class="num">4</div></div>
             <div class="meta"><div class="name">Risk engine</div><div class="desc">size · limits · daily stop</div></div>
             <div class="count"><b id="cRisk">0</b> veto</div>
           </div>
           <div class="seat" data-seat="broker">
-            <div class="num">5</div>
+            <div class="seat-head"><img class="px-head" src="/static/assets/heads/head_executor_48.png" srcset="/static/assets/heads/head_executor_48.png 1x, /static/assets/heads/head_executor_192.png 4x" width="48" height="48" alt="" decoding="async"><div class="num">5</div></div>
             <div class="meta"><div class="name">Paper broker</div><div class="desc" id="brokerDesc">fills · exits · journal</div></div>
             <div class="count"><b id="cEntries">0</b> fills</div>
           </div>
@@ -347,6 +348,40 @@
   </main>
 
   <div class="toast" id="toast"></div>
-  <script src="/static/app.js"></script>
+  <button class="ai-fab" id="aiFab" type="button" aria-label="Open Desk AI chat">
+    <span class="ai-sprite blink" aria-hidden="true"></span><span class="ai-fab-label">Desk AI</span>
+  </button>
+
+  <section class="ai-view" id="aiView" hidden aria-label="Desk AI chat">
+    <div class="ai-app">
+      <header class="ai-head">
+        <button class="ai-back" id="aiBack" type="button" aria-label="Back to the desk"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+        <div class="ai-avatar"><span class="ai-sprite blink" id="aiHeadSprite"></span></div>
+        <div class="ai-title">
+          <h1>Desk AI</h1>
+          <div class="ai-sub">Your desk's robot cat assistant</div>
+        </div>
+        <span class="ai-pill" id="aiPill"><i></i><span id="aiPillText">PAPER</span></span>
+      </header>
+      <main class="ai-chat" id="aiChat" aria-live="polite"></main>
+      <footer class="ai-foot">
+        <div class="ai-quick" id="aiQuick">
+          <button type="button" data-q="What is the scanner seeing right now?"><span>📡</span>Scanner</button>
+          <button type="button" data-q="Risk check: is the daily loss stop close, and what is blocking entries?"><span>🛡️</span>Risk check</button>
+          <button type="button" data-q="How is my paper P&amp;L today?"><span>📈</span>P&amp;L today</button>
+          <button type="button" data-q="Summarize my open paper positions."><span>💼</span>Positions</button>
+          <button type="button" data-q="Explain the last few decisions and the brain verdicts."><span>🧠</span>Decisions</button>
+        </div>
+        <form class="ai-composer" id="aiForm" autocomplete="off">
+          <input id="aiInput" placeholder="Message Desk AI…" aria-label="Message" maxlength="500" enterkeyhint="send">
+          <button class="ai-send" id="aiSend" type="submit" aria-label="Send"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg></button>
+        </form>
+        <div class="ai-paper">Paper mode · Desk AI only advises and never moves funds or settings</div>
+      </footer>
+    </div>
+  </section>
+
+  <script src="/static/app.js?v=20261112a"></script>
+  <script src="/static/ai-chat.js?v=20261112a"></script>
 </body>
 </html>

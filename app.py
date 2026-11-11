@@ -31,6 +31,8 @@ Endpoints
     POST /api/agent/start      start the background loop
     POST /api/agent/stop       pause the background loop
     POST /api/risk/continue    PAPER only: resume entries today after the 3% daily stop
+    GET  /api/ai/status        Desk AI chat: keys present? limits (never key values)
+    POST /api/ai/chat          Desk AI: advisory, read-only answer about the PAPER desk
     POST /api/agent/step       run exactly one cycle (query: ?demo=1)
     POST /api/agent/reset      reset paper equity + bench + log
     GET  /api/mode             paper or live, caps, wallet, arming state
@@ -286,6 +288,28 @@ def health():
             "error": pp.get("error"),
         },
     }
+
+
+@app.get("/api/ai/status")
+def ai_status():
+    from desk import desk_chat
+    return desk_chat.status()
+
+
+@app.post("/api/ai/chat")
+def ai_chat(payload: dict = Body(...)):
+    """Desk AI. Advisory and read-only: it gets a whitelisted copy of the state, never the
+    agent, so it cannot start, stop, trade, reset, kill or switch mode. Behind the same
+    key / paired-device gate as Start and Pause; rate-limited per minute and per day."""
+    from desk import desk_chat
+    q = str((payload or {}).get("message", ""))[:2000]
+    if not q.strip():
+        return JSONResponse({"ok": False, "error": "empty message"}, status_code=400)
+    why = desk_chat.LIMITER.take()
+    if why:
+        return JSONResponse({"ok": False, "error": why}, status_code=429)
+    hist = (payload or {}).get("history")
+    return desk_chat.answer(q, agent.status(), hist if isinstance(hist, list) else None)
 
 
 @app.get("/api/mode")

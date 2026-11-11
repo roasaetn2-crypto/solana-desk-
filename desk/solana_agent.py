@@ -751,8 +751,9 @@ class SolanaAgent:
             sym, mint = t.get("symbol"), t["mint"]
 
             def done(res):
+                # all bots limited -> "resting": the rule-based analyst already decided alone
                 decision["brain"] = res if res is not None else \
-                    {"status": "unavailable", "advisory_only": True}
+                    {"status": "resting" if ADVISOR.resting() else "unavailable", "advisory_only": True}
 
             def log(line: str):
                 self.emit("brain", line, symbol=sym, mint=mint)

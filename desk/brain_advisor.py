@@ -109,10 +109,16 @@ def _day() -> str:
 
 
 class ProviderError(Exception):
-    def __init__(self, msg: str, status: int | None = None, retry_after: float | None = None):
+    def __init__(self, msg: str, status: int | None = None, retry_after: float | None = None,
+                 limited: bool = False):
         super().__init__(redact(msg))
         self.status = status
         self.retry_after = retry_after
+        # usage/rate limit (429, quota, out of credits, or our own daily budget): cooled, not hammered
+        self.limited = limited or status == 429
+
+
+_QUOTA_RE = re.compile(r"(?i)quota|resource[_ ]exhausted|rate[ _-]?limit|insufficient (credits|balance)")
 
 
 def _retry_after(resp) -> float | None:
@@ -216,7 +222,8 @@ class Provider:
     def call(self, system: str, user: str, max_tokens: int = 700) -> str:
         """One model call. Raises ProviderError; sets the cooldown on a 429."""
         if not self.reserve():
-            raise ProviderError(f"{self.name} unavailable (no key, cooling or over budget)")
+            raise ProviderError(f"{self.name} unavailable (no key, cooling or over budget)",
+                                limited=bool(self.key()))
         try:
             resp = self._post(system, user, max_tokens)
         except requests.Timeout:
@@ -228,6 +235,10 @@ class Provider:
         if resp.status_code == 429:
             self.cool(_retry_after(resp))
             raise ProviderError(f"{self.name} rate limited (429)", 429, _retry_after(resp))
+        if resp.status_code == 402 or (resp.status_code in (403, 400) and _QUOTA_RE.search(str(resp.text or ""))):
+            self.cool(_retry_after(resp) or MAX_COOLDOWN_S / 2)
+            raise ProviderError(f"{self.name} out of quota (HTTP {resp.status_code})", resp.status_code,
+                                limited=True)
         if resp.status_code >= 400:
             self.errors += 1
             raise ProviderError(f"{self.name} HTTP {resp.status_code}: {_clean(resp.text, 120)}",
@@ -354,13 +365,18 @@ class Advisor:
     def enabled(self) -> bool:
         return any(p.key() for p in self.providers())
 
+    def resting(self) -> bool:
+        """Keys are set but every keyed provider is rate-limited, cooling or over budget."""
+        keyed = [p for p in self.providers() if p.key()]
+        return bool(keyed) and not any(p.available() for p in keyed)
+
     def new_cycle(self):
         with self._lock:
             self.cycle_reviews = 0
             self.cycle_debates = 0
 
     def status(self) -> dict:
-        return {"enabled": self.enabled(), "per_cycle": PER_CYCLE,
+        return {"enabled": self.enabled(), "resting": self.resting(), "per_cycle": PER_CYCLE,
                 "models": {"gemini": GEMINI_MODEL, "groq": GROQ_MODEL,
                            "openrouter": OPENROUTER_MODELS},
                 "providers": {p.name: p.snapshot() for p in self.providers()},
@@ -412,7 +428,7 @@ class Advisor:
         try:
             out = parse_opinion(p.call(SYSTEM, user))
         except ProviderError as e:
-            return {"provider": p.name, "error": str(e)}
+            return {"provider": p.name, "error": str(e), "limited": bool(e.limited)}
         if out is None:
             p.errors += 1
             return {"provider": p.name, "error": f"{p.name} returned malformed JSON"}
@@ -491,30 +507,57 @@ class Advisor:
         def run(p: Provider):
             ops[p.name] = self._opinion(p, summary)
 
-        threads = [threading.Thread(target=run, args=(p,), daemon=True) for p in pair]
-        for th in threads:
-            th.start()
-        for th in threads:
-            th.join(max(0.1, deadline - time.time()))
+        def round_(ps):
+            threads = [threading.Thread(target=run, args=(p,), daemon=True) for p in ps]
+            for th in threads:
+                th.start()
+            for th in threads:
+                th.join(max(0.1, deadline - time.time()))
+
+        round_(pair)
+        tried = list(pair)
+        limited: list[str] = []
+        # A bot that hit its usage/rate limit is swapped for the next usable provider
+        # (Gemini, Groq, OpenRouter) so there are still two voices when possible.
+        while True:
+            hit = [p for p in tried if (ops.get(p.name) or {}).get("limited") and p.name not in limited]
+            if not hit:
+                break
+            limited += [p.name for p in hit]
+            spare = [p for p in self.providers() if p not in tried and p.available()][:len(hit)]
+            if not spare or time.time() > deadline:
+                break
+            tried += spare
+            round_(spare)
         good = {n: o for n, o in ops.items() if o and "error" not in o}
         for n, o in ops.items():
             if o and "error" in o:
                 log(f"brain({n}): ${sym} unavailable - {o['error']}")
         if not good:
+            if limited:
+                log(f"brain: ${sym} AI bots resting (limits), normal analyst")
             return None
-        order = [p.name for p in pair if p.name in good]
+        pair = [p for p in tried if p.name in good][:2]
+        order = [p.name for p in pair]
         for n in order:
             o = good[n]
             log(f"brain({n}): ${sym} -> {o['verdict']} {o['confidence']}% \u2014 "
                 + ("; ".join(o["reasons"]) or "no reason given"))
         res = {"symbol": sym, "time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                "opinions": good, "providers": order, "advisory_only": True}
+        if limited:
+            res["limited"] = limited
+            names = lambda ns: ", ".join(n.capitalize() for n in ns)
+            res["limit_note"] = (f"{names(limited)} out of quota, {names(order)} solo" if len(order) == 1
+                                 else f"{names(limited)} out of quota, {names(order)} talking")
+            log(f"brain: ${sym} {res['limit_note']}")
         if len(order) == 1:
             o = good[order[0]]
+            res["solo"] = True
             res.update(verdict=o["verdict"], confidence=o["confidence"], source=order[0],
                        agreement="single")
         else:
-            A, B = [p for p in pair if p.name in good]
+            A, B = pair
             a, b = good[A.name], good[B.name]
             if a["verdict"] == b["verdict"]:
                 res.update(verdict=a["verdict"], agreement="agree",

@@ -547,14 +547,26 @@ function renderHero(s) {
 }
 
 const AGENT_SEATS = [
-  { id: "scanner", name: "Scanner", handle: "@scan", color: "#0a84ff", face: "Sc" },
-  { id: "chain", name: "Chain", handle: "@chain", color: "#5ac8ff", face: "Ch" },
-  { id: "dev", name: "Devcheck", handle: "@dev", color: "#bf5af2", face: "Dv" },
-  { id: "meme", name: "Meme", handle: "@meme", color: "#ff9f0a", face: "Me" },
-  { id: "analyst", name: "Analyst", handle: "@thesis", color: "#f2b2c2", face: "An" },
-  { id: "risk", name: "Risk", handle: "@risk", color: "#ffd60a", face: "Rk" },
-  { id: "broker", name: "Broker", handle: "@fills", color: "#00d35a", face: "Br" },
+  { id: "scanner", name: "Scanner", handle: "@scan", color: "#0a84ff", head: "market" },
+  { id: "chain", name: "Chain", handle: "@chain", color: "#5ac8ff", head: "research" },
+  { id: "dev", name: "Devcheck", handle: "@dev", color: "#bf5af2", head: "reviewer" },
+  { id: "meme", name: "Meme", handle: "@meme", color: "#ff9f0a", head: "lead" },
+  { id: "analyst", name: "Analyst", handle: "@thesis", color: "#f2b2c2", head: "strategist" },
+  { id: "risk", name: "Risk", handle: "@risk", color: "#ffd60a", head: "risk" },
+  { id: "broker", name: "Broker", handle: "@fills", color: "#00d35a", head: "executor" },
 ];
+// desk seat id (and the chat's "devcheck") -> pixel head art
+const SEAT_HEAD = { scanner: "market", chain: "research", dev: "reviewer", devcheck: "reviewer",
+  meme: "lead", analyst: "strategist", risk: "risk", broker: "executor", robot: "robot" };
+const SEAT_NAME = { scanner: "Scanner", chain: "Chain", dev: "Devcheck", devcheck: "Devcheck",
+  meme: "Meme", analyst: "Analyst", risk: "Risk", broker: "Broker" };
+function headImg(id, px, cls) {
+  const art = SEAT_HEAD[id];
+  if (!art) return "";
+  const b = "/static/assets/heads/head_" + art;
+  return `<img class="px-head ${cls || ""}" src="${b}_48.png" srcset="${b}_48.png 1x, ${b}_192.png 4x"
+    width="${px}" height="${px}" alt="" decoding="async">`;
+}
 
 function lastDecision(s) {
   return (s.decisions && s.decisions[0]) || null;
@@ -611,29 +623,80 @@ function seatStatus(s, id) {
   return "waiting";
 }
 
+
+// ---------- AI second opinion thread (display only; never changes a score or trade) ----------
+const BOT_NAME = { gemini: "Gemini", groq: "Groq", openrouter: "OpenRouter" };
+function botBubble(bot, verdict, text, tag, right) {
+  const b = String(bot || "ai").toLowerCase();
+  const v = String(verdict || "").toLowerCase();
+  return `<div class="bt-msg bot-${esc(b)}${right ? " r" : ""}">
+    <img class="px-head bt-av" src="/static/assets/heads/head_robot_48.png" width="24" height="24" alt="">
+    <div class="bt-bub"><div class="bt-who">${esc(BOT_NAME[b] || bot)}${tag ? ` <span class="bt-tag2">${esc(tag)}</span>` : ""}
+      ${v ? `<span class="bt-v v-${esc(v)}">${esc(v)}</span>` : ""}</div>
+      <div class="bt-say">${esc(shorten(text || "", 140))}</div></div></div>`;
+}
+function brainThreadHtml(d) {
+  const br = d.brain || {};
+  const ops = br.opinions || {};
+  const order = (br.providers && br.providers.length) ? br.providers : Object.keys(ops);
+  if (!order.length) return "";
+  const line = (o) => (o.reasons && o.reasons.length ? o.reasons[0] : (o.red_flags && o.red_flags[0]) || "no reason given");
+  const conf = (o) => (o.confidence != null ? " " + o.confidence + "%" : "");
+  const out = [];
+  const a = ops[order[0]];
+  if (a) out.push(botBubble(order[0], a.verdict, line(a), "opinion" + conf(a)));
+  const b = order[1] ? ops[order[1]] : null;
+  if (b) {
+    const agrees = a && a.verdict === b.verdict;
+    out.push(botBubble(order[1], b.verdict, line(b), (agrees ? "agrees" : "disagrees") + conf(b), true));
+  }
+  const deb = Array.isArray(br.debate) ? br.debate.slice(1) : [];
+  deb.forEach((ln, i) => out.push(botBubble(ln.bot, ln.verdict, ln.say, i === deb.length - 1 ? "final word" : "debate", ln.bot === order[1])));
+  let note;
+  if (br.agreement === "single") note = "one bot only · " + (br.verdict || "?");
+  else if (br.agreement === "agree") note = "both agree · " + (br.verdict || "?");
+  else if (br.final) note = "split → debated · final " + br.final.verdict + " (" + br.final.agree + "/2)";
+  else note = "split · cautious call " + (br.verdict || "?") + (deb.length ? "" : " · no debate this time");
+  const lim = br.limit_note ? `<div class="bt-note bt-limit">${esc(br.limit_note)}</div>` : "";
+  return `<div class="bt-thread"><div class="bt-coin">$${esc(d.symbol || "?")}</div>${lim}${out.join("")}
+    <div class="bt-note">${esc(note)} · advisory only</div></div>`;
+}
+function brainBoxHtml(s) {
+  const rows = (s.decisions || []).filter((d) => d.brain && (d.brain.opinions || d.brain.verdict)).slice(0, 2);
+  const adv = s.advisor || {};
+  const resting = adv.resting || ((s.decisions || [])[0] && ((s.decisions[0].brain || {}).status === "resting"));
+  if (resting) return '<div class="bt-empty">AI bots resting (limits), normal analyst</div>';
+  if (!rows.length) {
+    return `<div class="bt-empty">AI opinions: ${adv.enabled ? "waiting for coins" : "waiting for keys"}</div>`;
+  }
+  return rows.map(brainThreadHtml).join("");
+}
+
 function renderAgents(s) {
   const grid = $("agentsGrid");
   const badge = $("agentsRunning");
   if (badge) badge.textContent = s.running ? "7 running" : "0 running";
   if (!grid) return;
-  const C = 48, r = 20, cx = 24, cy = 24, circ = 2 * Math.PI * r;
+  const r = 30, cx = 32, cy = 32, circ = 2 * Math.PI * r;
   grid.innerHTML = AGENT_SEATS.map((a) => {
     const pct = Math.max(0, Math.min(100, seatRing(s, a.id)));
     const dash = (pct / 100) * circ;
-    return `<article class="agent-card" data-seat="${a.id}">
+    const isAn = a.id === "analyst";
+    return `<article class="agent-card${isAn ? " analyst-card" : ""}" data-seat="${a.id}">
       <div class="avatar-wrap">
-        <svg viewBox="0 0 48 48" aria-hidden="true">
+        <svg viewBox="0 0 64 64" aria-hidden="true">
           <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#222" stroke-width="3"></circle>
           <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${a.color}" stroke-width="3"
             stroke-linecap="round" stroke-dasharray="${dash.toFixed(2)} ${circ.toFixed(2)}"></circle>
         </svg>
-        <div class="face" style="background:${a.color}">${a.face}</div>
+        <div class="face">${headImg(a.id, 48)}</div>
       </div>
       <div class="abody">
         <div class="aname">${a.name}</div>
         <div class="handle">${a.handle}</div>
         <div class="astat">${esc(seatStatus(s, a.id))}</div>
       </div>
+      ${isAn ? `<div class="brain-box"><div class="bt-h">AI second opinion</div>${brainBoxHtml(s)}</div>` : ""}
     </article>`;
   }).join("");
 }
@@ -1065,7 +1128,7 @@ function render(s) {
     $("dlgBadge").textContent = tr.backend + " \u00b7 " + tr.symbol;
     $("dialogue").innerHTML = tr.messages.map((m) => `
       <div class="msg ${esc(m.stance || "info")}">
-        <div class="head"><b>${esc(m.seat || m.from)}</b><span class="arrow">\u2192</span><b>${esc(m.to)}</b></div>
+        <div class="head">${headImg(m.from, 24, "chip-head")}<b>${esc(m.seat || m.from)}</b><span class="arrow">\u2192</span><b>${esc(m.to)}</b></div>
         <div class="body">${esc(m.text)}</div>
       </div>`).join("");
   } else {
