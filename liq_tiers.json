@@ -1,0 +1,67 @@
+{
+  "0": {
+    "min_liq": 0,
+    "n": 129,
+    "wins": 33,
+    "losses": 96,
+    "win_rate": 25.6,
+    "median": -97.4,
+    "mean": 166.4,
+    "pf": 3.42,
+    "rug_pct": 65.1,
+    "best": 1000.0,
+    "worst": -100.0
+  },
+  "25000": {
+    "min_liq": 25000,
+    "n": 129,
+    "wins": 33,
+    "losses": 96,
+    "win_rate": 25.6,
+    "median": -97.4,
+    "mean": 166.4,
+    "pf": 3.42,
+    "rug_pct": 65.1,
+    "best": 1000.0,
+    "worst": -100.0
+  },
+  "50000": {
+    "min_liq": 50000,
+    "n": 129,
+    "wins": 33,
+    "losses": 96,
+    "win_rate": 25.6,
+    "median": -97.4,
+    "mean": 166.4,
+    "pf": 3.42,
+    "rug_pct": 65.1,
+    "best": 1000.0,
+    "worst": -100.0
+  },
+  "100000": {
+    "min_liq": 100000,
+    "n": 109,
+    "wins": 29,
+    "losses": 80,
+    "win_rate": 26.6,
+    "median": -96.9,
+    "mean": 175.0,
+    "pf": 3.62,
+    "rug_pct": 62.4,
+    "best": 1000.0,
+    "worst": -100.0
+  },
+  "250000": {
+    "min_liq": 250000,
+    "n": 73,
+    "wins": 21,
+    "losses": 52,
+    "win_rate": 28.8,
+    "median": -94.0,
+    "mean": 202.1,
+    "pf": 4.21,
+    "rug_pct": 56.2,
+    "best": 1000.0,
+    "worst": -100.0
+  }
+}

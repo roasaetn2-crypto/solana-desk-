@@ -32,3 +32,7 @@ keys.txt
 
 # generated fallback lock key (when host does not set DESK_TOKEN)
 .desk_token
+
+# --- research caches / scratch logs (large, regenerable) ---
+ohlcv_cache.json
+*.log

@@ -1,0 +1,1367 @@
+{
+  "trades": 100,
+  "wins": 13,
+  "losses": 87,
+  "win_rate": 0.13,
+  "total_return_pct_sum": 407422.09,
+  "avg_return_pct": 4074.221,
+  "profit_factor": 49.175,
+  "best_pct": 198908.53,
+  "worst_pct": -100.0,
+  "exit_reasons": {
+    "timeout 3h under +5%": 73,
+    "TP1": 11,
+    "trail": 11,
+    "max hold time": 10,
+    "stop": 6,
+    "TP2": 5
+  },
+  "pools_scanned": 100,
+  "config": {
+    "stop_pct": 0.3,
+    "profiles": {
+      "scalp": {
+        "stop_pct": 0.2,
+        "tp1_at": 1.5,
+        "tp1_frac": 0.33,
+        "tp2_at": 2.0,
+        "tp2_frac": 0.5,
+        "trail_pct": 0.2,
+        "timeout_hours": 3.0,
+        "timeout_min_gain": 0.05,
+        "max_hold_hours": 4.0
+      },
+      "swing": {
+        "stop_pct": 0.3,
+        "tp1_at": 1.5,
+        "tp1_frac": 0.33,
+        "tp2_at": 2.0,
+        "tp2_frac": 0.5,
+        "trail_pct": 0.3,
+        "timeout_hours": 3.0,
+        "timeout_min_gain": 0.05,
+        "max_hold_hours": 4.0
+      }
+    },
+    "fee_pct": 0.01,
+    "slippage_pct": 0.02
+  },
+  "trades_detail": [
+    {
+      "entry": 0.0004984035340702379,
+      "exit_px": 0.0005090695519603968,
+      "pnl": -1.0295062025345985,
+      "ret_pct": -99.9520584985047,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "mihao / SOL",
+      "address": "Ho1aSG6WGH1FfXdEHrK2f4Ggt1Hoxo9s5jcLMDqeyeBz",
+      "candles": 1000
+    },
+    {
+      "entry": 0.0017960993420588517,
+      "exit_px": 0.0009844106984449178,
+      "pnl": -1.0290451216225085,
+      "ret_pct": -99.90729336140859,
+      "reasons": [
+        "stop -20%"
+      ],
+      "horizon": "scalp",
+      "pool": "Max / SOL",
+      "address": "Eoe22HdCa9rhtBwKL6nNZmZxfuzF35xkxobcvfaF1vWQ",
+      "candles": 276
+    },
+    {
+      "entry": 0.04996121204617359,
+      "exit_px": 0.05182988967308847,
+      "pnl": -0.9797250070171042,
+      "ret_pct": -95.1189327201072,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "STONK / SOL",
+      "address": "zxTpi4BtaWX3mgdAPoezkMD1hxx8CdeCfrqXMWvSCLX",
+      "candles": 1000
+    },
+    {
+      "entry": 0.05175152957314272,
+      "exit_px": 0.05234076335517507,
+      "pnl": -0.9792294595454802,
+      "ret_pct": -95.07082131509517,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "ANSEM / SOL",
+      "address": "FnzKY6x7entQ1eR3D225dQyT7ybfka4PskBMQhb8L3CC",
+      "candles": 1000
+    },
+    {
+      "entry": 0.0009886519735788557,
+      "exit_px": 0.000955129973168045,
+      "pnl": -1.0290735239260271,
+      "ret_pct": -99.91005086660458,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "DacityCoin / TTWO",
+      "address": "7Te1wXcfeQjKLGHXFvxSCnGZTqunoZ9fxBn7KKjrkNEr",
+      "candles": 1000
+    },
+    {
+      "entry": 0.030021869832237452,
+      "exit_px": 0.030157964299079167,
+      "pnl": -1.0007467746298933,
+      "ret_pct": -97.15988103202847,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "CATE / SOL",
+      "address": "HMzvsEEmtzHhvZNw9uwbaG85HCTmFnkbhzUx16cy7ca3",
+      "candles": 1000
+    },
+    {
+      "entry": 0.00831115580746996,
+      "exit_px": 0.00864795359707609,
+      "pnl": -1.0216114850108362,
+      "ret_pct": -99.18558106901322,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "Dacity / TTWO",
+      "address": "G2UuRbmVDzDFP4qyoBJrSKBXSi7d6V4bPP9tHPs36y4b",
+      "candles": 1000
+    },
+    {
+      "entry": 4.5919211425489555e-05,
+      "exit_px": 6.779330764011692e-05,
+      "pnl": -1.0299211246837445,
+      "ret_pct": -99.9923422023053,
+      "reasons": [
+        "TP1 at 1.5x",
+        "TP2 at 2.0x",
+        "trail -20% from peak"
+      ],
+      "horizon": "scalp",
+      "pool": "HUNG / NVDAx",
+      "address": "2ULaeaUQWkid31cVKyFEujx9ReF7cdGepPxuoptz57m5",
+      "candles": 851
+    },
+    {
+      "entry": 0.000536304061424765,
+      "exit_px": 0.0005109059141481271,
+      "pnl": -1.0295044212632762,
+      "ret_pct": -99.95188555954138,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "BURNIE / SOL",
+      "address": "5tYFviFWQRKV9BJSTHGitbdqEYC1BGUgRUDnSADUXqJP",
+      "candles": 1000
+    },
+    {
+      "entry": 0.012404119906142035,
+      "exit_px": 0.0125292883912435,
+      "pnl": -1.0178465902604938,
+      "ret_pct": -98.82005730684405,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "FLOAT / SOL",
+      "address": "FJk9sajdc2Q4heRPPu3yLzkmf2ZByZkpiHQLv9e2bn5A",
+      "candles": 1000
+    },
+    {
+      "entry": 2.3706513489698923e-06,
+      "exit_px": 2.405885623708994e-06,
+      "pnl": -1.0299976662909451,
+      "ret_pct": -99.99977342630535,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": ":3 / SOL",
+      "address": "GxYbNxjGR9mEuVzXsGBi2Y78RGkwBMRok4RS9sMUb8hE",
+      "candles": 831
+    },
+    {
+      "entry": 5.5448609090819585e-05,
+      "exit_px": 3.384158735956788e-05,
+      "pnl": -1.0299671736602611,
+      "ret_pct": -99.99681297672439,
+      "reasons": [
+        "stop -20%"
+      ],
+      "horizon": "scalp",
+      "pool": "FLC / SOL",
+      "address": "HGgP8yXg71PdRxTvA53Q7mKdzx9zSTUW8E2roC28WtZa",
+      "candles": 175
+    },
+    {
+      "entry": 133.9327018273113,
+      "exit_px": 136.30702890769294,
+      "pnl": 131.18781804046213,
+      "ret_pct": 12736.681363151663,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "SPCX / USDC",
+      "address": "FjuBy7jjf9DXj9d3R7cHpvcnoFW2iQxf7F7P3vqx4Jza",
+      "candles": 1000
+    },
+    {
+      "entry": 0.013214144864424427,
+      "exit_px": 0.01252822908378069,
+      "pnl": -1.0178476177887328,
+      "ret_pct": -98.82015706686725,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "GATO / SOL",
+      "address": "5E3dXLXGwmTDCokA51WYYaKttjFZBwqCoyUHBUi5gt2m",
+      "candles": 1000
+    },
+    {
+      "entry": 0.011611631949974242,
+      "exit_px": 0.011434432053517187,
+      "pnl": -1.0189086009080883,
+      "ret_pct": -98.92316513670761,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "GTA6 / SOL",
+      "address": "5AFbwVSQPJf4cgEjq4TajZYyPYUvYktrRN3SahNrPnmv",
+      "candles": 1000
+    },
+    {
+      "entry": 0.00012391542139995792,
+      "exit_px": 5.636032568439876e-05,
+      "pnl": -1.0299453304840862,
+      "ret_pct": -99.99469228000837,
+      "reasons": [
+        "stop -20%"
+      ],
+      "horizon": "scalp",
+      "pool": "updog / mihao",
+      "address": "GeQmNaXBb86uLLQr3EAEwoukxVqSh4qTm3uXvb3G7Mne",
+      "candles": 296
+    },
+    {
+      "entry": 0.00018550040792784573,
+      "exit_px": 0.00018320304066348837,
+      "pnl": -1.0298222930505565,
+      "ret_pct": -99.98274689811228,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "paws / SOL",
+      "address": "2rmaFtFZmJtLXdPgRvk417RLc9GBD3jGbAqtttmfG3AF",
+      "candles": 1000
+    },
+    {
+      "entry": 0.003532307569180903,
+      "exit_px": 0.003626749628877461,
+      "pnl": -1.026482052859989,
+      "ret_pct": -99.6584517339795,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "PUMP / SOL",
+      "address": "BofA2ViUSudPBTUms2KRuG6AHNeMawjNfwqTJDgx5BKW",
+      "candles": 1000
+    },
+    {
+      "entry": 3.8805858901694456e-05,
+      "exit_px": 2.385057610551599e-05,
+      "pnl": -1.0299768649411776,
+      "ret_pct": -99.99775387778422,
+      "reasons": [
+        "stop -20%"
+      ],
+      "horizon": "scalp",
+      "pool": "Huang / SOL",
+      "address": "FJ1Y3drK5Z715mj8Hk512ekk3rQhTAhgRv6HMhnPCN2u",
+      "candles": 67
+    },
+    {
+      "entry": 1.144656934098608,
+      "exit_px": 1.1357219618521248,
+      "pnl": 0.07165030299656094,
+      "ret_pct": 6.95634009675349,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "TRUMP / USDC",
+      "address": "3C5YE97HADPDxZehYq9Cis8AXr9aNyrUsczKzE1nDbW9",
+      "candles": 1000
+    },
+    {
+      "entry": 0.0011757892279223058,
+      "exit_px": 0.0011262921167982673,
+      "pnl": -1.0289074966467058,
+      "ret_pct": -99.8939317132724,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "swordcat / SOL",
+      "address": "8ewuF2o8ACro7fqWepZ3tKhkbBjndZU4Ldk9scRPw83d",
+      "candles": 1000
+    },
+    {
+      "entry": 0.003534824228737666,
+      "exit_px": 0.0035776748105981232,
+      "pnl": -1.0265296554337198,
+      "ret_pct": -99.66307334307959,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "PUMP / USDC",
+      "address": "2uF4Xh61rDwxnG9woyxsVQP7zuA6kLFpb3NvnRQeoiSd",
+      "candles": 1000
+    },
+    {
+      "entry": 0.014047587935686565,
+      "exit_px": 0.013617430424081024,
+      "pnl": -1.0167910924886414,
+      "ret_pct": -98.71758179501373,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "GTA6 / SOL",
+      "address": "xg71xrhn7MEj5akrZGteuYeiTLbBzyNCpBn69bRYd5a",
+      "candles": 1000
+    },
+    {
+      "entry": 0.002131046101193516,
+      "exit_px": 0.0020820741901469205,
+      "pnl": -1.0279803880355576,
+      "ret_pct": -99.80392116850074,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "PAID / SOL",
+      "address": "6e3jZLtf4tQbWZm3f7A66jF8tfZn6MRQVrbDFgcNWarA",
+      "candles": 1000
+    },
+    {
+      "entry": 0.002311955201545711,
+      "exit_px": 0.0028841809310143495,
+      "pnl": -1.027202344496916,
+      "ret_pct": -99.72838296086563,
+      "reasons": [
+        "max hold time"
+      ],
+      "horizon": "swing",
+      "pool": "STANK / STONK",
+      "address": "6hYFMyE2BYYScTErqUeCKhihQ5X9j2WD2z9waTdwy38N",
+      "candles": 1000
+    },
+    {
+      "entry": 0.0003807881382778533,
+      "exit_px": 0.0007278218383124182,
+      "pnl": -1.0292426488354045,
+      "ret_pct": -99.92647076071887,
+      "reasons": [
+        "TP1 at 1.5x",
+        "TP2 at 2.0x",
+        "trail -20% from peak"
+      ],
+      "horizon": "swing",
+      "pool": "Max / SPCX",
+      "address": "723Hi42zhg8ypDpupFSCBnVPxUbGUVGrss7NR6nfxaZX",
+      "candles": 280
+    },
+    {
+      "entry": 0.003749240829911099,
+      "exit_px": 0.003717070652251673,
+      "pnl": -1.0263944414673158,
+      "ret_pct": -99.6499457735258,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "JEANPHIL / SOL",
+      "address": "4R8CiMnJWDNoes3fQi1ccPFJygPXazaHaWpHrN3rZeNj",
+      "candles": 1000
+    },
+    {
+      "entry": 0.026430180876586804,
+      "exit_px": 0.027257199628882973,
+      "pnl": -1.0035605163599834,
+      "ret_pct": -97.43305984077509,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "TROLL / SOL",
+      "address": "4w2cysotX6czaUGmmWg13hDpY4QEMG2CzeKYEQyK9Ama",
+      "candles": 1000
+    },
+    {
+      "entry": 0.35729603210471556,
+      "exit_px": 0.3558938746816967,
+      "pnl": -0.6847829415587543,
+      "ret_pct": -66.48378073385965,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "SPX / SOL",
+      "address": "9t1H1uDJ558iMPNkEPSN1fqkpC4XSPQ6cqSf6uEsTfTR",
+      "candles": 1000
+    },
+    {
+      "entry": 0.000507411086989665,
+      "exit_px": 0.0005696751583636565,
+      "pnl": -1.0294474150963873,
+      "ret_pct": -99.94635098023177,
+      "reasons": [
+        "max hold time"
+      ],
+      "horizon": "swing",
+      "pool": "WEALTH / SOL",
+      "address": "5n8V68fCaNTRQvaXzrmBryDe5jFLrgm65pFfsmia6Nro",
+      "candles": 1000
+    },
+    {
+      "entry": 0.05409289159397801,
+      "exit_px": 0.052464476984265394,
+      "pnl": -0.9791094573252626,
+      "ret_pct": -95.05917061410317,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "ANSEM / SOL",
+      "address": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+      "candles": 1000
+    },
+    {
+      "entry": 0.21428520531958622,
+      "exit_px": 0.21312184448445876,
+      "pnl": -0.8232718108500751,
+      "ret_pct": -79.92930202427912,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "CARDS / USDC",
+      "address": "HnhpJPJgBG2KwniMTNW8cVBHvk1hFog3RC3kjnyc23tD",
+      "candles": 1000
+    },
+    {
+      "entry": 4.614900461737687e-05,
+      "exit_px": 5.55435413126474e-05,
+      "pnl": -1.0299416203370568,
+      "ret_pct": -99.99433207155892,
+      "reasons": [
+        "TP1 at 1.5x",
+        "trail -20% from peak"
+      ],
+      "horizon": "scalp",
+      "pool": "BOXCAT / SOL",
+      "address": "7vcrVyJxtx2mdDPy67ie7CZJcQXtEa28EivUy2UFy9D8",
+      "candles": 584
+    },
+    {
+      "entry": 218.5537358679759,
+      "exit_px": 217.88234356835085,
+      "pnl": 210.3158732613003,
+      "ret_pct": 20419.016821485468,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "TTWO / USDC",
+      "address": "6PTm7MkUmtsLU7w6dWrMHJAt8PnzoCgcZdKyTKEhUAPL",
+      "candles": 1000
+    },
+    {
+      "entry": 0.0007994018155331588,
+      "exit_px": 0.0008027070897981671,
+      "pnl": -1.0292213741228957,
+      "ret_pct": -99.92440525465007,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "DOPE / SOL",
+      "address": "6iep3EgqksbZwgzMBCyAJtiVtVYkCgL9BnPBEwLR8AGQ",
+      "candles": 1000
+    },
+    {
+      "entry": 0.00017600576458196013,
+      "exit_px": 0.00017043782542190263,
+      "pnl": -1.0298346753093408,
+      "ret_pct": -99.9839490591593,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "WIZARD / SOL",
+      "address": "Dw4kAH8LhdmgfW1cgyvnWSwSDqkt37jeY7pW4oFkbGTu",
+      "candles": 1000
+    },
+    {
+      "entry": 0.16573799802664826,
+      "exit_px": 0.16537541819651552,
+      "pnl": -0.86958584434938,
+      "ret_pct": -84.42581013100778,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "$WIF / SOL",
+      "address": "EP2ib6dYdEeqD8MfE2ezHCxX3kP3K2eLKkirfPm5eyMx",
+      "candles": 1000
+    },
+    {
+      "entry": 0.11614889137486753,
+      "exit_px": 0.11805225355464538,
+      "pnl": -0.915489314051994,
+      "ret_pct": -88.88245767495087,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "Fartcoin / SOL",
+      "address": "Bzc9NZfMqkXR6fz1DBph7BDf9BroyEf6pnzESP7v5iiw",
+      "candles": 1000
+    },
+    {
+      "entry": 0.001895503913033659,
+      "exit_px": 0.0026880275542398163,
+      "pnl": -1.0273091423994927,
+      "ret_pct": -99.73875168927113,
+      "reasons": [
+        "TP1 at 1.5x",
+        "trail -20% from peak"
+      ],
+      "horizon": "swing",
+      "pool": "STANK / SOL",
+      "address": "91iHWaWXneUyoNDJhSno7ezxQg1VW5P6PdarNGyFfPCz",
+      "candles": 1000
+    },
+    {
+      "entry": 0.0012902384301548538,
+      "exit_px": 0.0012988436393375478,
+      "pnl": -1.0287401216698426,
+      "ret_pct": -99.87768171551869,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "BTC / WBTC",
+      "address": "3M9sVgL4u6ATKaiExf3XhQqNfMB6ijvzk3meMcQaen1w",
+      "candles": 1000
+    },
+    {
+      "entry": 0.0002499893869701308,
+      "exit_px": 0.00024216578009932907,
+      "pnl": -1.0297650991933036,
+      "ret_pct": -99.97719409643724,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "ARNOLD / SOL",
+      "address": "FEJsEq9mo3myRyU6D3LHz3TXwoE8GrYhEkzkoqyGsKLP",
+      "candles": 1000
+    },
+    {
+      "entry": 2.7168772687347773e-06,
+      "exit_px": 2.7352241044476013e-06,
+      "pnl": -1.0299973468326187,
+      "ret_pct": -99.99974241093385,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "Bonk / SOL",
+      "address": "5zpyutJu9ee6jFymDGoK7F6S5Kczqtc9FomP3ueKuyA9",
+      "candles": 1000
+    },
+    {
+      "entry": 0.00012531328046385984,
+      "exit_px": 0.0001893503132708364,
+      "pnl": -1.0298157704984776,
+      "ret_pct": -99.9821136406289,
+      "reasons": [
+        "TP1 at 1.5x",
+        "trail -20% from peak"
+      ],
+      "horizon": "scalp",
+      "pool": "NOBUSHIBA / SOL",
+      "address": "Dagau7G32pmkjf8ng2372xo2hyGfgenx5Yn7mWMkHfGF",
+      "candles": 512
+    },
+    {
+      "entry": 0.0338255554823857,
+      "exit_px": 0.033877033302751096,
+      "pnl": -0.9971392776963315,
+      "ret_pct": -96.80963861129432,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "Pnut / SOL",
+      "address": "4AZRPNEfCJ7iw28rJu5aUyeQhYcvdcNm8cswyL51AY9i",
+      "candles": 1000
+    },
+    {
+      "entry": 0.011424104587929234,
+      "exit_px": 0.014546593210452041,
+      "pnl": -1.0158898045858615,
+      "ret_pct": -98.63007811513218,
+      "reasons": [
+        "max hold time"
+      ],
+      "horizon": "swing",
+      "pool": "ZCAT / SOL",
+      "address": "GuPbekwP9MqB23CghhiMQZTaigPdUJooovo1neCErhM8",
+      "candles": 1000
+    },
+    {
+      "entry": 3.4914626876628804e-05,
+      "exit_px": 4.556752060654048e-05,
+      "pnl": -1.0299529111218226,
+      "ret_pct": -99.99542826425463,
+      "reasons": [
+        "TP1 at 1.5x",
+        "trail -20% from peak"
+      ],
+      "horizon": "scalp",
+      "pool": "GOODTIME / SOL",
+      "address": "DtDvAyZtenCP2qd3KycTnJoVxWWvum9S3QNfqLR6Hy8Y",
+      "candles": 962
+    },
+    {
+      "entry": 0.00013409187361726975,
+      "exit_px": 0.00012055123782747259,
+      "pnl": -1.0298830652993074,
+      "ret_pct": -99.98864711643762,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "AMD / AMD",
+      "address": "7RD5YALHcMLUFKJ8FRePGd6ei11F15uXZF1rc7mPKeCv",
+      "candles": 1000
+    },
+    {
+      "entry": 177.37220467949408,
+      "exit_px": 177.93554734139713,
+      "pnl": 171.5674809211552,
+      "ret_pct": 16657.036982636426,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "NVDAx / USDC",
+      "address": "49iMatQtoyabsYAQc8GafVq6aeBFVDxSRH44oiatyyw6",
+      "candles": 1000
+    },
+    {
+      "entry": 0.0017835666898447374,
+      "exit_px": 0.0017868567964496975,
+      "pnl": -1.0282667489074437,
+      "ret_pct": -99.83172319489745,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "AgenC / SOL",
+      "address": "BUMh6YebpBvAh4by4oTGJUvzQ9CvH6dqPgrZvXFDMwC1",
+      "candles": 1000
+    },
+    {
+      "entry": 0.04451817097616586,
+      "exit_px": 0.04392894577126347,
+      "pnl": -0.9873889226018745,
+      "ret_pct": -95.86300219435675,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "DESSA / SOL",
+      "address": "DEXTCER4k9dwbxTMU8zNVVwGevVmvHMB183pF2xxZwvH",
+      "candles": 1000
+    },
+    {
+      "entry": 0.006656816943636138,
+      "exit_px": 0.006217037009048702,
+      "pnl": -1.0239694741012229,
+      "ret_pct": -99.4145120486624,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "CLAUDIA / SOL",
+      "address": "Fe7bpDYCs74GqiCUF14HwgUMToPKV1d9mDYVX5BTohFr",
+      "candles": 1000
+    },
+    {
+      "entry": 1208.4027151972407,
+      "exit_px": 1216.5009581782977,
+      "pnl": 1178.9759294329488,
+      "ret_pct": 114463.68246921831,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "ZEC / SOL",
+      "address": "2TAgfogn8JRwwTnsGKUa6WUT5Xdv1iMEzfEDMor68X9C",
+      "candles": 1000
+    },
+    {
+      "entry": 0.0014784328603425557,
+      "exit_px": 0.0015422012349556192,
+      "pnl": -1.028504064802093,
+      "ret_pct": -99.85476357301874,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "CYBERLEEK / SOL",
+      "address": "G8kgi7aUpeX8EVR8VMkrth9SKEv5BietWC33UjAiiMGh",
+      "candles": 1000
+    },
+    {
+      "entry": 4.5442743646992275e-05,
+      "exit_px": 4.9418931476192314e-05,
+      "pnl": -1.029952063636468,
+      "ret_pct": -99.9953459841231,
+      "reasons": [
+        "max hold time"
+      ],
+      "horizon": "swing",
+      "pool": "Chinese / SOL",
+      "address": "8BRDx1ky8xuRBYq1kmVJ4TrSNaDybSiLU2mxmLVB4WaW",
+      "candles": 1000
+    },
+    {
+      "entry": 135.724154308524,
+      "exit_px": 136.596674328543,
+      "pnl": 131.4687740986867,
+      "ret_pct": 12763.958650357932,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "SPCX / USDC",
+      "address": "CsioJDbZethDNdy6M6HV5ECeowF8zm7BFvTBcb7FZeCt",
+      "candles": 1000
+    },
+    {
+      "entry": 0.0016418925439324573,
+      "exit_px": 0.0015607181439080866,
+      "pnl": -1.0284861034004091,
+      "ret_pct": -99.85301974761254,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "fone / SOL",
+      "address": "3dcwhqJp6JBTJPq8ga335HWgSQVS7uQmdmeX7iGjMNpj",
+      "candles": 1000
+    },
+    {
+      "entry": 0.9951668589887072,
+      "exit_px": 1.0024323196587892,
+      "pnl": -0.05764064993097451,
+      "ret_pct": -5.596179604948981,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "USDG / SOL",
+      "address": "5KqohoeGjTjyHAFJJywK4J7fkFuK82PfMyuseGgLKZu2",
+      "candles": 1000
+    },
+    {
+      "entry": 0.0048230294217580585,
+      "exit_px": 0.004640357245844387,
+      "pnl": -1.025498853471531,
+      "ret_pct": -99.56299548267292,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "baton / PUMP",
+      "address": "Cb7ZRgPLhji3Th7htXyKEqbXvNjPpeTvckXuWakBUhXu",
+      "candles": 1000
+    },
+    {
+      "entry": 6.222629369518613e-05,
+      "exit_px": 3.171613631581574e-05,
+      "pnl": -1.0299692353477736,
+      "ret_pct": -99.99701314056054,
+      "reasons": [
+        "stop -20%"
+      ],
+      "horizon": "scalp",
+      "pool": "PAYDAY / SOL",
+      "address": "9rQAUw4uNyfsqsJ9F3BPo3hBFY1V6ptaEtPkRhhH3zpL",
+      "candles": 861
+    },
+    {
+      "entry": 0.00373317931862155,
+      "exit_px": 0.003508540386562911,
+      "pnl": -1.026596715825034,
+      "ret_pct": -99.66958406068291,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "CBUCKS / USDC",
+      "address": "B4Cp45PGifVM5FAXfh6AeV8QZ3eUNQnqGBw7KuC7MHnB",
+      "candles": 1000
+    },
+    {
+      "entry": 0.007344077457097858,
+      "exit_px": 0.0077046620410648435,
+      "pnl": -1.022526477820167,
+      "ret_pct": -99.27441532234631,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "SI / SOL",
+      "address": "AG1EhPjsBrkxQWkViuLXF6pQnHwfr9f9sdNneeoykcEJ",
+      "candles": 1000
+    },
+    {
+      "entry": 0.00013998308438789057,
+      "exit_px": 0.00019595458727374084,
+      "pnl": -1.0298099240503444,
+      "ret_pct": -99.98154602430527,
+      "reasons": [
+        "max hold time"
+      ],
+      "horizon": "swing",
+      "pool": "Leonida / SOL",
+      "address": "5GxdoPcK2LJ6QYcJ3uvtC37tgsFHma55ULFkufTYe49R",
+      "candles": 1000
+    },
+    {
+      "entry": 3.329580146150502e-05,
+      "exit_px": 3.995145438323016e-05,
+      "pnl": -1.02995492721338,
+      "ret_pct": -99.995624001299,
+      "reasons": [
+        "TP1 at 1.5x",
+        "trail -20% from peak"
+      ],
+      "horizon": "scalp",
+      "pool": "Shiqi / SOL",
+      "address": "5siBm6iiunV9iiw395MGU8ZvdJgiDTt7F6pd23TsMrh",
+      "candles": 133
+    },
+    {
+      "entry": 2.398173078699787e-05,
+      "exit_px": 4.0315552849710845e-05,
+      "pnl": -1.0299577214857976,
+      "ret_pct": -99.99589528988325,
+      "reasons": [
+        "TP1 at 1.5x",
+        "TP2 at 2.0x",
+        "trail -20% from peak"
+      ],
+      "horizon": "scalp",
+      "pool": "HOLD / SOL",
+      "address": "GUsid5mPW6KiExjQDDggoTHrFv4ecGqqAgYwiHa4Ujbb",
+      "candles": 564
+    },
+    {
+      "entry": 0.00015179658233720382,
+      "exit_px": 0.0001573529982717519,
+      "pnl": -1.0298473675916764,
+      "ret_pct": -99.98518131958024,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "ber / SOL",
+      "address": "EtbSvbD69mUpkrFkaN56GEYZtuGoueYm2HBk2PLhjbST",
+      "candles": 1000
+    },
+    {
+      "entry": 0.12826031963782705,
+      "exit_px": 0.12609571588957266,
+      "pnl": -0.9076871555871145,
+      "ret_pct": -88.12496656185577,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "USELESS / SOL",
+      "address": "Q2sPHPdUWFMg7M7wwrQKLrn619cAucfRsmhVJffodSp",
+      "candles": 1000
+    },
+    {
+      "entry": 0.01426278668407809,
+      "exit_px": 0.014496095389329703,
+      "pnl": -1.0159387874723502,
+      "ret_pct": -98.63483373517963,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "scalp",
+      "pool": "mihao / SOL",
+      "address": "92iqiEu5XADScMugFLSjaQUqS1uAKWeCsstNuJo35Cbs",
+      "candles": 532
+    },
+    {
+      "entry": 0.00010270889326877775,
+      "exit_px": 0.00012232221823250532,
+      "pnl": -1.0298813474483144,
+      "ret_pct": -99.9884803347878,
+      "reasons": [
+        "max hold time"
+      ],
+      "horizon": "swing",
+      "pool": "SOLV / SOL",
+      "address": "7JsAV59CnHWZiaRaHzUbHe9s3q4S6xXLKz5XQWxWFaqg",
+      "candles": 1000
+    },
+    {
+      "entry": 77.59851265941487,
+      "exit_px": 77.19004851706312,
+      "pnl": 73.84434706155122,
+      "ret_pct": 7169.354083645749,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "HYPE / SOL",
+      "address": "31KrYUDzgEQhEgr1JSNVfHAknWACcF97CtUaU8enKQsy",
+      "candles": 1000
+    },
+    {
+      "entry": 1.7339279848234664e-05,
+      "exit_px": 1.668162484269512e-05,
+      "pnl": -1.0299838188239026,
+      "ret_pct": -99.99842901202936,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "CatFu / SOL",
+      "address": "4AFZ7XzcbmeyBoiy6XEoswJBG8WyjLXr6fAYsJsuVMKw",
+      "candles": 601
+    },
+    {
+      "entry": 0.0054078450302482255,
+      "exit_px": 0.004921182666464279,
+      "pnl": -1.0252264528135298,
+      "ret_pct": -99.53654881684754,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "baton / SOL",
+      "address": "BN7CfsGm6Vq9w8NibLZXRGW2tp5y2axwXuLAs85NGakf",
+      "candles": 1000
+    },
+    {
+      "entry": 3.2862975521023876e-05,
+      "exit_px": 1.8972730004904718e-05,
+      "pnl": -1.0299815964518952,
+      "ret_pct": -99.99821324775682,
+      "reasons": [
+        "stop -20%"
+      ],
+      "horizon": "scalp",
+      "pool": "Shitcoin / SOL",
+      "address": "9ovaDmtnzr164fJVBpypehiQ9a5FZMLaCaTTAprM8xxJ",
+      "candles": 135
+    },
+    {
+      "entry": 8.250811990125938e-05,
+      "exit_px": 9.876765171120059e-05,
+      "pnl": -1.02990419537784,
+      "ret_pct": -99.99069858037282,
+      "reasons": [
+        "max hold time"
+      ],
+      "horizon": "swing",
+      "pool": "PINO / SOL",
+      "address": "BHKyty1uDDxSwAkhkefn8ZwNQZjfQrmC672D2UW874dD",
+      "candles": 1000
+    },
+    {
+      "entry": 0.000720884783038362,
+      "exit_px": 0.0007975744885697436,
+      "pnl": -1.0292263527460874,
+      "ret_pct": -99.92488861612499,
+      "reasons": [
+        "max hold time"
+      ],
+      "horizon": "swing",
+      "pool": "WASTED / SOL",
+      "address": "TT7DKs9YjJZj1fwMGoPmKBmDreZzyMAMrHoDCGdfwqN",
+      "candles": 1000
+    },
+    {
+      "entry": 1.217020367945627e-05,
+      "exit_px": 1.1712680947115305e-05,
+      "pnl": -1.0299886386994814,
+      "ret_pct": -99.9988969611147,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "catalyst / SOL",
+      "address": "58osDYARtvC5xy6GakQaBm16kDA4XwFyH4UfvtrjMvxj",
+      "candles": 765
+    },
+    {
+      "entry": 0.00013270063149865892,
+      "exit_px": 0.00012021434125059383,
+      "pnl": -1.029883392088987,
+      "ret_pct": -99.98867884359096,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "Ansemmas / SOL",
+      "address": "6qirp44Q2T8B1CfbGmnqeXCLdQhFqmNCfAFfpKG4N156",
+      "candles": 1000
+    },
+    {
+      "entry": 4.28095219783448e-05,
+      "exit_px": 0.00021650022264835798,
+      "pnl": -1.029826299741663,
+      "ret_pct": -99.98313589724883,
+      "reasons": [
+        "TP1 at 1.5x",
+        "TP2 at 2.0x",
+        "trail -20% from peak"
+      ],
+      "horizon": "scalp",
+      "pool": "pants / SOL",
+      "address": "FpAJTtRb19J7bm92baHL3Vc7EjEjQ9hgEjE7KVPcaC1W",
+      "candles": 335
+    },
+    {
+      "entry": 0.0017764564795448665,
+      "exit_px": 0.0017321611781847038,
+      "pnl": -1.0283198036571608,
+      "ret_pct": -99.83687414147192,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "GLITCH / SOL",
+      "address": "Em6RvzGXhd35pZ7CVUjCTPEnv4jAztScaVHaXBXCBcG7",
+      "candles": 1000
+    },
+    {
+      "entry": 0.0004000504922471108,
+      "exit_px": 0.000375170291049164,
+      "pnl": -1.0296360848176824,
+      "ret_pct": -99.9646684289012,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "\u2588\u2588\u2588 / SOL",
+      "address": "9sY4Amm2RFpsBQ1qgCQTxcjfvhmfJ9K4d2J5xfM1k75M",
+      "candles": 1000
+    },
+    {
+      "entry": 3.306825519625111e-05,
+      "exit_px": 8.944108429326249e-05,
+      "pnl": -1.0299127405628985,
+      "ret_pct": -99.99152820999015,
+      "reasons": [
+        "TP1 at 1.5x",
+        "TP2 at 2.0x",
+        "trail -20% from peak"
+      ],
+      "horizon": "scalp",
+      "pool": "FAIR / SOL",
+      "address": "54GtpHJaEGKsfq6pWSRJa656zRgVFhkC5fzQBmp7qXmS",
+      "candles": 849
+    },
+    {
+      "entry": 0.00037472531032288047,
+      "exit_px": 0.00104649386770324,
+      "pnl": -1.0288998550483128,
+      "ret_pct": -99.8931898105158,
+      "reasons": [
+        "TP1 at 1.5x",
+        "trail -20% from peak"
+      ],
+      "horizon": "scalp",
+      "pool": "PUSSY / SOL",
+      "address": "HcyYBrZVFDDVBLtLxL5C1HDJND1p86BoNA6m7MjBKE3p",
+      "candles": 983
+    },
+    {
+      "entry": 0.006198863652370937,
+      "exit_px": 0.007819580106898575,
+      "pnl": -1.0224150072963085,
+      "ret_pct": -99.26359294138918,
+      "reasons": [
+        "max hold time"
+      ],
+      "horizon": "swing",
+      "pool": "RAMBO / SOL",
+      "address": "Gz15vwSPY9KFYNkrMPkoKp2h9yygVBovoXJsGwSJcvFk",
+      "candles": 1000
+    },
+    {
+      "entry": 1.1432767895825817,
+      "exit_px": 1.131403307482767,
+      "pnl": 0.06746120825828394,
+      "ret_pct": 6.549631869736306,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "TRUMP / SOL",
+      "address": "Ckp1kwZqosaLU1h3zWtuaMBubyWM7LX3cxYezRVin7p2",
+      "candles": 1000
+    },
+    {
+      "entry": 2133.5154975545797,
+      "exit_px": 2113.1833890282614,
+      "pnl": 2048.7578873574134,
+      "ret_pct": 198908.53275314695,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "WETH / SOL",
+      "address": "HktfL7iwGKT5QHjywQkcDnZXScoh811k7akrMZJkCcEF",
+      "candles": 1000
+    },
+    {
+      "entry": 0.00022521338249099825,
+      "exit_px": 0.00023583470298628453,
+      "pnl": -1.0297712403381034,
+      "ret_pct": -99.9777903240877,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "DRMR / SOL",
+      "address": "4wbt5gf46kCt9dhzNFVtAEn5PnFr56U5HTpw27TVytvV",
+      "candles": 1000
+    },
+    {
+      "entry": 0.025441847143710006,
+      "exit_px": 0.024941583326196167,
+      "pnl": -1.0058066641735897,
+      "ret_pct": -97.65113244403783,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "neet / SOL",
+      "address": "5wNu5QhdpRGrL37ffcd6TMMqZugQgxwafgz477rShtHy",
+      "candles": 1000
+    },
+    {
+      "entry": 4.1060456312166025,
+      "exit_px": 4.1022929329217215,
+      "pnl": 2.9492241449340693,
+      "ret_pct": 286.33244125573486,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "JLP / SOL",
+      "address": "6a3m2EgFFKfsFuQtP4LJJXPcAe3TQYXNyHUjjZpUxYgd",
+      "candles": 1000
+    },
+    {
+      "entry": 168.87426146804276,
+      "exit_px": 168.68162613952515,
+      "pnl": 162.5911773553394,
+      "ret_pct": 15785.551199547514,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "scalp",
+      "pool": "NVDA / SOL",
+      "address": "39WocYEPr94xTaR7xpc9phndeH7cm1mBzQTkg7aHh1cZ",
+      "candles": 539
+    },
+    {
+      "entry": 0.0014834947870637142,
+      "exit_px": 0.001549225091653968,
+      "pnl": -1.0284972516610957,
+      "ret_pct": -99.854102103019,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "KET / SOL",
+      "address": "Fex8CSkNXfaxAPRqQARKGchYAMVfwDg28sfmBXXGkNGX",
+      "candles": 1000
+    },
+    {
+      "entry": 178.96467276966945,
+      "exit_px": 177.4479445542369,
+      "pnl": 171.0945062176098,
+      "ret_pct": 16611.117108505805,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "NVDA / PUSSY",
+      "address": "4HHcEXZvCYQjSpLrGei5GpRwaZPUmNqFs6eh1BXssfsj",
+      "candles": 1000
+    },
+    {
+      "entry": 0.00019354787413162821,
+      "exit_px": 0.0001731210136594851,
+      "pnl": -1.0298320726167502,
+      "ret_pct": -99.98369637055828,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "TrumpWars / SOL",
+      "address": "7PpUyh3b5f61zc6JCFJaftwthkwNE1JGWhPdDANLH8Eo",
+      "candles": 1000
+    },
+    {
+      "entry": 0.03252426798484409,
+      "exit_px": 0.032841772189249344,
+      "pnl": -0.9981434809764281,
+      "ret_pct": -96.90713407538138,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "KMNO / USDC",
+      "address": "3ndjN1nJVUKGrJBc1hhVpER6kWTZKHdyDrPyCJyX3CXK",
+      "candles": 1000
+    },
+    {
+      "entry": 0.013617260813561998,
+      "exit_px": 0.01356505952692664,
+      "pnl": -1.016841892258881,
+      "ret_pct": -98.72251381154186,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "pippin / SOL",
+      "address": "8WwcNqdZjCY5Pt7AkhupAFknV2txca9sq6YBkGzLbvdt",
+      "candles": 1000
+    },
+    {
+      "entry": 0.06393587772620529,
+      "exit_px": 0.06486559386441418,
+      "pnl": -0.9670803739515182,
+      "ret_pct": -93.89129844189497,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "PYTH / SOL 0.25%",
+      "address": "9n3dSLrERZQp95dHXywft7xV8D8xnGFLaUHtEhQVaXaC",
+      "candles": 1000
+    },
+    {
+      "entry": 0.0017935379503438678,
+      "exit_px": 0.0017996561519657474,
+      "pnl": -1.0282543335325933,
+      "ret_pct": -99.83051781869838,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "GIGA / SOL",
+      "address": "4xxM4cdb6MEsCxM52xvYqkNbzvdeWWsPDZrBcTqVGUar",
+      "candles": 1000
+    },
+    {
+      "entry": 0.0035521865199283297,
+      "exit_px": 0.00363100527657706,
+      "pnl": -1.0264779248817202,
+      "ret_pct": -99.65805095939031,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "PUMP / USDC",
+      "address": "HmgoG6HhVen7T9YkeTWGjSFgSC5UjR9gfyVMUzSTstGh",
+      "candles": 1000
+    },
+    {
+      "entry": 0.0014147346221872463,
+      "exit_px": 0.001408680995072565,
+      "pnl": -1.0286335794347796,
+      "ret_pct": -99.8673378092019,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "NIO / SOL",
+      "address": "B4Wmjc6PvjCtU3qSVS3eTT9Mr4M5V5jBkRQctWANTc71",
+      "candles": 1000
+    },
+    {
+      "entry": 1.7248357652361144,
+      "exit_px": 1.7468762397284108,
+      "pnl": 0.6644699525365583,
+      "ret_pct": 64.51164587733575,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "RAY / SOL 0.05%",
+      "address": "2AXXcN6oN9bBT5owwmTH53C7QHUXvhLeu718Kqt8rvY2",
+      "candles": 1000
+    },
+    {
+      "entry": 0.0002035835667830676,
+      "exit_px": 0.00018541029161689754,
+      "pnl": -1.0298201520171317,
+      "ret_pct": -99.98253903078948,
+      "reasons": [
+        "timeout 3h under +5%"
+      ],
+      "horizon": "swing",
+      "pool": "2027 / SOL",
+      "address": "3tMBdoSE63LFSPNaYGrsJ5EafqVLobwsKZL3qU3iMWq5",
+      "candles": 1000
+    },
+    {
+      "entry": 4.930199030673619e-05,
+      "exit_px": 6.357197295523863e-05,
+      "pnl": -1.0299383351862335,
+      "ret_pct": -99.99401312487703,
+      "reasons": [
+        "max hold time"
+      ],
+      "horizon": "scalp",
+      "pool": "STOKE / SOL",
+      "address": "Cns3TxMp6kArSNUFdAiALUwZYPXvHWk6EVRMzXL2hoqz",
+      "candles": 1000
+    }
+  ]
+}

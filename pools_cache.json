@@ -1,0 +1,2816 @@
+[
+ {
+  "address": "Ho1aSG6WGH1FfXdEHrK2f4Ggt1Hoxo9s5jcLMDqeyeBz",
+  "name": "mihao / SOL",
+  "created_at": "2026-10-25T16:43:15Z",
+  "liquidity": 420655.379,
+  "vol_h24": "15225293.8563034"
+ },
+ {
+  "address": "Eoe22HdCa9rhtBwKL6nNZmZxfuzF35xkxobcvfaF1vWQ",
+  "name": "Max / SOL",
+  "created_at": "2026-11-11T21:00:29Z",
+  "liquidity": 226752.3296,
+  "vol_h24": "56624191.0244863"
+ },
+ {
+  "address": "zxTpi4BtaWX3mgdAPoezkMD1hxx8CdeCfrqXMWvSCLX",
+  "name": "STONK / SOL",
+  "created_at": "2026-08-12T10:51:40Z",
+  "liquidity": 1948131.5106,
+  "vol_h24": "3107265.58297812"
+ },
+ {
+  "address": "FnzKY6x7entQ1eR3D225dQyT7ybfka4PskBMQhb8L3CC",
+  "name": "ANSEM / SOL",
+  "created_at": "2026-06-16T21:05:48Z",
+  "liquidity": 1271307.6173,
+  "vol_h24": "1073026.62816806"
+ },
+ {
+  "address": "HMzvsEEmtzHhvZNw9uwbaG85HCTmFnkbhzUx16cy7ca3",
+  "name": "CATE / SOL",
+  "created_at": "2026-07-26T16:32:43Z",
+  "liquidity": 1674449.4578,
+  "vol_h24": "649120.740724855"
+ },
+ {
+  "address": "7Te1wXcfeQjKLGHXFvxSCnGZTqunoZ9fxBn7KKjrkNEr",
+  "name": "DacityCoin / TTWO",
+  "created_at": "2026-10-15T13:27:11Z",
+  "liquidity": 335706.649,
+  "vol_h24": "2338485.09354083"
+ },
+ {
+  "address": "G2UuRbmVDzDFP4qyoBJrSKBXSi7d6V4bPP9tHPs36y4b",
+  "name": "Dacity / TTWO",
+  "created_at": "2026-10-11T11:16:59Z",
+  "liquidity": 220621.0481,
+  "vol_h24": "1882239.60814697"
+ },
+ {
+  "address": "2ULaeaUQWkid31cVKyFEujx9ReF7cdGepPxuoptz57m5",
+  "name": "HUNG / NVDAx",
+  "created_at": "2026-11-09T04:12:18Z",
+  "liquidity": 72728.3862,
+  "vol_h24": "7545181.59733404"
+ },
+ {
+  "address": "FJk9sajdc2Q4heRPPu3yLzkmf2ZByZkpiHQLv9e2bn5A",
+  "name": "FLOAT / SOL",
+  "created_at": "2026-10-28T22:15:43Z",
+  "liquidity": 341844.6912,
+  "vol_h24": "2370765.49042493"
+ },
+ {
+  "address": "GxYbNxjGR9mEuVzXsGBi2Y78RGkwBMRok4RS9sMUb8hE",
+  "name": ":3 / SOL",
+  "created_at": "2026-10-17T17:55:49Z",
+  "liquidity": 29601.7842,
+  "vol_h24": "622400.084994098"
+ },
+ {
+  "address": "5tYFviFWQRKV9BJSTHGitbdqEYC1BGUgRUDnSADUXqJP",
+  "name": "BURNIE / SOL",
+  "created_at": "2026-04-03T03:08:37Z",
+  "liquidity": 148449.9551,
+  "vol_h24": "459254.209260342"
+ },
+ {
+  "address": "HGgP8yXg71PdRxTvA53Q7mKdzx9zSTUW8E2roC28WtZa",
+  "name": "FLC / SOL",
+  "created_at": "2026-11-12T05:31:12Z",
+  "liquidity": 19235.9517,
+  "vol_h24": "3302328.42454205"
+ },
+ {
+  "address": "FjuBy7jjf9DXj9d3R7cHpvcnoFW2iQxf7F7P3vqx4Jza",
+  "name": "SPCX / USDC",
+  "created_at": "2026-06-12T15:57:12Z",
+  "liquidity": 2680847.5358,
+  "vol_h24": "12367105.2795946"
+ },
+ {
+  "address": "5E3dXLXGwmTDCokA51WYYaKttjFZBwqCoyUHBUi5gt2m",
+  "name": "GATO / SOL",
+  "created_at": "2026-08-25T12:27:21Z",
+  "liquidity": 237042.0601,
+  "vol_h24": "1569225.70795851"
+ },
+ {
+  "address": "FJ1Y3drK5Z715mj8Hk512ekk3rQhTAhgRv6HMhnPCN2u",
+  "name": "Huang / SOL",
+  "created_at": "2026-11-12T14:33:09Z",
+  "liquidity": 52418.7487,
+  "vol_h24": "3692104.639292"
+ },
+ {
+  "address": "2rmaFtFZmJtLXdPgRvk417RLc9GBD3jGbAqtttmfG3AF",
+  "name": "paws / SOL",
+  "created_at": "2026-10-27T04:13:45Z",
+  "liquidity": 96687.8259,
+  "vol_h24": "1250765.59474084"
+ },
+ {
+  "address": "5AFbwVSQPJf4cgEjq4TajZYyPYUvYktrRN3SahNrPnmv",
+  "name": "GTA6 / SOL",
+  "created_at": "2026-10-29T13:56:21Z",
+  "liquidity": 51351.9679,
+  "vol_h24": "1601365.29977583"
+ },
+ {
+  "address": "BofA2ViUSudPBTUms2KRuG6AHNeMawjNfwqTJDgx5BKW",
+  "name": "PUMP / SOL",
+  "created_at": "2025-09-15T15:34:18Z",
+  "liquidity": 2192424.6724,
+  "vol_h24": "2687715.21662025"
+ },
+ {
+  "address": "GeQmNaXBb86uLLQr3EAEwoukxVqSh4qTm3uXvb3G7Mne",
+  "name": "updog / mihao",
+  "created_at": "2026-11-11T19:14:39Z",
+  "liquidity": 47467.7947,
+  "vol_h24": "3194717.52016339"
+ },
+ {
+  "address": "3C5YE97HADPDxZehYq9Cis8AXr9aNyrUsczKzE1nDbW9",
+  "name": "TRUMP / USDC",
+  "created_at": "2025-01-18T06:53:58Z",
+  "liquidity": 5234115.4592,
+  "vol_h24": "3076240.65536923"
+ },
+ {
+  "address": "8ewuF2o8ACro7fqWepZ3tKhkbBjndZU4Ldk9scRPw83d",
+  "name": "swordcat / SOL",
+  "created_at": "2026-09-28T09:13:09Z",
+  "liquidity": 116087.9698,
+  "vol_h24": "114830.441659342"
+ },
+ {
+  "address": "2uF4Xh61rDwxnG9woyxsVQP7zuA6kLFpb3NvnRQeoiSd",
+  "name": "PUMP / USDC",
+  "created_at": "2025-07-14T16:55:54Z",
+  "liquidity": 20765895.1472,
+  "vol_h24": "2279642.2047118"
+ },
+ {
+  "address": "xg71xrhn7MEj5akrZGteuYeiTLbBzyNCpBn69bRYd5a",
+  "name": "GTA6 / SOL",
+  "created_at": "2026-08-27T19:16:41Z",
+  "liquidity": 174909.2313,
+  "vol_h24": "522626.661733625"
+ },
+ {
+  "address": "6e3jZLtf4tQbWZm3f7A66jF8tfZn6MRQVrbDFgcNWarA",
+  "name": "PAID / SOL",
+  "created_at": "2026-09-15T19:22:24Z",
+  "liquidity": 235470.139,
+  "vol_h24": "668583.314541184"
+ },
+ {
+  "address": "6hYFMyE2BYYScTErqUeCKhihQ5X9j2WD2z9waTdwy38N",
+  "name": "STANK / STONK",
+  "created_at": "2026-10-29T13:56:49Z",
+  "liquidity": 89937.9134,
+  "vol_h24": "739007.545817326"
+ },
+ {
+  "address": "723Hi42zhg8ypDpupFSCBnVPxUbGUVGrss7NR6nfxaZX",
+  "name": "Max / SPCX",
+  "created_at": "2026-11-09T15:17:39Z",
+  "liquidity": 21083.8625,
+  "vol_h24": "5415479.82135618"
+ },
+ {
+  "address": "4R8CiMnJWDNoes3fQi1ccPFJygPXazaHaWpHrN3rZeNj",
+  "name": "JEANPHIL / SOL",
+  "created_at": "2026-09-19T19:06:59Z",
+  "liquidity": 258088.9071,
+  "vol_h24": "123449.7893293"
+ },
+ {
+  "address": "4w2cysotX6czaUGmmWg13hDpY4QEMG2CzeKYEQyK9Ama",
+  "name": "TROLL / SOL",
+  "created_at": "2025-04-20T18:30:26Z",
+  "liquidity": 2178748.9415,
+  "vol_h24": "439913.555316102"
+ },
+ {
+  "address": "5n8V68fCaNTRQvaXzrmBryDe5jFLrgm65pFfsmia6Nro",
+  "name": "WEALTH / SOL",
+  "created_at": "2026-11-05T15:04:33Z",
+  "liquidity": 59769.9343,
+  "vol_h24": "271058.13496982"
+ },
+ {
+  "address": "6e7V9eegCHw997T72MxgwwJipZ6GJyZF8NvjkzT1rvpN",
+  "name": "ANSEM / SOL",
+  "created_at": "2026-06-28T06:33:28Z",
+  "liquidity": 380179.1789,
+  "vol_h24": "654938.190413322"
+ },
+ {
+  "address": "HnhpJPJgBG2KwniMTNW8cVBHvk1hFog3RC3kjnyc23tD",
+  "name": "CARDS / USDC",
+  "created_at": "2025-08-29T18:54:46Z",
+  "liquidity": 3382121.2959,
+  "vol_h24": "2872262.64414335"
+ },
+ {
+  "address": "9t1H1uDJ558iMPNkEPSN1fqkpC4XSPQ6cqSf6uEsTfTR",
+  "name": "SPX / SOL",
+  "created_at": "2023-12-21T16:31:17Z",
+  "liquidity": 1797880.5882,
+  "vol_h24": "190729.539868482"
+ },
+ {
+  "address": "7vcrVyJxtx2mdDPy67ie7CZJcQXtEa28EivUy2UFy9D8",
+  "name": "BOXCAT / SOL",
+  "created_at": "2026-11-10T18:56:40Z",
+  "liquidity": 12134.7434,
+  "vol_h24": "135614.000418403"
+ },
+ {
+  "address": "EP2ib6dYdEeqD8MfE2ezHCxX3kP3K2eLKkirfPm5eyMx",
+  "name": "$WIF / SOL",
+  "created_at": "2023-11-20T20:10:04Z",
+  "liquidity": 4437458.4473,
+  "vol_h24": "125017.02552768"
+ },
+ {
+  "address": "6PTm7MkUmtsLU7w6dWrMHJAt8PnzoCgcZdKyTKEhUAPL",
+  "name": "TTWO / USDC",
+  "created_at": "2026-09-08T13:51:06Z",
+  "liquidity": 718687.4086,
+  "vol_h24": "9426875.49236163"
+ },
+ {
+  "address": "6iep3EgqksbZwgzMBCyAJtiVtVYkCgL9BnPBEwLR8AGQ",
+  "name": "DOPE / SOL",
+  "created_at": "2026-10-11T13:33:08Z",
+  "liquidity": 106938.7753,
+  "vol_h24": "172971.99928001"
+ },
+ {
+  "address": "Dw4kAH8LhdmgfW1cgyvnWSwSDqkt37jeY7pW4oFkbGTu",
+  "name": "WIZARD / SOL",
+  "created_at": "2026-03-11T15:04:56Z",
+  "liquidity": 80444.8183,
+  "vol_h24": "121596.240501868"
+ },
+ {
+  "address": "FEJsEq9mo3myRyU6D3LHz3TXwoE8GrYhEkzkoqyGsKLP",
+  "name": "ARNOLD / SOL",
+  "created_at": "2026-10-30T22:05:19Z",
+  "liquidity": 52802.5186,
+  "vol_h24": "566315.396551235"
+ },
+ {
+  "address": "Bzc9NZfMqkXR6fz1DBph7BDf9BroyEf6pnzESP7v5iiw",
+  "name": "Fartcoin / SOL",
+  "created_at": "2024-10-18T06:09:47Z",
+  "liquidity": 5723385.1442,
+  "vol_h24": "386772.78644425"
+ },
+ {
+  "address": "91iHWaWXneUyoNDJhSno7ezxQg1VW5P6PdarNGyFfPCz",
+  "name": "STANK / SOL",
+  "created_at": "2026-11-04T20:35:32Z",
+  "liquidity": 110663.9741,
+  "vol_h24": "896693.259295697"
+ },
+ {
+  "address": "Dagau7G32pmkjf8ng2372xo2hyGfgenx5Yn7mWMkHfGF",
+  "name": "NOBUSHIBA / SOL",
+  "created_at": "2026-11-11T01:26:40Z",
+  "liquidity": 70919.4651,
+  "vol_h24": "2049519.95299505"
+ },
+ {
+  "address": "5zpyutJu9ee6jFymDGoK7F6S5Kczqtc9FomP3ueKuyA9",
+  "name": "Bonk / SOL",
+  "created_at": "2023-07-05T14:41:09Z",
+  "liquidity": 261824.252,
+  "vol_h24": "173814.368875626"
+ },
+ {
+  "address": "3M9sVgL4u6ATKaiExf3XhQqNfMB6ijvzk3meMcQaen1w",
+  "name": "BTC / WBTC",
+  "created_at": "2026-09-13T20:10:18Z",
+  "liquidity": 119270.6622,
+  "vol_h24": "381869.493026607"
+ },
+ {
+  "address": "49iMatQtoyabsYAQc8GafVq6aeBFVDxSRH44oiatyyw6",
+  "name": "NVDAx / USDC",
+  "created_at": "2025-07-02T01:46:00Z",
+  "liquidity": 3043583.1831,
+  "vol_h24": "27116688.2810211"
+ },
+ {
+  "address": "4AZRPNEfCJ7iw28rJu5aUyeQhYcvdcNm8cswyL51AY9i",
+  "name": "Pnut / SOL",
+  "created_at": "2024-10-31T15:06:47Z",
+  "liquidity": 2378765.5002,
+  "vol_h24": "117808.821010226"
+ },
+ {
+  "address": "BUMh6YebpBvAh4by4oTGJUvzQ9CvH6dqPgrZvXFDMwC1",
+  "name": "AgenC / SOL",
+  "created_at": "2026-02-24T23:49:49Z",
+  "liquidity": 141501.8927,
+  "vol_h24": "116979.272578729"
+ },
+ {
+  "address": "Fe7bpDYCs74GqiCUF14HwgUMToPKV1d9mDYVX5BTohFr",
+  "name": "CLAUDIA / SOL",
+  "created_at": "2026-10-07T01:44:30Z",
+  "liquidity": 291157.0998,
+  "vol_h24": "669900.607815388"
+ },
+ {
+  "address": "DEXTCER4k9dwbxTMU8zNVVwGevVmvHMB183pF2xxZwvH",
+  "name": "DESSA / SOL",
+  "created_at": "2026-10-26T13:05:18Z",
+  "liquidity": 227500.4295,
+  "vol_h24": "1664770.16708566"
+ },
+ {
+  "address": "7RD5YALHcMLUFKJ8FRePGd6ei11F15uXZF1rc7mPKeCv",
+  "name": "AMD / AMD",
+  "created_at": "2026-11-03T21:30:37Z",
+  "liquidity": 114393.4372,
+  "vol_h24": "1434570.34223539"
+ },
+ {
+  "address": "2TAgfogn8JRwwTnsGKUa6WUT5Xdv1iMEzfEDMor68X9C",
+  "name": "ZEC / SOL",
+  "created_at": "2025-10-19T03:26:55Z",
+  "liquidity": 3651357.2799,
+  "vol_h24": "9613908.09155704"
+ },
+ {
+  "address": "G8kgi7aUpeX8EVR8VMkrth9SKEv5BietWC33UjAiiMGh",
+  "name": "CYBERLEEK / SOL",
+  "created_at": "2026-08-15T21:07:26Z",
+  "liquidity": 390056.5153,
+  "vol_h24": "185377.437681873"
+ },
+ {
+  "address": "CsioJDbZethDNdy6M6HV5ECeowF8zm7BFvTBcb7FZeCt",
+  "name": "SPCX / USDC",
+  "created_at": "2026-06-12T13:52:45Z",
+  "liquidity": 758099.4123,
+  "vol_h24": "7955252.1713066"
+ },
+ {
+  "address": "GuPbekwP9MqB23CghhiMQZTaigPdUJooovo1neCErhM8",
+  "name": "ZCAT / SOL",
+  "created_at": "2026-09-06T00:18:18Z",
+  "liquidity": 309664.0104,
+  "vol_h24": "332806.628020716"
+ },
+ {
+  "address": "Q2sPHPdUWFMg7M7wwrQKLrn619cAucfRsmhVJffodSp",
+  "name": "USELESS / SOL",
+  "created_at": "2025-05-10T14:23:18Z",
+  "liquidity": 3341797.7838,
+  "vol_h24": "751109.150841925"
+ },
+ {
+  "address": "3dcwhqJp6JBTJPq8ga335HWgSQVS7uQmdmeX7iGjMNpj",
+  "name": "fone / SOL",
+  "created_at": "2026-08-27T00:03:44Z",
+  "liquidity": 239478.3757,
+  "vol_h24": "258223.547589879"
+ },
+ {
+  "address": "5KqohoeGjTjyHAFJJywK4J7fkFuK82PfMyuseGgLKZu2",
+  "name": "USDG / SOL",
+  "created_at": "2025-11-13T02:53:28Z",
+  "liquidity": 3749846.3089,
+  "vol_h24": "2493723.11512638"
+ },
+ {
+  "address": "Cb7ZRgPLhji3Th7htXyKEqbXvNjPpeTvckXuWakBUhXu",
+  "name": "baton / PUMP",
+  "created_at": "2026-09-09T20:32:15Z",
+  "liquidity": 346190.7753,
+  "vol_h24": "201450.100231888"
+ },
+ {
+  "address": "B4Cp45PGifVM5FAXfh6AeV8QZ3eUNQnqGBw7KuC7MHnB",
+  "name": "CBUCKS / USDC",
+  "created_at": "2026-10-06T18:29:54Z",
+  "liquidity": 208692.8198,
+  "vol_h24": "353534.778165721"
+ },
+ {
+  "address": "5GxdoPcK2LJ6QYcJ3uvtC37tgsFHma55ULFkufTYe49R",
+  "name": "Leonida / SOL",
+  "created_at": "2026-11-05T19:41:14Z",
+  "liquidity": 54520.2381,
+  "vol_h24": "271136.028942347"
+ },
+ {
+  "address": "5siBm6iiunV9iiw395MGU8ZvdJgiDTt7F6pd23TsMrh",
+  "name": "Shiqi / SOL",
+  "created_at": "2026-11-12T08:53:34Z",
+  "liquidity": 4760.58,
+  "vol_h24": "821714.112319321"
+ },
+ {
+  "address": "AG1EhPjsBrkxQWkViuLXF6pQnHwfr9f9sdNneeoykcEJ",
+  "name": "SI / SOL",
+  "created_at": "2026-09-21T16:26:48Z",
+  "liquidity": 232329.1349,
+  "vol_h24": "263782.698759535"
+ },
+ {
+  "address": "DtDvAyZtenCP2qd3KycTnJoVxWWvum9S3QNfqLR6Hy8Y",
+  "name": "GOODTIME / SOL",
+  "created_at": "2026-11-05T16:24:41Z",
+  "liquidity": 24171.8599,
+  "vol_h24": "437227.859769478"
+ },
+ {
+  "address": "8BRDx1ky8xuRBYq1kmVJ4TrSNaDybSiLU2mxmLVB4WaW",
+  "name": "Chinese / SOL",
+  "created_at": "2026-09-11T20:52:15Z",
+  "liquidity": 43929.421,
+  "vol_h24": "154524.031151588"
+ },
+ {
+  "address": "EtbSvbD69mUpkrFkaN56GEYZtuGoueYm2HBk2PLhjbST",
+  "name": "ber / SOL",
+  "created_at": "2026-10-24T15:52:17Z",
+  "liquidity": 59354.4551,
+  "vol_h24": "368034.05172769"
+ },
+ {
+  "address": "GUsid5mPW6KiExjQDDggoTHrFv4ecGqqAgYwiHa4Ujbb",
+  "name": "HOLD / SOL",
+  "created_at": "2026-11-10T21:10:36Z",
+  "liquidity": 30731.5232,
+  "vol_h24": "728965.116893935"
+ },
+ {
+  "address": "7JsAV59CnHWZiaRaHzUbHe9s3q4S6xXLKz5XQWxWFaqg",
+  "name": "SOLV / SOL",
+  "created_at": "2026-11-06T08:22:33Z",
+  "liquidity": 29607.5114,
+  "vol_h24": "50976.8544088631"
+ },
+ {
+  "address": "92iqiEu5XADScMugFLSjaQUqS1uAKWeCsstNuJo35Cbs",
+  "name": "mihao / SOL",
+  "created_at": "2026-11-10T23:56:16Z",
+  "liquidity": 342626.2844,
+  "vol_h24": "9342569.90287862"
+ },
+ {
+  "address": "TT7DKs9YjJZj1fwMGoPmKBmDreZzyMAMrHoDCGdfwqN",
+  "name": "WASTED / SOL",
+  "created_at": "2026-10-30T18:09:35Z",
+  "liquidity": 100631.8973,
+  "vol_h24": "173906.031421786"
+ },
+ {
+  "address": "BHKyty1uDDxSwAkhkefn8ZwNQZjfQrmC672D2UW874dD",
+  "name": "PINO / SOL",
+  "created_at": "2026-09-29T20:03:28Z",
+  "liquidity": 41866.6465,
+  "vol_h24": "108359.740244218"
+ },
+ {
+  "address": "31KrYUDzgEQhEgr1JSNVfHAknWACcF97CtUaU8enKQsy",
+  "name": "HYPE / SOL",
+  "created_at": "2025-10-18T01:52:31Z",
+  "liquidity": 3726361.1001,
+  "vol_h24": "1685535.95898689"
+ },
+ {
+  "address": "9ovaDmtnzr164fJVBpypehiQ9a5FZMLaCaTTAprM8xxJ",
+  "name": "Shitcoin / SOL",
+  "created_at": "2026-11-12T09:04:46Z",
+  "liquidity": 19105.0473,
+  "vol_h24": "365474.855437554"
+ },
+ {
+  "address": "Em6RvzGXhd35pZ7CVUjCTPEnv4jAztScaVHaXBXCBcG7",
+  "name": "GLITCH / SOL",
+  "created_at": "2026-10-16T15:34:48Z",
+  "liquidity": 102468.8048,
+  "vol_h24": "214434.500458692"
+ },
+ {
+  "address": "4AFZ7XzcbmeyBoiy6XEoswJBG8WyjLXr6fAYsJsuVMKw",
+  "name": "CatFu / SOL",
+  "created_at": "2026-03-01T02:33:25Z",
+  "liquidity": 21871.6953,
+  "vol_h24": "63256.4590553784"
+ },
+ {
+  "address": "BN7CfsGm6Vq9w8NibLZXRGW2tp5y2axwXuLAs85NGakf",
+  "name": "baton / SOL",
+  "created_at": "2026-09-10T02:13:55Z",
+  "liquidity": 163308.1048,
+  "vol_h24": "87181.8749485689"
+ },
+ {
+  "address": "Gz15vwSPY9KFYNkrMPkoKp2h9yygVBovoXJsGwSJcvFk",
+  "name": "RAMBO / SOL",
+  "created_at": "2026-11-03T14:49:14Z",
+  "liquidity": 308309.403,
+  "vol_h24": "3533605.18609761"
+ },
+ {
+  "address": "58osDYARtvC5xy6GakQaBm16kDA4XwFyH4UfvtrjMvxj",
+  "name": "catalyst / SOL",
+  "created_at": "2026-08-20T22:37:52Z",
+  "liquidity": 15625.3396,
+  "vol_h24": "75037.3517085603"
+ },
+ {
+  "address": "9rQAUw4uNyfsqsJ9F3BPo3hBFY1V6ptaEtPkRhhH3zpL",
+  "name": "PAYDAY / SOL",
+  "created_at": "2026-11-09T19:00:55Z",
+  "liquidity": 18599.9356,
+  "vol_h24": "300602.610359767"
+ },
+ {
+  "address": "HcyYBrZVFDDVBLtLxL5C1HDJND1p86BoNA6m7MjBKE3p",
+  "name": "PUSSY / SOL",
+  "created_at": "2026-11-08T20:31:58Z",
+  "liquidity": 30492.5571,
+  "vol_h24": "763059.417407547"
+ },
+ {
+  "address": "9sY4Amm2RFpsBQ1qgCQTxcjfvhmfJ9K4d2J5xfM1k75M",
+  "name": "\u2588\u2588\u2588 / SOL",
+  "created_at": "2026-10-24T03:25:36Z",
+  "liquidity": 58962.164,
+  "vol_h24": "225398.33509919"
+ },
+ {
+  "address": "54GtpHJaEGKsfq6pWSRJa656zRgVFhkC5fzQBmp7qXmS",
+  "name": "FAIR / SOL",
+  "created_at": "2026-11-09T19:30:01Z",
+  "liquidity": 13960.4323,
+  "vol_h24": "96461.4735629747"
+ },
+ {
+  "address": "Ckp1kwZqosaLU1h3zWtuaMBubyWM7LX3cxYezRVin7p2",
+  "name": "TRUMP / SOL",
+  "created_at": "2025-01-18T10:47:36Z",
+  "liquidity": 145934.2846,
+  "vol_h24": "216043.186333354"
+ },
+ {
+  "address": "39WocYEPr94xTaR7xpc9phndeH7cm1mBzQTkg7aHh1cZ",
+  "name": "NVDA / SOL",
+  "created_at": "2026-11-10T20:18:35Z",
+  "liquidity": 556436.1714,
+  "vol_h24": "6859083.96103421"
+ },
+ {
+  "address": "6qirp44Q2T8B1CfbGmnqeXCLdQhFqmNCfAFfpKG4N156",
+  "name": "Ansemmas / SOL",
+  "created_at": "2026-10-01T16:56:35Z",
+  "liquidity": 50812.7248,
+  "vol_h24": "150972.449177796"
+ },
+ {
+  "address": "HktfL7iwGKT5QHjywQkcDnZXScoh811k7akrMZJkCcEF",
+  "name": "WETH / SOL",
+  "created_at": "2023-07-05T14:33:04Z",
+  "liquidity": 5267227.5062,
+  "vol_h24": "8522748.30170635"
+ },
+ {
+  "address": "6a3m2EgFFKfsFuQtP4LJJXPcAe3TQYXNyHUjjZpUxYgd",
+  "name": "JLP / SOL",
+  "created_at": "2024-03-07T02:53:03Z",
+  "liquidity": 1713958.3298,
+  "vol_h24": "692183.430311487"
+ },
+ {
+  "address": "5wNu5QhdpRGrL37ffcd6TMMqZugQgxwafgz477rShtHy",
+  "name": "neet / SOL",
+  "created_at": "2025-04-27T00:58:12Z",
+  "liquidity": 1486472.3963,
+  "vol_h24": "484024.222315103"
+ },
+ {
+  "address": "4wbt5gf46kCt9dhzNFVtAEn5PnFr56U5HTpw27TVytvV",
+  "name": "DRMR / SOL",
+  "created_at": "2026-09-24T11:03:10Z",
+  "liquidity": 40940.1541,
+  "vol_h24": "17605.9950429483"
+ },
+ {
+  "address": "4eR3ddyPzgrLgwbgfEA2MP1XUsQpYCvMT2zGgwY5XaQt",
+  "name": "ClapCat / SOL",
+  "created_at": "2026-09-28T19:06:56Z",
+  "liquidity": 34515.7537,
+  "vol_h24": "160014.673124268"
+ },
+ {
+  "address": "4HHcEXZvCYQjSpLrGei5GpRwaZPUmNqFs6eh1BXssfsj",
+  "name": "NVDA / PUSSY",
+  "created_at": "2026-11-08T20:26:23Z",
+  "liquidity": 144663.7958,
+  "vol_h24": "5142714.04404957"
+ },
+ {
+  "address": "7PpUyh3b5f61zc6JCFJaftwthkwNE1JGWhPdDANLH8Eo",
+  "name": "TrumpWars / SOL",
+  "created_at": "2026-11-02T02:20:14Z",
+  "liquidity": 29764.1262,
+  "vol_h24": "143711.277306846"
+ },
+ {
+  "address": "3ndjN1nJVUKGrJBc1hhVpER6kWTZKHdyDrPyCJyX3CXK",
+  "name": "KMNO / USDC",
+  "created_at": "2024-10-10T09:20:00Z",
+  "liquidity": 1741334.8277,
+  "vol_h24": "2513683.93311098"
+ },
+ {
+  "address": "FpAJTtRb19J7bm92baHL3Vc7EjEjQ9hgEjE7KVPcaC1W",
+  "name": "pants / SOL",
+  "created_at": "2026-11-11T15:59:59Z",
+  "liquidity": 11545.4387,
+  "vol_h24": "230609.009575741"
+ },
+ {
+  "address": "9n3dSLrERZQp95dHXywft7xV8D8xnGFLaUHtEhQVaXaC",
+  "name": "PYTH / SOL 0.25%",
+  "created_at": "2024-02-08T02:04:35Z",
+  "liquidity": 355776.7542,
+  "vol_h24": "203185.340339811"
+ },
+ {
+  "address": "4xxM4cdb6MEsCxM52xvYqkNbzvdeWWsPDZrBcTqVGUar",
+  "name": "GIGA / SOL",
+  "created_at": "2024-01-04T22:40:41Z",
+  "liquidity": 1241914.5959,
+  "vol_h24": "121887.277008282"
+ },
+ {
+  "address": "8WwcNqdZjCY5Pt7AkhupAFknV2txca9sq6YBkGzLbvdt",
+  "name": "pippin / SOL",
+  "created_at": "2024-11-09T20:27:41Z",
+  "liquidity": 2875435.3793,
+  "vol_h24": "201326.926162577"
+ },
+ {
+  "address": "2AXXcN6oN9bBT5owwmTH53C7QHUXvhLeu718Kqt8rvY2",
+  "name": "RAY / SOL 0.05%",
+  "created_at": "2024-02-08T02:04:35Z",
+  "liquidity": 1789566.9662,
+  "vol_h24": "1415201.80712146"
+ },
+ {
+  "address": "HmgoG6HhVen7T9YkeTWGjSFgSC5UjR9gfyVMUzSTstGh",
+  "name": "PUMP / USDC",
+  "created_at": "2026-10-23T05:16:46Z",
+  "liquidity": 104693.3377,
+  "vol_h24": "3123832.06538572"
+ },
+ {
+  "address": "B4Wmjc6PvjCtU3qSVS3eTT9Mr4M5V5jBkRQctWANTc71",
+  "name": "NIO / SOL",
+  "created_at": "2026-10-21T15:58:26Z",
+  "liquidity": 114980.3984,
+  "vol_h24": "640208.460182004"
+ },
+ {
+  "address": "DA4pM4xSDY4M9V4CgAKKBVH1pw1yscTQQa5nEkGHuKpt",
+  "name": "OTC / SOL",
+  "created_at": "2026-08-28T13:33:11Z",
+  "liquidity": 308178.9243,
+  "vol_h24": "197263.754705254"
+ },
+ {
+  "address": "AFaYrFH7hUYnkv5mbvbnRHwX29M9JzUL3ySGtQz69AUv",
+  "name": "LMAO! / SOL",
+  "created_at": "2025-10-18T03:00:16Z",
+  "liquidity": 138885.3792,
+  "vol_h24": "126632.569880525"
+ },
+ {
+  "address": "6zLzQoTg7HNcCDBkhXfikWPqPo7apnLA9ew3FuvQPqEx",
+  "name": "SHIP / SOL",
+  "created_at": "2026-11-12T20:25:18Z",
+  "liquidity": 4895.88855905636,
+  "vol_h24": "2746.8054743903"
+ },
+ {
+  "address": "ECtwReEPQtFbCTuUVtS5ktmgjxRkeytAEzAK2EMRGsZp",
+  "name": "BARNIEE / SOL",
+  "created_at": "2026-11-12T20:25:16Z",
+  "liquidity": 1815.10499579666,
+  "vol_h24": "7.3123044569"
+ },
+ {
+  "address": "c76uZDQ2t4iFvgkZFYQ4hPwqcuHe1R9mAtFoPmaCxw9",
+  "name": "messi / SOL",
+  "created_at": "2026-11-12T20:25:14Z",
+  "liquidity": null,
+  "vol_h24": "90.288667266"
+ },
+ {
+  "address": "3Pzkp3NtYcz1rjUbSmxhsYxG7AFaaq6gNzgDzdvixKji",
+  "name": "JENSEN / SOL",
+  "created_at": "2026-11-12T20:25:13Z",
+  "liquidity": 4566.81621615045,
+  "vol_h24": "1272.727581684"
+ },
+ {
+  "address": "39tRs7kuEg8yFU8Nuw5CvjDSCjXHiRJ51xfau7rAGAxQ",
+  "name": "BRAIN / SOL",
+  "created_at": "2026-11-12T20:25:12Z",
+  "liquidity": 1910.91650456353,
+  "vol_h24": "1266.7961221916"
+ },
+ {
+  "address": "6KMt7T5o76ootvEks2QAZrF6B6J8eYCeFZAyTPVTZYWj",
+  "name": "USOI / SOL",
+  "created_at": "2026-11-12T20:25:11Z",
+  "liquidity": 1808.66011227429,
+  "vol_h24": "32.3987333367"
+ },
+ {
+  "address": "FaaZCeK5vtfiFfFDF8yUZymkwhQ4ZTqarwr3BoGGGTCJ",
+  "name": "SOOTS / SOL",
+  "created_at": "2026-11-12T20:25:09Z",
+  "liquidity": 2572.19582295742,
+  "vol_h24": "40.4899977011"
+ },
+ {
+  "address": "BuwoXpUG1FJJygQHjNDkqu9TF3d7q4ARrAPK9o4fkNXy",
+  "name": "CLAUDE / SOL",
+  "created_at": "2026-11-12T20:25:09Z",
+  "liquidity": 572.782302662325,
+  "vol_h24": "787.5053196277"
+ },
+ {
+  "address": "8zThtBqVCC6K5deynb3Af4QBm425TjwRRUC1hUjiNmkU",
+  "name": "JenseHuang / SOL",
+  "created_at": "2026-11-12T20:25:07Z",
+  "liquidity": 1868.573382928,
+  "vol_h24": "0.08963399951"
+ },
+ {
+  "address": "EvuzwgGn7tKw8ApL5vTx9xXu8emEunDBxriwgXqnYyK3",
+  "name": "posted / SOL",
+  "created_at": "2026-11-12T20:25:05Z",
+  "liquidity": 444.499837554782,
+  "vol_h24": "50.8627924612"
+ },
+ {
+  "address": "3JPgHsTJNweHGo3k6vNEqLstaoBvDe7kTY7FuEPyLsQX",
+  "name": "marsopetator / MUSK4",
+  "created_at": "2026-11-12T20:25:01Z",
+  "liquidity": 2530.95817561662,
+  "vol_h24": "1756.4537262054"
+ },
+ {
+  "address": "6UCwstQJn8vRNwiGefCrxkDFZTb3ftFi6wMeckCqrWBp",
+  "name": "si / SOL",
+  "created_at": "2026-11-12T20:25:00Z",
+  "liquidity": 2600.52634906087,
+  "vol_h24": "186.742317515"
+ },
+ {
+  "address": "xqBpzBThVQHLNFSkRL8dj3npzNzD7GgDCWG17r6s2sZ",
+  "name": "marsopetator / SPCX",
+  "created_at": "2026-11-12T20:24:59Z",
+  "liquidity": 2490.88069325107,
+  "vol_h24": "59.5845425248"
+ },
+ {
+  "address": "4BQpVVunk4kSWiY3SrhidutZ93BonpXrtU16wctUVrMH",
+  "name": "Hero / SOL",
+  "created_at": "2026-11-12T20:24:58Z",
+  "liquidity": 102979.6226,
+  "vol_h24": "4261.7723098141"
+ },
+ {
+  "address": "8tdHSrmyZzpDkcUkqqKXN8HzcVT5VvtUPsRSJpjHZw2Q",
+  "name": "CALIF / SOL",
+  "created_at": "2026-11-12T20:24:53Z",
+  "liquidity": 1845.97997568789,
+  "vol_h24": "80.1204656584"
+ },
+ {
+  "address": "72y5FveVqnL6RdtRJu4HQgw8sswPp9CiVbHRF55vdLEt",
+  "name": "NKITTY / SOL",
+  "created_at": "2026-11-12T20:24:54Z",
+  "liquidity": 2087.14314654363,
+  "vol_h24": "312.0006376016"
+ },
+ {
+  "address": "ER8bgbYBPo9MVpKZpLzfMbKfjHz9MPcuXtPg5L6CmeEc",
+  "name": "MARSOPERAT / SOL",
+  "created_at": "2026-11-12T20:24:52Z",
+  "liquidity": 9250.2351,
+  "vol_h24": "7641.8220307732"
+ },
+ {
+  "address": "G2EM3YAEBKw6NNMncqv7QCQQjUcEYHtY92dzXoPcXQE3",
+  "name": "i/acc / SOL",
+  "created_at": "2026-11-12T20:24:52Z",
+  "liquidity": 5718.9573,
+  "vol_h24": "31492.8263891547"
+ },
+ {
+  "address": "8wsWFrpmvaUmh39qx3vSiz1C76wgxL3UQo2Nw7xrdS6T",
+  "name": "MRAFAIRS / SOL",
+  "created_at": "2026-11-12T20:24:50Z",
+  "liquidity": 1869.42114672943,
+  "vol_h24": "0.1792722343"
+ },
+ {
+  "address": "6CTfVk6fGKEgw2gFi1gEyVknHSLd39DLbAsDuEUUtfer",
+  "name": "EHUANG / SOL",
+  "created_at": "2026-11-12T20:24:45Z",
+  "liquidity": 1838.43974861632,
+  "vol_h24": "30.6949255158"
+ },
+ {
+  "address": "ECdVUhN41xDKZ4fcLWN7ND6mXbUDDH4PmDN3ACyRphm2",
+  "name": "PAWSHAKE / SOL",
+  "created_at": "2026-11-12T20:26:13Z",
+  "liquidity": 1870.4869,
+  "vol_h24": "67.0398751157"
+ },
+ {
+  "address": "FZdfCuEQ2E9nDTcPM9Whv5Xc11caiMQQNQ4YJ6vx3cYF",
+  "name": "marsopetat / SOL",
+  "created_at": "2026-11-12T20:26:13Z",
+  "liquidity": 17123.6999,
+  "vol_h24": "37630.943356332"
+ },
+ {
+  "address": "CgW9sroeEFxHEfWPhFEmpmrvrPLirJxk59g39aoFVLwe",
+  "name": "MARSOPERATOR / SOL",
+  "created_at": "2026-11-12T20:26:13Z",
+  "liquidity": 1807.746,
+  "vol_h24": "0.008155521308"
+ },
+ {
+  "address": "EG5bJDstmhuEhuyffgjdvvrG6Gbk24UkB9djbd1M8W2T",
+  "name": "UPLINK / SPCX",
+  "created_at": "2026-11-12T20:26:12Z",
+  "liquidity": 3075.3791,
+  "vol_h24": "788.2640762046"
+ },
+ {
+  "address": "FpfFEtdiR1TvMSN6D2g3ZFzHZAsCSNrYRyFYbapmvCoD",
+  "name": "597 / SOL",
+  "created_at": "2026-11-12T20:26:12Z",
+  "liquidity": 8.154075614e-08,
+  "vol_h24": "185.4815763179"
+ },
+ {
+  "address": "EC5LHXJrqSX3Zg6sjbbnvddJacN9nqu4cxcXS6kHRymm",
+  "name": "MARSOPERATOR / SOL",
+  "created_at": "2026-11-12T20:26:11Z",
+  "liquidity": 1807.746,
+  "vol_h24": "0.008160479549"
+ },
+ {
+  "address": "BjWnLUv7USN9K61GAGKjVMAm4YZADjFh3sMq6jiC3YjP",
+  "name": "CS / SOL",
+  "created_at": "2026-11-12T20:26:10Z",
+  "liquidity": 0.0,
+  "vol_h24": "0.000816047954"
+ },
+ {
+  "address": "GcDq6SNwxYCmPhAB9HfXfdbg5iTXz7Spm93FjNqmYwko",
+  "name": "FOMO / SOL",
+  "created_at": "2026-11-12T20:26:09Z",
+  "liquidity": 1.0915,
+  "vol_h24": "1.2713544385"
+ },
+ {
+  "address": "7e9YsT91GS65xF3dfj6fuqL4dHofJmsPBPrncPFKbfBr",
+  "name": "MARSOPERATOR / SOL",
+  "created_at": "2026-11-12T20:26:08Z",
+  "liquidity": 1807.746,
+  "vol_h24": "0.008160471442"
+ },
+ {
+  "address": "BrAdrcxBee5NV9jKYyctufDohdr6PqjKm6q6Fn5q2fqR",
+  "name": "CB / SOL",
+  "created_at": "2026-11-12T20:26:08Z",
+  "liquidity": 720.2729,
+  "vol_h24": "109.7688498084"
+ },
+ {
+  "address": "2WEq2MPVLgEk2vCq36J2cyXCMjKfiEc6r25d7xy6q6C4",
+  "name": "I/ACC / SOL",
+  "created_at": "2026-11-12T20:26:07Z",
+  "liquidity": 2415.3378,
+  "vol_h24": "464.5990345109"
+ },
+ {
+  "address": "B9iyjGahuRQPPfaPXTiZiVDFkLB4Tw1br1sBGpVHJ7wN",
+  "name": "i/acc / SOL",
+  "created_at": "2026-11-12T20:26:06Z",
+  "liquidity": 16063.6843,
+  "vol_h24": "61680.4465437181"
+ },
+ {
+  "address": "GFyi9S24UFWPMK24BU1fP8p5vuFnHCaqtWkgW4AMHAFp",
+  "name": "Hero / SOL",
+  "created_at": "2026-11-12T20:26:06Z",
+  "liquidity": 0.0,
+  "vol_h24": "0.0008140048109"
+ },
+ {
+  "address": "EatBE7qaL7mnPm8CvdAabRcBNz3JaEXVbyXZDz5ciMBN",
+  "name": "Hero / SOL",
+  "created_at": "2026-11-12T20:26:06Z",
+  "liquidity": 0.0081,
+  "vol_h24": "0.1095774017"
+ },
+ {
+  "address": "EG15tBxKYrNh644TcZKFE3kUo2yAEMbcXjmnhdsABG7d",
+  "name": "alpha / SOL",
+  "created_at": "2026-11-12T20:26:05Z",
+  "liquidity": 1832.9758,
+  "vol_h24": "28.1118097568"
+ },
+ {
+  "address": "D3ZnvJp2rc1ZsGFbTGSGSDx9dBbRpC2Mv3vrRnUTTyin",
+  "name": "cuffem / SOL",
+  "created_at": "2026-11-12T20:26:03Z",
+  "liquidity": 586.3215,
+  "vol_h24": "1238.8793126588"
+ },
+ {
+  "address": "buokdfBxjRwpBuvZF9NLrh8BXuzhURhYQv5kq9ayevK",
+  "name": "RSB / SOL",
+  "created_at": "2026-11-12T20:26:03Z",
+  "liquidity": 1912.3882,
+  "vol_h24": "2321.724576432"
+ },
+ {
+  "address": "DHii8UWW2ye52tPQaMSS6sUX1bm3ugSfy2WDiRwk2BdH",
+  "name": "BRAINROT / SOL",
+  "created_at": "2026-11-12T20:26:03Z",
+  "liquidity": 1192.9344,
+  "vol_h24": "179.5902723381"
+ },
+ {
+  "address": "FKacj14z7HXL2hvQtTQe8eCQjvVaUR2ztzyCEW5E1CH9",
+  "name": "I/ACC / SOL",
+  "created_at": "2026-11-12T20:26:02Z",
+  "liquidity": 2249.6855,
+  "vol_h24": "14730.6329522066"
+ },
+ {
+  "address": "3BJCVezXjHA3Dx5r3fZ2HhqW523uh1A46GXBtqqqkqWA",
+  "name": "JENSEN / SOL",
+  "created_at": "2026-11-12T20:26:02Z",
+  "liquidity": 1832.3246,
+  "vol_h24": "11562.1967845721"
+ },
+ {
+  "address": "5mF8at7vfTDDfPcW27vjtQux2pe241zAFPw86rR7qS3H",
+  "name": "salam / SOL",
+  "created_at": "2026-11-12T20:26:18Z",
+  "liquidity": 1473.0818,
+  "vol_h24": "813.9989362408"
+ },
+ {
+  "address": "AwddUkp7Yx6WzFBQxAMY61N1Nk9WxxieNdeqtBQSa2tR",
+  "name": "APPLE / SOL",
+  "created_at": "2026-11-12T20:26:17Z",
+  "liquidity": 259.2871,
+  "vol_h24": "696.040613773"
+ },
+ {
+  "address": "8Bhcz85p63zcLiD3xrXkNS1VvahfsAMGV8HsRBYn9kdA",
+  "name": "CS / SOL",
+  "created_at": "2026-11-12T20:26:16Z",
+  "liquidity": 0.1794,
+  "vol_h24": "0.1013092572"
+ },
+ {
+  "address": "6V3ednT4wpkDoQHBjfrsBKuMm81HzQJyPA5sEWti9xaV",
+  "name": "ATI / SOL",
+  "created_at": "2026-11-12T20:26:15Z",
+  "liquidity": 1848.3287,
+  "vol_h24": "2563.5613929203"
+ },
+ {
+  "address": "Ap6h24tLxayMgF1S78i9AcAwgH2D4dEvpAmd7CSMqcfP",
+  "name": "TripleB / SOL",
+  "created_at": "2026-11-12T20:26:15Z",
+  "liquidity": 1901.7593,
+  "vol_h24": "3084.1159424242"
+ },
+ {
+  "address": "7EW8mCCUb4oHWysfbgoSY9AR82M4EPsK4iLfLM5GqSyo",
+  "name": "WAITG6 / SOL",
+  "created_at": "2026-11-12T20:26:15Z",
+  "liquidity": 1813.738,
+  "vol_h24": "4.1084501749"
+ },
+ {
+  "address": "4XDCptFRDDh9Wzcsy1TakMQQtJxLuWJrXFCtTcMyXVs2",
+  "name": "MARSOPERATOR / SOL",
+  "created_at": "2026-11-12T20:26:15Z",
+  "liquidity": 1807.746,
+  "vol_h24": "0.008155500721"
+ },
+ {
+  "address": "C2H8EKfofxaq31SkgYAdaoDkut2uDdBhLACmp1Cn6BV2",
+  "name": "SPY / SOL",
+  "created_at": "2026-11-12T20:26:13Z",
+  "liquidity": 2112.8822,
+  "vol_h24": "439.6400272809"
+ },
+ {
+  "address": "6nCQ7QjYuYfQ6cK4MkhA2yei8KrxRace1gM1vMTUAJFi",
+  "name": "onepiece / USDC",
+  "created_at": "2026-11-12T20:26:01Z",
+  "liquidity": 12366.9671,
+  "vol_h24": "288.0953121211"
+ },
+ {
+  "address": "C7y76BHDhcoXewzMStvqPiKUnombsgyEuYjqM1aC7AEd",
+  "name": "posted / SOL",
+  "created_at": "2026-11-12T20:26:00Z",
+  "liquidity": 6.9521,
+  "vol_h24": "445.711610161"
+ },
+ {
+  "address": "Fgtn8z135iMtGFVq6QxYeSDdRHLbDSMj869Ffqupw2F9",
+  "name": "BEAVIS / SOL",
+  "created_at": "2026-11-12T20:26:00Z",
+  "liquidity": 362.8616,
+  "vol_h24": "714.8201912745"
+ },
+ {
+  "address": "9y1RCTEomEKFbQ4kgMi87z3jjBoXekwsykRMdhTdLnp3",
+  "name": "MARSOPERATOR / SOL",
+  "created_at": "2026-11-12T20:25:58Z",
+  "liquidity": 14047.9911,
+  "vol_h24": "89.5057199922"
+ },
+ {
+  "address": "842xSwf24aHNwFS3qXJCjy7i9RNmHvt3GgUWPdL1rm67",
+  "name": "i/acc / SOL",
+  "created_at": "2026-11-12T20:25:58Z",
+  "liquidity": 2113.6241,
+  "vol_h24": "1141.8781908332"
+ },
+ {
+  "address": "EGfKGRdzWNgxuP8zptmFEoi2nLKoTZWuUjdqqVsXkbvK",
+  "name": "si / SOL",
+  "created_at": "2026-11-12T20:25:57Z",
+  "liquidity": 845.0115,
+  "vol_h24": "363.490018843"
+ },
+ {
+  "address": "3UqjfysNQd4T3uK2ebTXZWFoGVCPMU7JAgjgeDdDykF7",
+  "name": "UPLINK / SOL",
+  "created_at": "2026-11-12T20:25:55Z",
+  "liquidity": 2048.7772,
+  "vol_h24": "11618.0357836446"
+ },
+ {
+  "address": "AM6ZLqjjSxptBUZGRy1D3BmubNtmCU5f7y7AjC3L81Fq",
+  "name": "Jeni coin / SOL",
+  "created_at": "2026-11-12T20:25:42Z",
+  "liquidity": 1829.1134,
+  "vol_h24": "1083.0582545532"
+ },
+ {
+  "address": "HdF5gPDGJacpuc5wLKngyKkuW8LfW8UZzYa5SVR9GpWZ",
+  "name": "DICE / SOL",
+  "created_at": "2026-11-12T20:25:40Z",
+  "liquidity": 4.7586,
+  "vol_h24": "194.5181211318"
+ },
+ {
+  "address": "9BjSsDVGSavenpncbXfwqwby6UNWxibEfkf5Lu1meup2",
+  "name": "RUGGED / SOL",
+  "created_at": "2026-11-12T20:25:39Z",
+  "liquidity": 2213.3101,
+  "vol_h24": "5124.4440889745"
+ },
+ {
+  "address": "28pDKxZ85RBgrceNvCExzwfPm6RGLyFaAco2qXAuzzPy",
+  "name": "prayge / SOL",
+  "created_at": "2026-11-12T20:25:38Z",
+  "liquidity": 3853.4013,
+  "vol_h24": "8717.5232573079"
+ },
+ {
+  "address": "6hQwdFRQfALhc2SkZ5bx8MFsp4wvR8KwGtnmqTuKB9ES",
+  "name": "MARSOPERATOR / SOL",
+  "created_at": "2026-11-12T20:25:38Z",
+  "liquidity": 1808.4379,
+  "vol_h24": "0.008159029149"
+ },
+ {
+  "address": "4a2eggcKDaZxwFiraCVHpgW22B4wS59nfTL6TcgkH2an",
+  "name": "i/acc / SOL",
+  "created_at": "2026-11-12T20:25:36Z",
+  "liquidity": 2.4616,
+  "vol_h24": "0.403447195"
+ },
+ {
+  "address": "JAfUbGstyw26EiZGSqmZ6YCNb6JDxPcFNbReFtxLnAqj",
+  "name": "ch / SOL",
+  "created_at": "2026-11-12T20:25:35Z",
+  "liquidity": 3.0478,
+  "vol_h24": "366.9717980869"
+ },
+ {
+  "address": "J4X2D3Bp1p6mZT9oDMekBei9nEFejd3jyLvQxx4ZRkgk",
+  "name": "DOOYET / SOL",
+  "created_at": "2026-11-12T20:25:33Z",
+  "liquidity": 70.43,
+  "vol_h24": "634.7854830912"
+ },
+ {
+  "address": "HtrHewQRENX7VskeDFLKyj17Wr8XipcTz7gHxtPV9q8w",
+  "name": "CHUBS / SOL",
+  "created_at": "2026-11-12T20:25:32Z",
+  "liquidity": 2057.0733,
+  "vol_h24": "1408.7862740238"
+ },
+ {
+  "address": "B6obBeLRrscKem5vhNK3SqtLov1sUsJinnJicyrQRLw",
+  "name": "sol / SOL",
+  "created_at": "2026-11-12T20:25:32Z",
+  "liquidity": 52.8473,
+  "vol_h24": "625.4913579535"
+ },
+ {
+  "address": "DM2UPLqMiVf8Y3deQdCfiwqDj4qTZCCKdfYKG6QkXBmx",
+  "name": "JENNY / SOL",
+  "created_at": "2026-11-12T20:25:31Z",
+  "liquidity": 1844.3409,
+  "vol_h24": "250.8363348234"
+ },
+ {
+  "address": "E3VDxZ9D83UL5wxo1w3ShhLB8QWBr9feHpRaAQJa1WDe",
+  "name": "i/acc / SOL",
+  "created_at": "2026-11-12T20:25:30Z",
+  "liquidity": 16172.6532,
+  "vol_h24": "29225.3199328237"
+ },
+ {
+  "address": "3c7rYTvkh6rCpcbu9g93S74VFSgnJAEV1Bjx14hyCiok",
+  "name": "i/acc / SOL",
+  "created_at": "2026-11-12T20:25:30Z",
+  "liquidity": 1876.6121,
+  "vol_h24": "3895.963305387"
+ },
+ {
+  "address": "H5qmVdHebna9Q13ybtUUK3E8QhejW7YPEbdzApjRp69m",
+  "name": "Redcat / SOL",
+  "created_at": "2026-11-12T20:25:29Z",
+  "liquidity": 34439.6246,
+  "vol_h24": "9425.0496421678"
+ },
+ {
+  "address": "Dm6XaagZkpbBGmNhZJxcD215698CYrJpE6mWcsvvSE9y",
+  "name": "ELON / SOL",
+  "created_at": "2026-11-12T20:25:29Z",
+  "liquidity": 705.7679,
+  "vol_h24": "44.4079338684"
+ },
+ {
+  "address": "2vNp9FnQ1eSYfW5sExzttWVkQra6krfFYPaAcJRuD4av",
+  "name": "MCH / SOL",
+  "created_at": "2026-11-12T20:25:29Z",
+  "liquidity": 2155.218,
+  "vol_h24": "57.5883051087"
+ },
+ {
+  "address": "86GtNpjxQDK5GcuWK2xaQ12a9yQcaEBaAyqy6fqTansf",
+  "name": "marsetator / SOL",
+  "created_at": "2026-11-12T20:25:28Z",
+  "liquidity": 56720.1294,
+  "vol_h24": "99043.916576827"
+ },
+ {
+  "address": "B7ReFPt43LawRkSYVr4Uv9a88DNkxdCYdgfHeeEdpizW",
+  "name": "SPACET / SOL",
+  "created_at": "2026-11-12T20:25:28Z",
+  "liquidity": 1902.8051,
+  "vol_h24": "821.2568415523"
+ },
+ {
+  "address": "HhFQXXbAiejZdF3XiuVQBwn4XqYJaA5Z2vE4q8f5dJxi",
+  "name": "posted / SOL",
+  "created_at": "2026-11-12T20:25:28Z",
+  "liquidity": 472.4068,
+  "vol_h24": "138.8969407743"
+ },
+ {
+  "address": "FYUaNxReAFDhMhgX6XyTn71EbS3HZdkVPG6A3SuXaLdK",
+  "name": "i/acc / SOL",
+  "created_at": "2026-11-12T20:25:27Z",
+  "liquidity": 1908.1729,
+  "vol_h24": "10353.1011997245"
+ },
+ {
+  "address": "CbaxzFVsSqhCe9ZefnhfHb3vAtiDu8h3A77bCZpDs3Eh",
+  "name": "MARSOPERATOR / SOL",
+  "created_at": "2026-11-12T20:25:54Z",
+  "liquidity": 0.0082,
+  "vol_h24": "0.1112861056"
+ },
+ {
+  "address": "D78JpeVoyr7cF23sNHyhm98dif3BaYFACpwX6wj3aJTJ",
+  "name": "MARSOPERAT / SOL",
+  "created_at": "2026-11-12T20:25:54Z",
+  "liquidity": 1818.0522,
+  "vol_h24": "13.0836547996"
+ },
+ {
+  "address": "D4Q8kv7kgVeQiMDdWHXekjtUT9h8LC9CyAnzprPhravm",
+  "name": "Fuckelon / Hero",
+  "created_at": "2026-11-12T20:25:53Z",
+  "liquidity": 1543.2675,
+  "vol_h24": "0.2282742732"
+ },
+ {
+  "address": "9ccbjLQm1CxmWcy82kecXZTDbXjFkdTYdSZbJrsSsGc6",
+  "name": "salam / SOL",
+  "created_at": "2026-11-12T20:25:52Z",
+  "liquidity": 578.0484,
+  "vol_h24": "211.9969732063"
+ },
+ {
+  "address": "A2XV1Jdhyct384TygQdEE1Ffe5wKsczwz3W1av54pVTP",
+  "name": "NVIDIUHH / SOL",
+  "created_at": "2026-11-12T20:25:52Z",
+  "liquidity": 1807.3086,
+  "vol_h24": "1143.7387775711"
+ },
+ {
+  "address": "BXPnZ1dxwC3iKmLhcYm5V37Q1ZwBpd4vEGYMFdaVNvno",
+  "name": "i/acc / SOL",
+  "created_at": "2026-11-12T20:25:51Z",
+  "liquidity": 1834.1247,
+  "vol_h24": "326.6166131329"
+ },
+ {
+  "address": "Fkkgo6hViTvsFMbe1wzew3kGxQCXSnQPuXgU55Rfor6V",
+  "name": "DINKY / SOL",
+  "created_at": "2026-11-12T20:25:51Z",
+  "liquidity": 1828.1984,
+  "vol_h24": "15.8466685361"
+ },
+ {
+  "address": "GKqdUC9hrhZpJzWA2BxcSYrocWgfWrsANqDMjxnD2pkm",
+  "name": "UPLINK / SOL",
+  "created_at": "2026-11-12T20:25:44Z",
+  "liquidity": 4275.2421,
+  "vol_h24": "21104.3599201945"
+ },
+ {
+  "address": "A2yu7fVoVkhS6XNZqeRuxDLFSxYK5rCMmKQA6L85vtJM",
+  "name": "DUH / NVDAx",
+  "created_at": "2026-11-12T20:25:43Z",
+  "liquidity": 2525.2827,
+  "vol_h24": "3206.0559248851"
+ },
+ {
+  "address": "CiTFiBy7JbpqYAVXwSD6fCm9QZYyeThH1kKMi1kFXJFR",
+  "name": "marsopetator / SOL",
+  "created_at": "2026-11-12T20:25:27Z",
+  "liquidity": 2131.1681,
+  "vol_h24": "6331.4305532544"
+ },
+ {
+  "address": "CTZWyahMDG7AsMqwCmkAYiNFyxb2ZcPwL3twdgDyeB98",
+  "name": "MARSOPERAT / SOL",
+  "created_at": "2026-11-12T20:24:42Z",
+  "liquidity": 1.7105,
+  "vol_h24": "1.8212727529"
+ },
+ {
+  "address": "9YnZjGRX7KXUUMQLP3DB4eGmdq14Y2FuUjYthH2fKaJs",
+  "name": "MARSOPERAT / SOL",
+  "created_at": "2026-11-12T20:24:42Z",
+  "liquidity": 0.0,
+  "vol_h24": "0.0405638341"
+ },
+ {
+  "address": "7Dzgbg5WNwwGGe2sh2pYGJhfvKiqPtedjh757VmpdwPo",
+  "name": "$JENCAT / SOL",
+  "created_at": "2026-11-12T20:24:42Z",
+  "liquidity": 4.1719,
+  "vol_h24": "926.8898908698"
+ },
+ {
+  "address": "CNCG4QiqPiM4FmPA9ng8t2sSEMko5DbBgmeHvSLnZQj",
+  "name": "5 / NVDAx",
+  "created_at": "2026-11-12T20:24:38Z",
+  "liquidity": 2464.1798,
+  "vol_h24": "87.5500780305"
+ },
+ {
+  "address": "CfgvhVwmx8KLKocmTx2n1tkbmD2MZDSd9E7SoVbvTLCi",
+  "name": "Godzilla / SPCX",
+  "created_at": "2026-11-12T20:24:32Z",
+  "liquidity": 2482.1988,
+  "vol_h24": "1397.7590093572"
+ },
+ {
+  "address": "HvCv1V9szLEga45f28kjev94KCzDbYGvbD2sRin8KFFs",
+  "name": "Godzilla / SPCX",
+  "created_at": "2026-11-12T20:24:25Z",
+  "liquidity": 2433.4917,
+  "vol_h24": "1446.999289805"
+ },
+ {
+  "address": "4EkUmProPUvuMofjXUAgnsaDT2C8XSP7hWKzbunTAdAb",
+  "name": "$marsop / SOL",
+  "created_at": "2026-11-12T20:24:24Z",
+  "liquidity": 1818.0238,
+  "vol_h24": "7.7070519941"
+ },
+ {
+  "address": "9kQk7zpa4vSxErxQLZJuCcw14FMrJFH7YGvWMy8cfuBs",
+  "name": "MO / SOL",
+  "created_at": "2026-11-12T20:24:24Z",
+  "liquidity": 2.680065437e-05,
+  "vol_h24": "60776.6621820541"
+ },
+ {
+  "address": "9UmKWQjrhNamLNVcTAzobWisqsny9JQcRsAQRoKpLrH8",
+  "name": "marsopetat / SOL",
+  "created_at": "2026-11-12T20:24:24Z",
+  "liquidity": 22000.8763,
+  "vol_h24": "115650.127916641"
+ },
+ {
+  "address": "D1yA946BbU95gYcuS8L8q4HoYeEBXvDEQ21PqJgc9nCL",
+  "name": "TUX / SOL",
+  "created_at": "2026-11-12T20:24:23Z",
+  "liquidity": 1.0592,
+  "vol_h24": "4.8855319443"
+ },
+ {
+  "address": "DBEwcVuaFbBh4gtw9k3m3GdbGPTNf63PdkY93cwR8Tbq",
+  "name": "OPTIMI / SPCX",
+  "created_at": "2026-11-12T20:24:22Z",
+  "liquidity": 2435.1772,
+  "vol_h24": "1491.014697809"
+ },
+ {
+  "address": "C9T2UiNzG1LXFYXfUwCpQT4sEGKAYY61ygA4cVC4pToe",
+  "name": "DID / SOL",
+  "created_at": "2026-11-12T20:24:21Z",
+  "liquidity": 31807.2156,
+  "vol_h24": "65807.5013489656"
+ },
+ {
+  "address": "2QPSQqkDvRKuJBeiirXcFT2JGpuem9bVHJ3rqa1tvkak",
+  "name": "marsopetator / SOL",
+  "created_at": "2026-11-12T20:24:21Z",
+  "liquidity": 2016.8456,
+  "vol_h24": "3302.6787414664"
+ },
+ {
+  "address": "A8ST2k74QCSgF28Eb6BjeRrH1FcMbDhdVkTzh23QSPTq",
+  "name": "DID / SOL",
+  "created_at": "2026-11-12T20:24:21Z",
+  "liquidity": 0.0,
+  "vol_h24": "6931.6740401218"
+ },
+ {
+  "address": "G2EakHu16zE8GGHNeZDLfLCRqrUrsoCraxjDGhnffBhf",
+  "name": "HELLO / SOL",
+  "created_at": "2026-11-12T20:24:21Z",
+  "liquidity": 1814.3715,
+  "vol_h24": "40.7666567592"
+ },
+ {
+  "address": "EBP1EmSvkeWy9MRb6cv9K1cijka7N94GzCum6rQWFXEu",
+  "name": "$TAG / SOL",
+  "created_at": "2026-11-12T20:24:20Z",
+  "liquidity": 3581.6246,
+  "vol_h24": "18.8649141765"
+ },
+ {
+  "address": "A2JNbAwEJVmQbF8U55pDp9rNoe4ygGVQsFVkL2UN4XVr",
+  "name": "DINO / SOL",
+  "created_at": "2026-11-12T20:24:20Z",
+  "liquidity": 1928.1408,
+  "vol_h24": "1141.7024173193"
+ },
+ {
+  "address": "3ii6WrrvkgXUVNryqkGRjAAJixwPFrfdk8T5BquAhn2V",
+  "name": "Tay-K / SOL",
+  "created_at": "2026-11-12T20:24:19Z",
+  "liquidity": 1916.9096,
+  "vol_h24": "154.430590201"
+ },
+ {
+  "address": "xEQa2Q78HDZLgd1NUnSwWk4cfD6H6b329vo2n4SQ77e",
+  "name": "siuu / SOL",
+  "created_at": "2026-11-12T20:24:19Z",
+  "liquidity": 1746.326,
+  "vol_h24": "48.0812361359"
+ },
+ {
+  "address": "7bDGH6hpVSsNuvtN3YAe2qUeopJAhvwbgpiDHZbz2LjG",
+  "name": "marsopetator / SOL",
+  "created_at": "2026-11-12T20:24:17Z",
+  "liquidity": 1.8986,
+  "vol_h24": "0.3373472174"
+ },
+ {
+  "address": "3sjMM9YMMebXH3sWWSuUvFpRmNrioeYrpRCXdfZ7ZR34",
+  "name": "Bernie / SPCX",
+  "created_at": "2026-11-12T20:24:17Z",
+  "liquidity": 2440.4534,
+  "vol_h24": "47.4691697493"
+ },
+ {
+  "address": "BmmyE2n3ckMP85vvoyzaYzaFtT3d8JFXLm2tS3sfEHLR",
+  "name": "KURWAC / SOL",
+  "created_at": "2026-11-12T20:24:15Z",
+  "liquidity": 1825.4435,
+  "vol_h24": "21.2087724635"
+ },
+ {
+  "address": "5xMhotmqrtUscjZGeDa5S6RW5uFCuaWefEnvCT5ErVw8",
+  "name": "TripleB / SOL",
+  "created_at": "2026-11-12T20:24:14Z",
+  "liquidity": 1933.422,
+  "vol_h24": "97.6243063348"
+ },
+ {
+  "address": "CbUWY4its9iNSgyGfKsfFxR8YwiyLanivXr47p3hpcYa",
+  "name": "M-CAT / SOL",
+  "created_at": "2026-11-12T20:24:14Z",
+  "liquidity": 1822.7419,
+  "vol_h24": "9.4320100667"
+ },
+ {
+  "address": "FCHN1yCg257w4uxxS3qm8SCNL4RBrwEyPufpz7xH68JK",
+  "name": "THEWOLF / SOL",
+  "created_at": "2026-11-12T20:24:13Z",
+  "liquidity": 1809.6026,
+  "vol_h24": "8.4014938142"
+ },
+ {
+  "address": "818tuxntmHy5xKr4XqMfgRSC6mR4AgYjUv7iVwmTPdJW",
+  "name": "^..^\u208e\u2cca / SOL",
+  "created_at": "2026-11-12T20:24:12Z",
+  "liquidity": 1831.9429,
+  "vol_h24": "1513.3004976716"
+ },
+ {
+  "address": "CLoTenHKduUKAmfeT7R9L7Km229A2w85vw73ctPBp5gd",
+  "name": "marsopetator / SOL",
+  "created_at": "2026-11-12T20:24:11Z",
+  "liquidity": 1823.2141,
+  "vol_h24": "3573.1835081166"
+ },
+ {
+  "address": "6dnFV4d5Ft4zQcx78juQx3WFNMGBMN2Jrfnn1YqnBq9C",
+  "name": "vrl / SOL",
+  "created_at": "2026-11-12T20:24:11Z",
+  "liquidity": 32.7477,
+  "vol_h24": "377.173264922"
+ },
+ {
+  "address": "Hh9LCSamaq1aQYTJFjnQRbJMmpJGbWGdgC8278f1ojAh",
+  "name": "APPLE / SOL",
+  "created_at": "2026-11-12T20:24:08Z",
+  "liquidity": 379.7332,
+  "vol_h24": "2237.2688167895"
+ },
+ {
+  "address": "9LeDqQp1cESypjhCroyHffXphX8k2CoqgTGsjP3PxX73",
+  "name": "SOCIALMINE / WBTC",
+  "created_at": "2026-11-12T20:24:07Z",
+  "liquidity": 2706.9089,
+  "vol_h24": "4978.4800749451"
+ },
+ {
+  "address": "5Phh9YLFxdChuLkgkNiqQ6Y2GUAnaqCLQU23dB9ZCSfd",
+  "name": "Hero / SOL",
+  "created_at": "2026-11-12T20:24:00Z",
+  "liquidity": 213.3931,
+  "vol_h24": "300.9578886872"
+ },
+ {
+  "address": "EvjcLyRihaCpuXNuAXFUL2RsnBN4wcaa9fNVTXYiYeT7",
+  "name": "i/acc / SOL",
+  "created_at": "2026-11-12T20:23:56Z",
+  "liquidity": 2010.8041,
+  "vol_h24": "22554.5360013819"
+ },
+ {
+  "address": "39P6FBMXRidN7fvuntcQzb79UFXLapQAwD89ZjHXgerK",
+  "name": "HUANG / SOL",
+  "created_at": "2026-11-12T20:23:54Z",
+  "liquidity": 1813.55,
+  "vol_h24": "40.7632104064"
+ },
+ {
+  "address": "ALbazHQcF3Tk3pHkguUCWuTZHf5ar7QWFmBXZ2GycC4e",
+  "name": "JENSEN / SOL",
+  "created_at": "2026-11-12T20:23:53Z",
+  "liquidity": 1820.1906,
+  "vol_h24": "10233.9043868319"
+ },
+ {
+  "address": "G8GoGDxKZpc9Raozt3GhaBdErXkAU4ZddALNGPqQSgbz",
+  "name": "marsopetat / SOL",
+  "created_at": "2026-11-12T20:23:50Z",
+  "liquidity": 24596.1769,
+  "vol_h24": "154068.918299345"
+ },
+ {
+  "address": "7Hh5waK2GoosVdh1dDwqyaNdWcEuT13nVmrgs4Y3Vv5h",
+  "name": "USOI / SOL",
+  "created_at": "2026-11-12T20:23:50Z",
+  "liquidity": 1812.4476,
+  "vol_h24": "66.3730480353"
+ },
+ {
+  "address": "2BGNc7YWcRUSpdxkjbU8NHUWAGxWDpc89E7Bz42cXJSC",
+  "name": "PADBASE / SOL",
+  "created_at": "2026-11-12T20:23:49Z",
+  "liquidity": 1.2646,
+  "vol_h24": "0.386217976"
+ },
+ {
+  "address": "8CTKwKFTkTGQfPhP4yFWKvh3HFEj8j5quHeBBvDvENxX",
+  "name": "RAM / OPENAI",
+  "created_at": "2026-11-12T20:23:49Z",
+  "liquidity": 2756.15244462308,
+  "vol_h24": "1.523545663"
+ },
+ {
+  "address": "ApY2mHbe3xhfNA4MZcXm6S4V3ypQuM4dzEgUNdy3NYgt",
+  "name": "Jynxzi / SOL",
+  "created_at": "2026-11-12T20:23:40Z",
+  "liquidity": 1905.5748,
+  "vol_h24": "67.9109239972"
+ },
+ {
+  "address": "4eCHKrerEh7qgTJFGLLCdZqgDVxNERBeVSKN5JWfLbjT",
+  "name": "NIHAONOON / SOL",
+  "created_at": "2026-11-11T21:39:57Z",
+  "liquidity": 1906.5814,
+  "vol_h24": "1415003.44724186"
+ },
+ {
+  "address": "3QWmDUPuJdYamM59L95yGCzcdKeHLcsXvZWDCoyRHQyw",
+  "name": "UODF / SOL",
+  "created_at": "2026-11-10T06:48:28Z",
+  "liquidity": 1170404.528,
+  "vol_h24": "107275.090005104"
+ },
+ {
+  "address": "DJNtGuBGEQiUCWE8F981M2C3ZghZt2XLD8f2sQdZ6rsZ",
+  "name": "SOL / USDC",
+  "created_at": "2025-07-03T10:03:39Z",
+  "liquidity": 2123584.9874,
+  "vol_h24": "22568304.6564814"
+ },
+ {
+  "address": "BwNJma5cJzn9jobrsc4d7UuWHekjai1B7oUdRzRnVqAM",
+  "name": "SOL / USDC",
+  "created_at": "2026-05-22T14:21:27Z",
+  "liquidity": 447707.8464,
+  "vol_h24": "19348059.1449786"
+ },
+ {
+  "address": "45TyLZB8nrMaAQDkE7qodQfxGrSFmvmyNozD7dQEHVGP",
+  "name": "PREDICT / SOL",
+  "created_at": "2026-11-11T01:15:58Z",
+  "liquidity": 155743.7392,
+  "vol_h24": "76178077.0321027"
+ },
+ {
+  "address": "Gc165G4eisyukD3cposArHwp2MJbqKkP7EnjpAsaW1Ju",
+  "name": "fomo / SOL",
+  "created_at": "2026-11-12T13:48:33Z",
+  "liquidity": 1576.6212,
+  "vol_h24": "193196.24250145"
+ },
+ {
+  "address": "8nUqqRckfRdFh5YqiEoZtfPoZWuDfWQWJstuWNT5hHf2",
+  "name": "TTWO / USDC",
+  "created_at": "2026-10-24T10:56:05Z",
+  "liquidity": 40128.7506,
+  "vol_h24": "9028270.35656233"
+ },
+ {
+  "address": "5jN7YxKhncGwi3njP5Z8M6YYBKkuhL7p2axLLG2DaGK3",
+  "name": "AIB / SOL",
+  "created_at": "2026-11-12T01:19:01Z",
+  "liquidity": 2855.4507,
+  "vol_h24": "2018338.81777258"
+ },
+ {
+  "address": "8Xx3VeN92DsZksHs2nXMiJUcR5JBofqmbXqacoeUTj2g",
+  "name": "NVDAx / USDC",
+  "created_at": "2026-02-18T16:52:39Z",
+  "liquidity": 78606.5371,
+  "vol_h24": "9028188.30527454"
+ },
+ {
+  "address": "83v8iPyZihDEjDdY8RdZddyZNyUtXngz69Lgo9Kt5d6d",
+  "name": "SOL / USDC",
+  "created_at": "2023-07-05T14:50:59Z",
+  "liquidity": 52550.4877,
+  "vol_h24": "927298.883447003"
+ },
+ {
+  "address": "8sLbNZoA1cfnvMJLPfp98ZLAnFSYCFApfJKMbiXNLwxj",
+  "name": "SOL / USDC 0.01%",
+  "created_at": "2024-02-08T02:04:35Z",
+  "liquidity": 373423.377,
+  "vol_h24": "1014267.97293749"
+ },
+ {
+  "address": "DdYnRoKNkFY2E7b5KfEvcszFarofSUdseZ1k9xR6TBap",
+  "name": "AMD / USDC",
+  "created_at": "2026-11-03T22:36:57Z",
+  "liquidity": 79148.2966,
+  "vol_h24": "5468022.11867649"
+ },
+ {
+  "address": "3nMFwZXwY1s1M5s8vYAHqd4wGs4iSxXE4LRoUMMYqEgF",
+  "name": "SOL / USDT 0.01%",
+  "created_at": "2024-02-11T02:50:00Z",
+  "liquidity": 619725.1184,
+  "vol_h24": "2380917.16928798"
+ },
+ {
+  "address": "HYaL3s1hsP2i2EnN2LCuem3bLeiRGcWTT8XSa9nuJdHr",
+  "name": "\u00a2 / SOL",
+  "created_at": "2026-11-12T14:24:42Z",
+  "liquidity": 1526.8113,
+  "vol_h24": "112248.738210648"
+ },
+ {
+  "address": "AaSh1f6d5RyQ4ANdUqoLjPQnrfMUHWCHuQyFXU4Hxhkf",
+  "name": "Rockstar / SOL",
+  "created_at": "2026-11-12T07:46:52Z",
+  "liquidity": 1510.3864,
+  "vol_h24": "92239.8771262643"
+ },
+ {
+  "address": "9dRntvzFmiTP2EFsCWVmVkVok5QfaiK7c41ocVaY59w3",
+  "name": "Robinhood / SOL",
+  "created_at": "2026-11-12T13:06:25Z",
+  "liquidity": 1550.7868,
+  "vol_h24": "99125.3490030764"
+ },
+ {
+  "address": "7yz9UPbg3NWfeYgyVe5JqLaNqnRXprpZ1T8C9LYFDsXb",
+  "name": "mihao / SOL",
+  "created_at": "2026-11-12T17:37:51Z",
+  "liquidity": 1665.4134,
+  "vol_h24": "119316.229675747"
+ },
+ {
+  "address": "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE",
+  "name": "SOL / USDC",
+  "created_at": "2023-07-05T14:34:02Z",
+  "liquidity": 20406183.4551,
+  "vol_h24": "87177920.0250503"
+ },
+ {
+  "address": "GuZpfnEvbqwHfPPU56NKNemm9yaxno4UbVfgVbokT58N",
+  "name": "Speed / SOL",
+  "created_at": "2026-11-12T15:55:53Z",
+  "liquidity": 1536.1549,
+  "vol_h24": "111523.645764818"
+ },
+ {
+  "address": "Ge2NifxbjwtbcZhcsPCVz9vt9iAeF1TcBfNdmrVXi69C",
+  "name": "NVDA / USDC",
+  "created_at": "2026-11-08T21:45:02Z",
+  "liquidity": 158959.0152,
+  "vol_h24": "6184578.39459037"
+ },
+ {
+  "address": "E1XDrrALLZJuzicaw7xBfQeSsFCWsZ6tY3dthWuB7GiU",
+  "name": "CASH / USDC",
+  "created_at": "2026-04-17T18:01:59Z",
+  "liquidity": null,
+  "vol_h24": "4559610.53788156"
+ },
+ {
+  "address": "A93DMtDhnCXjgu1zXoFYJ4aDYSVnwz72duPuebhNUdny",
+  "name": "YouTube / SOL",
+  "created_at": "2026-11-12T14:12:31Z",
+  "liquidity": 1600.8709,
+  "vol_h24": "244776.307648746"
+ },
+ {
+  "address": "BpRij4Qoyj5KkV2EGo65Ens9Tt6SbKeUcUNnWQScqhvW",
+  "name": "fomo / SOL",
+  "created_at": "2026-11-12T17:35:57Z",
+  "liquidity": 1532.5492,
+  "vol_h24": "121370.799473285"
+ },
+ {
+  "address": "6WyLSLxAEpgusFPbXGRMPaDN4wX7Cr9gX3pscyssn52V",
+  "name": "NVIDIA / SOL",
+  "created_at": "2026-11-12T00:29:42Z",
+  "liquidity": 1489.9097,
+  "vol_h24": "70542.1406444304"
+ },
+ {
+  "address": "3QzydBqY2i2SyZdF99brmewgeUCybyLADMm7zG6tLAhe",
+  "name": "GTA 6 / SOL",
+  "created_at": "2026-11-12T15:52:03Z",
+  "liquidity": 1552.6959,
+  "vol_h24": "114520.88284924"
+ },
+ {
+  "address": "6B9wkh26Nie8G2S1BHZ5dTaRezNDmqMJAGsGQncd7cr1",
+  "name": "mihao / SOL",
+  "created_at": "2026-11-12T11:01:41Z",
+  "liquidity": 1523.2161,
+  "vol_h24": "107544.767472343"
+ },
+ {
+  "address": "G23i3tbykp39YGGf677Fp5XULpHcYnRSyyRk3MARAVCJ",
+  "name": "OpenAI / SOL",
+  "created_at": "2026-11-12T05:47:10Z",
+  "liquidity": 1556.1537,
+  "vol_h24": "176598.540130578"
+ },
+ {
+  "address": "86tEz7YLcPW7KTmqxFZabzELCRfWzTTz2rh8wEnRPxTw",
+  "name": "Grok / SOL",
+  "created_at": "2026-11-12T15:01:34Z",
+  "liquidity": 1553.3687,
+  "vol_h24": "133243.47918303"
+ },
+ {
+  "address": "CSduZsmrkpkvAPuC1xaSUwFpjhg5BDGgHycyjY1xMEHK",
+  "name": "SpaceX / SOL",
+  "created_at": "2026-11-12T05:15:30Z",
+  "liquidity": 1600.1238,
+  "vol_h24": "120412.072698056"
+ },
+ {
+  "address": "8iPvWfxhG9Q4XS6X7e7Dp31nmNjtMhxt5p1nVvEwnspS",
+  "name": "MUSKX / SOL",
+  "created_at": "2026-11-12T02:18:12Z",
+  "liquidity": 1512.7562,
+  "vol_h24": "109332.086345742"
+ },
+ {
+  "address": "2YQw3cDQqgRqdzzNuRX2f68pPe7n8wom9AroV5pqJsf1",
+  "name": "GTA 6 Coin / SOL",
+  "created_at": "2026-11-12T15:46:22Z",
+  "liquidity": 1531.8492,
+  "vol_h24": "148657.914955658"
+ },
+ {
+  "address": "CvwFxjU5mkvKErKRZtrmd44qTwoq8Q42HFeHHnhMnpKZ",
+  "name": "Claude AI / SOL",
+  "created_at": "2026-11-12T17:52:37Z",
+  "liquidity": 1495.5227,
+  "vol_h24": "108666.935346914"
+ },
+ {
+  "address": "6R4r93V5fcMzc13CL2enEepDSYcr4Qx3ptZBDwudTXCo",
+  "name": "NVDAx / USDC",
+  "created_at": "2025-07-02T15:56:06Z",
+  "liquidity": 307660.9462,
+  "vol_h24": "3089521.91357398"
+ },
+ {
+  "address": "8yydDSGi9FFbuo1HgMw6mGn9dv8Qhpq8vy5YcBdxPy4E",
+  "name": "GTA 6 / SOL",
+  "created_at": "2026-11-12T10:59:11Z",
+  "liquidity": 1627.9647,
+  "vol_h24": "136676.83261277"
+ },
+ {
+  "address": "Gf7sXMoP8iRw4iiXmJ1nq4vxcRycbGXy5RL8a8LnTd3v",
+  "name": "USDC / SOL",
+  "created_at": "2025-02-24T03:59:53Z",
+  "liquidity": 5014925.2821,
+  "vol_h24": "4264159.37653089"
+ },
+ {
+  "address": "E2hopfojWLx56NPJy5esrWAqkip6iveQpLpHpPDb3gj2",
+  "name": "GTA 6 / SOL",
+  "created_at": "2026-11-12T01:25:45Z",
+  "liquidity": 1529.3449,
+  "vol_h24": "140671.293344502"
+ },
+ {
+  "address": "CgRXmwXJSnu7ayAK86u8bSJDDVisBTC4KEjxjQYaueyv",
+  "name": "XTO / USDC",
+  "created_at": "2026-11-09T16:04:49Z",
+  "liquidity": 1102039.8407,
+  "vol_h24": "160528.300354632"
+ },
+ {
+  "address": "8Hx3h8so9xpygjUU5HvbhuWMLGnziVSUjvwrnUvc7fUo",
+  "name": "XTO / USDC",
+  "created_at": "2026-11-10T04:29:35Z",
+  "liquidity": 755661.5939,
+  "vol_h24": "144373.941619185"
+ },
+ {
+  "address": "25ERc7qcUtnTd5fMUvT2xc7pi2rJnMtsoQd5x6VH5RU6",
+  "name": "USPR / USDC",
+  "created_at": "2026-11-09T15:01:56Z",
+  "liquidity": 1459616.5186,
+  "vol_h24": "143889.425468224"
+ },
+ {
+  "address": "7BAvEQQKdaXJZUw2wuuYYvQpEmAUjYnZXgUWynfWgSUh",
+  "name": "UDTF / USDC",
+  "created_at": "2026-11-09T15:56:40Z",
+  "liquidity": 1051592.7614,
+  "vol_h24": "146196.377103439"
+ },
+ {
+  "address": "G6APnHic1b8gAhJ5fFpmapcVpFiNkNTV3AnqcR8Zkvdh",
+  "name": "AODF / USDC",
+  "created_at": "2026-11-09T14:39:20Z",
+  "liquidity": 1448673.8,
+  "vol_h24": "139461.604859969"
+ },
+ {
+  "address": "3nYkqMizVuGYRHzAcSReprdZvm3sjLjZvSDzo3biP78W",
+  "name": "USOE / USDC",
+  "created_at": "2026-11-09T15:39:32Z",
+  "liquidity": 1140316.4969,
+  "vol_h24": "147055.86114804"
+ },
+ {
+  "address": "Bt4awtsPQMVnBLdgKXpUU1LvJdDWhheFtFgWrudmVNkU",
+  "name": "FOTF / USDC",
+  "created_at": "2026-11-09T15:21:54Z",
+  "liquidity": 1085251.5482,
+  "vol_h24": "152600.364644671"
+ },
+ {
+  "address": "3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv",
+  "name": "SOL / USDC",
+  "created_at": "2024-08-07T13:36:00Z",
+  "liquidity": 6117583.1709,
+  "vol_h24": "18664161.4683714"
+ },
+ {
+  "address": "6EMxBDYcQPrxsNjVwg63CcYSCxwKSMQ8nU1vR8fyuRZA",
+  "name": "UODF / USDC",
+  "created_at": "2026-11-10T16:33:17Z",
+  "liquidity": 766228.8311,
+  "vol_h24": "128654.714625328"
+ },
+ {
+  "address": "4hNakse1CZxix2mAx4LZwF5NaCuxMv7kwqPUKjheVvh8",
+  "name": "FOTF / USDC",
+  "created_at": "2026-11-10T16:45:07Z",
+  "liquidity": 782935.4579,
+  "vol_h24": "131860.926237819"
+ },
+ {
+  "address": "B946u46LXv3sxi7mi82k8yNmJavmxRSsAKTLEvZxqpcT",
+  "name": "mihao / SOL",
+  "created_at": "2026-11-12T04:20:38Z",
+  "liquidity": 1535.1942,
+  "vol_h24": "94517.5536590069"
+ },
+ {
+  "address": "22HUWiJaTNph96KQTKZVy2wg8KzfCems5nyW7E5H5J6w",
+  "name": "USDT / SOL",
+  "created_at": "2025-07-03T10:03:39Z",
+  "liquidity": 170822.9059,
+  "vol_h24": "307999.669572872"
+ },
+ {
+  "address": "HTvjzsfX3yU6BUodCjZ5vZkUrAxMDTrBs3CJaq43ashR",
+  "name": "SOL / USDC",
+  "created_at": "2024-03-19T03:11:43Z",
+  "liquidity": 159418.2496,
+  "vol_h24": "2462408.08069123"
+ },
+ {
+  "address": "Hv2gtPv1ehkY4igTKmgY11M19axH6QohqDXJSZNBWTpk",
+  "name": "Robinhood / SOL",
+  "created_at": "2026-11-12T11:54:37Z",
+  "liquidity": 1540.7061,
+  "vol_h24": "111120.02431249"
+ },
+ {
+  "address": "3Y4RXtkQWR7KvtoNnZ3NJCh2fc6hoKr7Suycw6fSVnKG",
+  "name": "UODF / SOL",
+  "created_at": "2026-11-11T09:50:04Z",
+  "liquidity": 0.0081,
+  "vol_h24": "29553300.6438734"
+ },
+ {
+  "address": "mstWeXpcbDNzbXas7Lwc6iraV8UX61WHrMsyShM4xzg",
+  "name": "vibeshift / SOL",
+  "created_at": "2026-11-11T23:04:09Z",
+  "liquidity": 14184.4812,
+  "vol_h24": "1159926.11931465"
+ },
+ {
+  "address": "2BnDAzFGhfiHeMaR7EHE82NckTuBGZMisoGXNhi2Nmeh",
+  "name": "DeepSeek / SOL",
+  "created_at": "2026-11-11T20:24:09Z",
+  "liquidity": 1524.1831,
+  "vol_h24": "134372.236057494"
+ },
+ {
+  "address": "BCMxTHkqG73dwgQY7oQjwL1BFxiNvUmH8rDpNQWzJoGb",
+  "name": "GTA 6 / SOL",
+  "created_at": "2026-11-12T06:39:20Z",
+  "liquidity": 1660.135,
+  "vol_h24": "104145.460569361"
+ },
+ {
+  "address": "AoMpRdhFkLM7hxgv2EAVYJAYfBFyNq1uyiU225P3QSFq",
+  "name": "Robinhood / SOL",
+  "created_at": "2026-11-12T01:01:47Z",
+  "liquidity": 1541.7026,
+  "vol_h24": "126881.679266998"
+ },
+ {
+  "address": "HdhUh8PoEKqtEA7YbxaQYRL9juhRBoBFxJj6wqGWwqXk",
+  "name": "Rockstar / SOL",
+  "created_at": "2026-11-12T05:44:41Z",
+  "liquidity": 1574.1259,
+  "vol_h24": "85881.1559009391"
+ },
+ {
+  "address": "hPfzWQjmYWKQkoB5i782Lz6cqSaDpJxSWHq2XwYdthU",
+  "name": "GTA 6 / SOL",
+  "created_at": "2026-11-12T13:48:09Z",
+  "liquidity": 1549.6762,
+  "vol_h24": "85735.6333918944"
+ },
+ {
+  "address": "58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2",
+  "name": "SOL / USDC",
+  "created_at": "2022-04-28T09:46:08Z",
+  "liquidity": 16848171.5506,
+  "vol_h24": "4456331.29580035"
+ },
+ {
+  "address": "EKqPmAYdN2kZGAyjt18weLQYCwT2Z2frkbHTPieKxunC",
+  "name": "mihao / SOL",
+  "created_at": "2026-11-12T13:01:45Z",
+  "liquidity": 1506.814,
+  "vol_h24": "109265.103029662"
+ },
+ {
+  "address": "58iQRQbAKgPU2ADzRLS4QJxBS2RsdUTEd567dPpMcLHe",
+  "name": "SPCX / SOL",
+  "created_at": "2026-10-08T14:30:02Z",
+  "liquidity": 64516.6144,
+  "vol_h24": "2740824.32946959"
+ },
+ {
+  "address": "7gd9jxqLMtN7hLm1uthhwM7ncnRJFGCN68XFExkAH1d6",
+  "name": "Google / SOL",
+  "created_at": "2026-11-11T20:21:35Z",
+  "liquidity": 1499.6684,
+  "vol_h24": "81987.7654141469"
+ },
+ {
+  "address": "23XoPQqGw9WMsLoqTu8HMzJLD6RnXsufbKyWPLJywsCT",
+  "name": "USDT / USDC",
+  "created_at": "2025-06-26T04:07:51Z",
+  "liquidity": 1062391.7359,
+  "vol_h24": "4510487.72118805"
+ },
+ {
+  "address": "BZqSeMMTVqqug1AjsoYYyaVrrzF55tVtNYayh7HdupGi",
+  "name": "Max / SOL",
+  "created_at": "2026-11-11T23:46:27Z",
+  "liquidity": 0.003042429693,
+  "vol_h24": "3397645.60437227"
+ },
+ {
+  "address": "HR85C1wP8EWmrmvfCXUqyLcBnvsiEprq1NB12ckLF5zh",
+  "name": "Rex / SOL",
+  "created_at": "2026-11-12T00:47:39Z",
+  "liquidity": 1669.3364,
+  "vol_h24": "704052.801022478"
+ },
+ {
+  "address": "EtLA6zbsTSWiQkd81e8WpkZcQqbRgye9wLSn62thMa2j",
+  "name": "DacityCoin / SOL",
+  "created_at": "2026-11-12T06:03:36Z",
+  "liquidity": 1488.3101,
+  "vol_h24": "93430.3572903469"
+ },
+ {
+  "address": "CRWCDWttGVRhm5oDFNgYF4AVaZx52HXpfXbhRRoqX7Ak",
+  "name": "AMD / AMD",
+  "created_at": "2026-11-12T16:02:24Z",
+  "liquidity": 51181.8429,
+  "vol_h24": "2119405.46443016"
+ },
+ {
+  "address": "GSucfCJDqx8pShmYr2KokoAbjUHjq6ivvAfkmi5A8KSB",
+  "name": "\u54aa\u597d / SOL",
+  "created_at": "2026-11-11T00:26:14Z",
+  "liquidity": 45352.9328,
+  "vol_h24": "1287638.21643886"
+ },
+ {
+  "address": "DGgmP6JHmPZA64WGx1icz2fSZ3WJZTnY1Z45cWvCX19b",
+  "name": "SI / SOL",
+  "created_at": "2026-11-12T15:15:43Z",
+  "liquidity": 1491.1082,
+  "vol_h24": "67200.1056801927"
+ },
+ {
+  "address": "GZNeZsGSGgB1wVQrV5eJJLzi8ST6EfcM6ZoNH52zg7hA",
+  "name": "HYPE / SOL",
+  "created_at": "2026-11-12T02:22:34Z",
+  "liquidity": 1520.6755,
+  "vol_h24": "67208.3320426013"
+ },
+ {
+  "address": "EofezMXukTt78PHbSPFQbPHE8wXd8K6ighoBdjDFjHtp",
+  "name": "Rockstar / SOL",
+  "created_at": "2026-11-12T10:28:27Z",
+  "liquidity": 1523.1128,
+  "vol_h24": "83628.725613316"
+ },
+ {
+  "address": "8PyqnfTH36QVWfRT9mCLLzuVjj1HrG31pjhJEzBZ9fAD",
+  "name": "XTO / SOL",
+  "created_at": "2026-11-12T11:59:06Z",
+  "liquidity": 890729.8901,
+  "vol_h24": "530806.350460444"
+ },
+ {
+  "address": "DyzGYEhdgSn5EEUt4XXviavZ7v7SV2YGrYV8HX3Aw5XT",
+  "name": "SOL / USD1",
+  "created_at": "2026-02-09T06:19:24Z",
+  "liquidity": 27982.4952,
+  "vol_h24": "144593.385955729"
+ },
+ {
+  "address": "EfkqaWhfSAyLEYtASpwBDrAerXg3rrRfggFyP9jWUBce",
+  "name": "IMG / SOL",
+  "created_at": "2026-11-12T18:54:27Z",
+  "liquidity": 27527.7619,
+  "vol_h24": "59448.4470917554"
+ },
+ {
+  "address": "BKuWVT66paCpS5YXowV8mcmgWbvBc53AtF3jBspCrCZa",
+  "name": "BALLS / SOL",
+  "created_at": "2026-11-12T16:22:49Z",
+  "liquidity": 1676.684,
+  "vol_h24": "534367.539698871"
+ },
+ {
+  "address": "6tKtM6cEFzL3UM1DbFLjY9oEu481j26SCfsVCv2JNKC1",
+  "name": "UCI / SOL",
+  "created_at": "2026-11-11T13:37:21Z",
+  "liquidity": 114730.2225,
+  "vol_h24": "79922.2131861284"
+ },
+ {
+  "address": "HpajC1u5H7QewiKvJBKGy7uWNFnsKmSmGkhT7pjfFXL9",
+  "name": "GTA 6 Coin / SOL",
+  "created_at": "2026-11-12T18:08:20Z",
+  "liquidity": 1735.6341,
+  "vol_h24": "115568.357859087"
+ },
+ {
+  "address": "5XQ2PjAoHc2MLoWGATDuobj5hCLDAyxGFA9Yv3UtQJ4D",
+  "name": "PAID / SOL",
+  "created_at": "2026-11-12T09:24:31Z",
+  "liquidity": 1486.4203,
+  "vol_h24": "56685.9319603161"
+ },
+ {
+  "address": "FksffEqnBRixYGR791Qw2MgdU7zNCpHVFYBL4Fa4qVuH",
+  "name": "SOL / USDC",
+  "created_at": "2026-01-26T07:12:48Z",
+  "liquidity": 45378.9729,
+  "vol_h24": "13302931.7904187"
+ },
+ {
+  "address": "kLHa4xqSRezGxr6kp1VtKLn783qXA1xd8MppW44DkHa",
+  "name": "X / SOL",
+  "created_at": "2026-11-12T01:17:37Z",
+  "liquidity": 18112.9387,
+  "vol_h24": "2281592.38361234"
+ },
+ {
+  "address": "4CDMGuXpifDZGzDgKt5aU9hbD7n9W2zdi5xKtjkccwSG",
+  "name": "MrBeast / SOL",
+  "created_at": "2026-11-12T19:12:47Z",
+  "liquidity": 29142.9283,
+  "vol_h24": "75330.8754955887"
+ },
+ {
+  "address": "6Eu9Jhiwmatp5mh1yif9ZS53SbDoW15dEJsEJDDLQnmp",
+  "name": "AMD / SOL",
+  "created_at": "2026-11-12T16:55:01Z",
+  "liquidity": 1.104995058e-06,
+  "vol_h24": "3406794.52003551"
+ },
+ {
+  "address": "6J87wM4WW1zLKYrJPd8EdnJGFtoAZYwzAJavHmfksgt1",
+  "name": "MrBeast / SOL",
+  "created_at": "2026-11-12T09:39:15Z",
+  "liquidity": 1589.0395,
+  "vol_h24": "97213.3620463607"
+ },
+ {
+  "address": "DBySajZiK9593SUxZXyK5hrQW5AE8EJPqjBK4bQhiHQz",
+  "name": "GTA 6 Coin / SOL",
+  "created_at": "2026-11-12T05:44:30Z",
+  "liquidity": 1503.9707,
+  "vol_h24": "120575.671538649"
+ },
+ {
+  "address": "CSoXAuNxZzdGmnqLrvkwpiDzYX8Ct6LbkAGRZGkV7SC5",
+  "name": "Rockstar / SOL",
+  "created_at": "2026-11-12T00:25:31Z",
+  "liquidity": 1504.5172,
+  "vol_h24": "91917.3701443544"
+ },
+ {
+  "address": "8H8ZcAModeK4WkQDFEu42YbzMHKRaFs6YtDQiAu2yc1v",
+  "name": "GTA 6 / SOL",
+  "created_at": "2026-11-12T08:12:02Z",
+  "liquidity": 1534.7033,
+  "vol_h24": "85779.0611130533"
+ },
+ {
+  "address": "C6fyFsNZKkoJs3o3QX9qnwuqdrsoximW2K7PdQTgb3rz",
+  "name": "mihao / SOL",
+  "created_at": "2026-11-12T07:52:04Z",
+  "liquidity": 1516.6131,
+  "vol_h24": "70476.9764322125"
+ },
+ {
+  "address": "5yKNPRkRPh7RsfTqiZJBQUfQ3uEnhVuD8uAtQoeJLRr4",
+  "name": "GTA 6 Coin / SOL",
+  "created_at": "2026-11-11T23:39:49Z",
+  "liquidity": 1496.1875,
+  "vol_h24": "70739.3666584041"
+ },
+ {
+  "address": "9GTj99g9tbz9U6UYDsX6YeRTgUnkYG6GTnHv3qLa5aXq",
+  "name": "SOL / USDC",
+  "created_at": "2025-06-26T04:07:51Z",
+  "liquidity": 34114.4532,
+  "vol_h24": "79246.7871656163"
+ },
+ {
+  "address": "2eKTPWsTgC6QF9Vh2YNkSHKeZif4YxD92o2MX945Vi4B",
+  "name": "Rockstar / SOL",
+  "created_at": "2026-11-12T05:27:34Z",
+  "liquidity": 1643.6951,
+  "vol_h24": "223461.618174642"
+ },
+ {
+  "address": "9jtXBiuMAqYqeJ5eY1r4Ypqe1sFyVTTXhGkZum9u6EEK",
+  "name": "GTA 6 Coin / SOL",
+  "created_at": "2026-11-12T07:46:06Z",
+  "liquidity": 1544.4055,
+  "vol_h24": "64721.0667352608"
+ },
+ {
+  "address": "DfZ7FprAovim4sYS1LfsayBdcMhMWqCCFXbmDXByeEgv",
+  "name": "X\u200aTO / USDC",
+  "created_at": "2026-11-10T12:55:33Z",
+  "liquidity": 622489.1464,
+  "vol_h24": "108660.217358962"
+ },
+ {
+  "address": "Vv5dvRodquSJkdaL6j2qw5aAkXHssRTnjfZfwZvYbtk",
+  "name": "Robinhood / SOL",
+  "created_at": "2026-11-12T17:42:08Z",
+  "liquidity": 1516.3236,
+  "vol_h24": "63086.187017804"
+ },
+ {
+  "address": "7qZPiJ2Lvwh9DV9gUBH2EwConBE3RUrAvGRjpN8vTjtT",
+  "name": "TTWO / SOL",
+  "created_at": "2026-10-15T13:44:29Z",
+  "liquidity": 157590.9562,
+  "vol_h24": "3879338.53037495"
+ },
+ {
+  "address": "5dzAbdHwwBNazztFgvMUjEsuPWotWAD8joCHv9ckaSq7",
+  "name": "Rockstar / SOL",
+  "created_at": "2026-11-12T16:07:17Z",
+  "liquidity": 1487.6441,
+  "vol_h24": "56106.8651830356"
+ },
+ {
+  "address": "8sjV1AqBFvFuADBCQHhotaRq5DFFYSjjg1jMyVWMqXvZ",
+  "name": "USDT / USDC",
+  "created_at": "2026-04-17T18:01:15Z",
+  "liquidity": null,
+  "vol_h24": "5592828.46154083"
+ },
+ {
+  "address": "CyqLG3yXykxZXeWYZK1319tyWtsMAz4h23Mx185Y46z3",
+  "name": "GTA 6 Coin / SOL",
+  "created_at": "2026-11-12T14:23:22Z",
+  "liquidity": 1514.4585,
+  "vol_h24": "78284.888396971"
+ },
+ {
+  "address": "6euMigJmbY7uWqzCGHj8EJzvxLShD3QbNhsGgRDgRYJE",
+  "name": "MACE / SOL",
+  "created_at": "2026-11-12T04:08:52Z",
+  "liquidity": 0.0326,
+  "vol_h24": "19262648.5715824"
+ },
+ {
+  "address": "CYbD9RaToYMtWKA7QZyoLahnHdWq553Vm62Lh6qWtuxq",
+  "name": "SOL / USDC",
+  "created_at": "2024-08-03T14:14:00Z",
+  "liquidity": 307028.5351,
+  "vol_h24": "1209629.90863148"
+ },
+ {
+  "address": "GUWFT7bbLphGrcpAPnnEnBbe1uErv9e6LLC2qPx2wZy1",
+  "name": "BIRB / USDC",
+  "created_at": "2026-01-27T23:28:53Z",
+  "liquidity": 1582034.8037,
+  "vol_h24": "1068354.44222629"
+ },
+ {
+  "address": "HaT47g58kKyVv3FLygrVDbACbqmNth5fiakkJoatXoi5",
+  "name": "MrBeast / SOL",
+  "created_at": "2026-11-12T11:35:34Z",
+  "liquidity": 1514.8326,
+  "vol_h24": "79075.4959635131"
+ },
+ {
+  "address": "GSCtD3Hv6G7vPQ3BjJybWF9oqEJbzoUhPdQC8fJFigUX",
+  "name": "GTA 6 Coin / SOL",
+  "created_at": "2026-11-12T00:46:08Z",
+  "liquidity": 1503.3107,
+  "vol_h24": "104326.475946999"
+ },
+ {
+  "address": "C11ucSZ7YTgYJiQH6Z72vQFa4eYuFWHU1ZSTuPU7F44e",
+  "name": "ChatGPT / SOL",
+  "created_at": "2026-11-12T13:15:30Z",
+  "liquidity": 1592.4795,
+  "vol_h24": "77110.5820431057"
+ },
+ {
+  "address": "H5WEQUKhWJSGB5WfiKwjLdMtxJGbQVZNSojHQfNRRCn5",
+  "name": "fomo / SOL",
+  "created_at": "2026-11-12T11:45:26Z",
+  "liquidity": 1527.0381,
+  "vol_h24": "83279.3859993652"
+ },
+ {
+  "address": "4p4QKMRsvscC4MrZ6VX2TH6fRuMq2byC4nct7v5bRdiT",
+  "name": "Dacity / SOL",
+  "created_at": "2026-11-12T04:16:22Z",
+  "liquidity": 0.001050856561,
+  "vol_h24": "2948398.1683281"
+ },
+ {
+  "address": "B36wTHhPGTxHyWwiCykRQ5YccbTgUpkyG3s2p1uuwLzb",
+  "name": "arigato / SOL",
+  "created_at": "2026-11-12T06:51:00Z",
+  "liquidity": 38058.3482,
+  "vol_h24": "2898717.34807365"
+ },
+ {
+  "address": "5JitmfatC2AMW6j5PYTHAEJ91ahM9AnUDXLmHzBd78VR",
+  "name": "Shiqi / SOL",
+  "created_at": "2026-11-12T09:02:01Z",
+  "liquidity": 0.000991973273,
+  "vol_h24": "2584727.05610865"
+ },
+ {
+  "address": "5nwdWtMHvrcUPJpoXSYWcPQv9wkoNzhCME5XJ4KmktzJ",
+  "name": "Max / SOL",
+  "created_at": "2026-11-11T21:30:01Z",
+  "liquidity": 80408.7669,
+  "vol_h24": "6883300.46265605"
+ },
+ {
+  "address": "429yhHYgy6X9tVgL5ThL5AF4eE7cz52c18ZM5uouCdQZ",
+  "name": "mihao / SOL",
+  "created_at": "2026-11-12T15:58:53Z",
+  "liquidity": 1498.339,
+  "vol_h24": "89251.0898510676"
+ },
+ {
+  "address": "3MU6fcLdKYgp1MvGA9CfgkAeZwLAVZqQHb3ZpXychZQo",
+  "name": "BARRON / SOL",
+  "created_at": "2026-11-12T14:00:30Z",
+  "liquidity": 1466.959,
+  "vol_h24": "31062.2857358918"
+ },
+ {
+  "address": "DFzSk9socemJGVCnTDQmwmFE3xHR4186mcL96ce5nm8x",
+  "name": "X / SOL",
+  "created_at": "2026-11-12T01:11:47Z",
+  "liquidity": 12109.4621,
+  "vol_h24": "1820801.28288696"
+ },
+ {
+  "address": "3vDe7J9q4dokEN2NnGJpU6DeCyWVCxrU9AqUgwqUsVW8",
+  "name": "NVDA / SOL",
+  "created_at": "2026-11-12T15:08:38Z",
+  "liquidity": 1486.1567,
+  "vol_h24": "61625.8956975413"
+ },
+ {
+  "address": "FpCMFDFGYotvufJ7HrFHsWEiiQCGbkLCtwHiDnh7o28Q",
+  "name": "SOL / USDC",
+  "created_at": "2023-07-05T14:39:00Z",
+  "liquidity": 127866.5148,
+  "vol_h24": "329360.550085414"
+ },
+ {
+  "address": "BwTQPxFN2i8tvtNcZFsVHK1rJv7kW3Ec5qJrhJe1Yniq",
+  "name": "GTA 6 Coin / SOL",
+  "created_at": "2026-11-12T03:46:11Z",
+  "liquidity": 1502.7919,
+  "vol_h24": "82542.2491486741"
+ },
+ {
+  "address": "ET1JshYH92NBc8fY27H4MnMAmBJYmJRBuKoFmaqtSCNd",
+  "name": "RM / SOL",
+  "created_at": "2026-11-12T14:22:42Z",
+  "liquidity": 8.05346406592316e-07,
+  "vol_h24": "2628173.58499975"
+ },
+ {
+  "address": "Hqmfsy9jzZckLQNmT3y9cMB1ZatnCGHgxQ7W3ZqitPHD",
+  "name": "SpaceX / SOL",
+  "created_at": "2026-11-12T04:27:09Z",
+  "liquidity": 1539.907,
+  "vol_h24": "70019.3779482974"
+ },
+ {
+  "address": "3HTkGtYKzfCYM2RJbzn1E61nzLfv41f57GnFfFJY5KL6",
+  "name": "GTA 6 / SOL",
+  "created_at": "2026-11-12T09:43:41Z",
+  "liquidity": 1510.9419,
+  "vol_h24": "72408.0284989853"
+ },
+ {
+  "address": "CjqjHtMaGHEFkPcH4JLmwQehooueCVPFTsYitemRRd1e",
+  "name": "\u7edf\u4e00 / SOL",
+  "created_at": "2026-11-12T06:55:01Z",
+  "liquidity": 0.0002937752981,
+  "vol_h24": "2624138.38841397"
+ },
+ {
+  "address": "BCYFx5V9KkfuD948z1j63dSWo2ZjiWEE7Q6R8WLyDF9W",
+  "name": "GTA 6 / SOL",
+  "created_at": "2026-11-11T20:27:56Z",
+  "liquidity": 1512.8808,
+  "vol_h24": "80328.5089188512"
+ },
+ {
+  "address": "H2nVmDJ26LAAKAnoGmSFksrcSK91QHKN4nQp99vmqqEv",
+  "name": "Rockstar / SOL",
+  "created_at": "2026-11-12T03:14:24Z",
+  "liquidity": 1544.686,
+  "vol_h24": "111739.474315917"
+ },
+ {
+  "address": "BAsswRbAimLfAXGjJn22gC9PQHTMaA9N6fqrkZTiWqzY",
+  "name": "Rockstar / SOL",
+  "created_at": "2026-11-12T03:36:17Z",
+  "liquidity": 1524.9953,
+  "vol_h24": "59792.8706109833"
+ },
+ {
+  "address": "HKrxUziJNNtrZddAa8gSAq63M4xvdiCEHVCXLm69ASh7",
+  "name": "ELON / SOL",
+  "created_at": "2026-11-12T00:27:15Z",
+  "liquidity": 1482.0034,
+  "vol_h24": "43976.370205437"
+ },
+ {
+  "address": "8yZkkvRBw1CeuV29jzpvL79Y1CDAmV6cKTHuq63ZCaHW",
+  "name": "GTA 6 Coin / SOL",
+  "created_at": "2026-11-12T19:50:05Z",
+  "liquidity": 38828.7818,
+  "vol_h24": "39423.9331079389"
+ },
+ {
+  "address": "4RRXzRwv1yUN1YRjaaXyz3pjTFf3DBmd5aU2N2URytwn",
+  "name": "Rockstar / SOL",
+  "created_at": "2026-11-11T19:51:16Z",
+  "liquidity": 1598.762,
+  "vol_h24": "71373.3075263813"
+ },
+ {
+  "address": "AV2bYMmsfsFnvtGDMKZGtnsg9e8MzCoWsmm6iHSnkkLk",
+  "name": "GTA Six / SOL",
+  "created_at": "2026-11-12T12:31:27Z",
+  "liquidity": 1644.8814,
+  "vol_h24": "246303.885462767"
+ },
+ {
+  "address": "38rXq2BuwdNcfnwydw6S2srpNK9N4gVzf39f69suPMsF",
+  "name": "NVDAx / SOL",
+  "created_at": "2025-07-03T20:34:27Z",
+  "liquidity": 356787.4056,
+  "vol_h24": "2679834.57843073"
+ },
+ {
+  "address": "3uuGL12i4wEynC2pmQcc116wAh5jGqoB2BKUEHtpBTvr",
+  "name": "bmw / SOL",
+  "created_at": "2026-11-12T02:17:26Z",
+  "liquidity": 2626.5585,
+  "vol_h24": "59412.0525624594"
+ },
+ {
+  "address": "4QU2NpRaqmKMvPSwVKQDeW4V6JFEKJdkzbzdauumD9qN",
+  "name": "SOL / USDC",
+  "created_at": "2025-07-03T10:03:39Z",
+  "liquidity": 458641.4701,
+  "vol_h24": "4158298.15135906"
+ },
+ {
+  "address": "869B4a4UCr4rw5qdM2s7gEiRC9Z1DvJ8TZYai2c42d4G",
+  "name": "FLC / SOL",
+  "created_at": "2026-11-12T05:42:48Z",
+  "liquidity": 0.000243096647,
+  "vol_h24": "2630711.63934443"
+ },
+ {
+  "address": "4yqWAppWekY3tnYxbZsuQswXMq9755p98vBCxZSzwRuX",
+  "name": "Robinhood / SOL",
+  "created_at": "2026-11-12T19:21:16Z",
+  "liquidity": 1574.9675,
+  "vol_h24": "55459.4112471052"
+ },
+ {
+  "address": "9eTpuokzkShkz9GSFrQ1cPpow8beSx1ZXE7UtTQUrAFT",
+  "name": "TTP / SOL",
+  "created_at": "2026-11-07T11:02:38Z",
+  "liquidity": 112848.0221,
+  "vol_h24": "102205.863649289"
+ },
+ {
+  "address": "7uRVh6tYX8WBGt9JdNf3hLwDnrjyaG35pvqQJA4cEnCY",
+  "name": "Shiqi / SOL",
+  "created_at": "2026-11-12T09:16:50Z",
+  "liquidity": 290360.8302,
+  "vol_h24": "14536032.6284652"
+ },
+ {
+  "address": "H18riUQpX8ZvbYJ4hUHLgcBRBpdZHsrTD4nTFp9DvgHT",
+  "name": "AXIOM / SOL",
+  "created_at": "2026-11-12T15:02:52Z",
+  "liquidity": 1513.017,
+  "vol_h24": "52271.1481842833"
+ },
+ {
+  "address": "GsSDisfzsCpvjfiXBrD2fPrrnFhun2tmBfuwV5PoHxFx",
+  "name": "\u725bX / SOL",
+  "created_at": "2026-11-12T13:13:25Z",
+  "liquidity": 0.002003471022,
+  "vol_h24": "2317509.45328547"
+ },
+ {
+  "address": "CjdkgxH7wJrC1dsqR1vqpQUEiTzgiH5NBCAtWFJRLCw6",
+  "name": "FLC / SOL",
+  "created_at": "2026-11-12T09:11:44Z",
+  "liquidity": 293736.5394,
+  "vol_h24": "14249641.384376"
+ },
+ {
+  "address": "AN3TjJWqrmnCbkSVxZtJPo3KLRyMw7jy27bHHU75Xc8u",
+  "name": "MrBeast / SOL",
+  "created_at": "2026-11-12T01:45:29Z",
+  "liquidity": 1517.7918,
+  "vol_h24": "77837.1586699607"
+ },
+ {
+  "address": "FwewVm8u6tFPGewAyHmWAqad9hmF7mvqxK4mJ7iNqqGC",
+  "name": "USDT / SOL",
+  "created_at": "2024-01-04T18:13:03Z",
+  "liquidity": 393045.8073,
+  "vol_h24": "248373.611574752"
+ },
+ {
+  "address": "A1jNpicCiFsvCN8xFNbi4dLD3nQuqKCFQZZwiSr3u5iV",
+  "name": "NVIDIA / SOL",
+  "created_at": "2026-11-11T23:51:44Z",
+  "liquidity": 1482.1011,
+  "vol_h24": "42081.5271839061"
+ },
+ {
+  "address": "J6XGsvRF5uTuZJiQoZN7pDe8n6Qhzdbw8ypeAv1F16VV",
+  "name": "NVIDIA / SOL",
+  "created_at": "2026-11-11T23:09:31Z",
+  "liquidity": 1503.293,
+  "vol_h24": "41651.0801391867"
+ },
+ {
+  "address": "4daoPBM2XQv9TghSeb13R2MXqokBjZmMuBeMyJEuU5so",
+  "name": "Max / SOL",
+  "created_at": "2026-11-11T21:18:53Z",
+  "liquidity": 1051.4671,
+  "vol_h24": "158408.56303074"
+ },
+ {
+  "address": "7o7cpdEEEasS1woeGVCGXjUk7pdRzkiyVynXrgHKaksL",
+  "name": "X / SOL",
+  "created_at": "2026-11-12T07:06:14Z",
+  "liquidity": 33470.1798,
+  "vol_h24": "96996.9800348239"
+ },
+ {
+  "address": "FLZQJBh5YSS9sCHjccrXFkzJihGHGXoYACGVAsaB7Vd",
+  "name": "Oranges / SOL",
+  "created_at": "2026-11-12T18:29:31Z",
+  "liquidity": 0.000428698078,
+  "vol_h24": "1898730.11448843"
+ },
+ {
+  "address": "EqUMZUx2RNu9FEXKGnyBspV1F7Z9cyxP46FEvjRA7gsG",
+  "name": "Rockstar / SOL",
+  "created_at": "2026-11-12T01:56:31Z",
+  "liquidity": 1507.7053,
+  "vol_h24": "49860.7145510332"
+ },
+ {
+  "address": "CxgM7unM2oBMvqjBuNXM8B4UXeGfPqG5RPLufBatHMD",
+  "name": "Huang / SOL",
+  "created_at": "2026-11-12T15:23:58Z",
+  "liquidity": 9.307274785e-07,
+  "vol_h24": "11688437.6519634"
+ },
+ {
+  "address": "2j6Zt7h77wXFWHA3NupCXE1xdTqNcxxmraQXJ27HLTL1",
+  "name": "MAX / SOL",
+  "created_at": "2026-11-11T22:42:08Z",
+  "liquidity": 1584.4351,
+  "vol_h24": "293298.206430683"
+ },
+ {
+  "address": "Aq7nhS8pDPRvPA2uWotwyk79aG8Hfegf5CdA3iXABxAR",
+  "name": "NVDA / NVDAx",
+  "created_at": "2026-11-09T04:51:02Z",
+  "liquidity": 29969.7678,
+  "vol_h24": "3193334.4201857"
+ },
+ {
+  "address": "8bPJ9dLKcPwbzwcEg8MjfunHJy8XhYXRkFBmjB5gLbNj",
+  "name": "Max / SOL",
+  "created_at": "2026-11-12T06:05:14Z",
+  "liquidity": 393190.8305,
+  "vol_h24": "322146.36012846"
+ },
+ {
+  "address": "CarcJigrho2vAdgmdekbjCRUR62Z45vRCH1KugH3V758",
+  "name": "X / SOL",
+  "created_at": "2026-11-12T07:48:03Z",
+  "liquidity": 1515.3271,
+  "vol_h24": "78465.3860536541"
+ },
+ {
+  "address": "AQFC3QfATJggPQEuQGS65RuAQq5u2Pin6MYjz1eu4s31",
+  "name": "inuhao / SOL",
+  "created_at": "2026-11-12T10:16:17Z",
+  "liquidity": 102798.9017,
+  "vol_h24": "2036675.8718806"
+ },
+ {
+  "address": "AnGQLECP7ArEFpmBptjVmgf1Pm9j3NeEJqHtTo2wvKWw",
+  "name": "Anthropic / SOL",
+  "created_at": "2026-11-12T00:20:12Z",
+  "liquidity": 1526.0295,
+  "vol_h24": "62156.5684122708"
+ },
+ {
+  "address": "tVbNSX1rpPHy3we9nnPKYWKx26jvNtkrD18BNu5NbeX",
+  "name": "POPVAX / SOL",
+  "created_at": "2026-11-12T03:50:14Z",
+  "liquidity": 6.86708893e-05,
+  "vol_h24": "2337333.74696045"
+ },
+ {
+  "address": "8JrY8TSh5bkaR87ytYgNJxipV4Mh5yzABEvJvuNPz6o7",
+  "name": "MAX / SOL",
+  "created_at": "2026-11-12T02:04:04Z",
+  "liquidity": 1702.5423,
+  "vol_h24": "571710.985990778"
+ },
+ {
+  "address": "HkscQAUdwnvhBfG6mtogidmEtfbNzvUHywX94RsS6Tb",
+  "name": "Dihcity / SOL",
+  "created_at": "2026-11-12T04:54:10Z",
+  "liquidity": 8.349964338e-05,
+  "vol_h24": "2015879.07365542"
+ },
+ {
+  "address": "6f8jTVm26tSJU8mUtozNCQ6GxqWKFBkbv4HgfTaGs32M",
+  "name": "\u5e01\u5b89\u751f\u6d3b / SOL",
+  "created_at": "2026-11-12T08:53:02Z",
+  "liquidity": 0.0001645566907,
+  "vol_h24": "2212596.96370555"
+ },
+ {
+  "address": "8W564dqm5RJm1DGqnraSTDNdPz9nPwPxbNFm1QD5zVBD",
+  "name": "Coinbase / SOL",
+  "created_at": "2026-11-12T02:44:19Z",
+  "liquidity": 1524.9127,
+  "vol_h24": "71339.7827377878"
+ },
+ {
+  "address": "J9QzbZrfkZ6LCAhsCNUWvETR5TPwejbcCfHvceRUueKJ",
+  "name": "MIHAO VI / SOL",
+  "created_at": "2026-11-11T20:29:39Z",
+  "liquidity": 1720.0322,
+  "vol_h24": "509566.721996832"
+ },
+ {
+  "address": "H9cKr3xDcydh9R84Zd9kKdmtXEJBuzLFtTvKnSQmNCvJ",
+  "name": "XTO / SOL",
+  "created_at": "2026-11-11T03:04:48Z",
+  "liquidity": 331468.606,
+  "vol_h24": "264059.130584616"
+ },
+ {
+  "address": "3h9GhSUzozu2eRQ9MCLCeHWYshywm4mqbzPtz2h1zGMF",
+  "name": "SPCX / SOL",
+  "created_at": "2026-06-12T23:16:59Z",
+  "liquidity": 197934.8438,
+  "vol_h24": "2330708.15439209"
+ },
+ {
+  "address": "EaY6Xudk9KUwKXpBDBpmbB5yvsH8o6S2odocDNUGRt8D",
+  "name": "Rockstar / SOL",
+  "created_at": "2026-11-12T03:01:16Z",
+  "liquidity": 1489.6094,
+  "vol_h24": "40888.6724531792"
+ },
+ {
+  "address": "68HWCnQortAM9D2QYJqnqqH3RfgvkVEzxawVAjh8Ljok",
+  "name": "Parrot / SOL",
+  "created_at": "2026-11-12T11:32:49Z",
+  "liquidity": 0.0081,
+  "vol_h24": "1612482.64964617"
+ },
+ {
+  "address": "AcKkEZMSpYMVrLFW2vkVBEAZqTXWa7ujjQPCmGSJbc5n",
+  "name": "Rockstar / SOL",
+  "created_at": "2026-11-12T01:10:35Z",
+  "liquidity": 1603.6182,
+  "vol_h24": "45595.1494648929"
+ },
+ {
+  "address": "BrPbBdJatsybif6YhvdoLVG8S7mjcFKb69rPX1tJ25VX",
+  "name": "ANTH / SOL",
+  "created_at": "2026-11-11T11:40:15Z",
+  "liquidity": 2.521449967e-06,
+  "vol_h24": "13883831.4811819"
+ },
+ {
+  "address": "ABwh1ofw3qxMcf3SxkoSsK2zExdYfVGoAqxmNHqWdvSq",
+  "name": "mihao / USDC",
+  "created_at": "2026-11-11T12:56:15Z",
+  "liquidity": 20639.8667,
+  "vol_h24": "760696.226807389"
+ },
+ {
+  "address": "7WjoRebmp5Hg3og2J2uta14pWmdxC8t5V5zco2nDLAdy",
+  "name": "Rockstar / SOL",
+  "created_at": "2026-11-12T14:28:37Z",
+  "liquidity": 1505.3846,
+  "vol_h24": "50812.3821493958"
+ },
+ {
+  "address": "7gZmfuUaXdVW6rCEbATiadZN83XDPzbe1UbjMRsFEfKg",
+  "name": "Rockstar / SOL",
+  "created_at": "2026-11-12T12:28:22Z",
+  "liquidity": 1496.4283,
+  "vol_h24": "49157.3034979597"
+ },
+ {
+  "address": "GFgQGBXXrTi68fn5s5arYUrZkyY4Fv2YQVnv1wfFYW8X",
+  "name": "Max / SOL",
+  "created_at": "2026-11-11T23:48:21Z",
+  "liquidity": 1.650162865e-06,
+  "vol_h24": "1815274.99434309"
+ },
+ {
+  "address": "8Pm2kZpnxD3hoMmt4bjStX2Pw2Z9abpbHzZxMPqxPmie",
+  "name": "SOL / USDC",
+  "created_at": "2025-08-12T08:05:27Z",
+  "liquidity": 1261885.8905,
+  "vol_h24": "1479543.34065673"
+ },
+ {
+  "address": "Cr2zb162TGAafWyJAjaZGgoakx6dWptEcUALpcU4xA2W",
+  "name": "GTA 6 Coin / SOL",
+  "created_at": "2026-11-11T21:53:12Z",
+  "liquidity": 1485.3067,
+  "vol_h24": "52705.0357824281"
+ },
+ {
+  "address": "EXMcKF76kmBUH8xZ5fi1jv3ezh3eVQCeL4rQbpjCRxvF",
+  "name": "USDG / USDC",
+  "created_at": "2026-04-17T18:01:59Z",
+  "liquidity": null,
+  "vol_h24": "49369306.1256365"
+ },
+ {
+  "address": "5TecgcpFLdBnJvBrpjvk32UAYABPRA1HgeFPEUjQQkYK",
+  "name": "BIG / TTWO",
+  "created_at": "2026-11-08T16:11:50Z",
+  "liquidity": 48299.9839,
+  "vol_h24": "75810.3358760906"
+ },
+ {
+  "address": "utKHLmWnfhrEEkkTaT6Nm7ndADV5i5TmGtpSZihFWAc",
+  "name": "POPVAX / SOL",
+  "created_at": "2026-11-12T03:48:06Z",
+  "liquidity": 0.000383368199,
+  "vol_h24": "2035471.26388897"
+ },
+ {
+  "address": "5BQCndqT4ZHv4PDqVX4kXD2rZNLfDb64akKd1ATrVwsz",
+  "name": "STONK / USDC",
+  "created_at": "2026-10-04T05:57:40Z",
+  "liquidity": 146883.9305,
+  "vol_h24": "961949.425118656"
+ },
+ {
+  "address": "GxgqiMvQNX6FAGs71Dr9tJJUMhfsQFyGd8SeZjmdE7Q6",
+  "name": "Rex / SOL",
+  "created_at": "2026-11-12T00:44:09Z",
+  "liquidity": 0.001782782579,
+  "vol_h24": "1926449.77420854"
+ },
+ {
+  "address": "FLhjYN5g6tFnmsaxQZMTTWsyZ7bXwTCB5UhiS3ftghqG",
+  "name": "WOULD / SOL",
+  "created_at": "2026-11-12T19:44:22Z",
+  "liquidity": 37446.5458,
+  "vol_h24": "2236297.0026149"
+ },
+ {
+  "address": "4EU125A9ruqAvMSNWAuFc5GHEdB3Jt3bS3keB6EMiuu5",
+  "name": "UODF / USDC",
+  "created_at": "2026-11-09T13:55:31Z",
+  "liquidity": 314791.7442,
+  "vol_h24": "618557.501598006"
+ },
+ {
+  "address": "X1BLFYFDYMuFTppgmR9R6rtExo4qXTvsepxgzTtrG1q",
+  "name": "UCI / USDC",
+  "created_at": "2026-11-05T04:24:52Z",
+  "liquidity": 66615.4853,
+  "vol_h24": "75961.4575677475"
+ },
+ {
+  "address": "UuDoV5xXMjWbCASnxHsLeuoM56rJm2DogYUGKtEbkSH",
+  "name": "Huang / SOL",
+  "created_at": "2026-11-12T16:18:10Z",
+  "liquidity": 1.618156978e-07,
+  "vol_h24": "10136922.8079283"
+ },
+ {
+  "address": "3igwTbUSLH5axbTDK6yHoe9SeUmuavCeJk8M3TJss1zw",
+  "name": "Parrot / SOL",
+  "created_at": "2026-11-12T11:29:47Z",
+  "liquidity": 0.000469242891702849,
+  "vol_h24": "2001563.46573448"
+ },
+ {
+  "address": "ASvFi45yphKhx6ej9gJEDvTedXcXjhKjkhm3hRERuU2",
+  "name": "AMD / USDC",
+  "created_at": "2026-09-16T14:10:05Z",
+  "liquidity": 112409.2968,
+  "vol_h24": "1546804.51994638"
+ }
+]
