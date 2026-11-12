@@ -215,21 +215,3 @@ AGENT = {
 }
 
 
-# ---------- Self-tune (MERGE, from old desk autotune idea): PAPER entry gates only ----------
-# Never touches stops, caps, daily loss, scam kills (mint/freeze/top wallet/dev) or live. Every change is logged.
-AUTOTUNE = {
-    "enabled": True,
-    "interval_minutes": 30,
-    "idle_loosen_hours": 2.0,      # no paper entry for this long -> loosen the most-blocking gate one notch
-    "min_closed_to_judge": 6,      # closed paper trades needed before win rate counts
-    "tighten_below_win_rate": 0.35,
-    "loosen_above_win_rate": 0.55,
-    "window_trades": 10,
-    # gate: (where, key, step toward LOOSER, hard floor/ceiling for the loose end, tight end)
-    "gates": {
-        "score":      {"loose_end": 4,       "tight_end": 6,       "step": 1},   # owner: never above 6 on its own
-        "volume_h1":  {"loose_end": 3_000,   "tight_end": 20_000,  "step": 1_000},
-        "trades_h1":  {"loose_end": 30,      "tight_end": 120,     "step": 10},
-        "top_10":     {"loose_end": 0.45,    "tight_end": 0.25,    "step": 0.03},
-    },
-}

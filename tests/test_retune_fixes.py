@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import config  # noqa: E402
-from desk import autotune, brain_advisor, chain, devcheck, exits, meme, scanner, settings  # noqa: E402
+from desk import brain_advisor, chain, devcheck, exits, meme, scanner, settings  # noqa: E402
 from test_scanner_sources import FakeResp, _gt_pool  # noqa: E402
 
 CREATOR = "CreatorWallet1111"
@@ -270,51 +270,6 @@ class Retune(unittest.TestCase):
                   "exits.stop_pct", "meme.min_community_score"):
             s = settings.REGISTRY[k]
             self.assertEqual(s.coerce(s.get())[1], None, k)
-
-    def test_autotune_drops_gates_tuned_from_old_defaults_keeps_the_rest(self):
-        saved = {"v": config.ANALYST_VALID_SCORE, "m": config.MIN_SCORE, "scan": dict(config.SCAN),
-                 "chain": dict(config.CHAIN)}
-        try:
-            d = Path(tempfile.mkdtemp())
-            (d / "at.json").write_text(json.dumps({"gates": {"score": 6, "volume_h1": 9_000,
-                                                             "trades_h1": 70, "top_10": 0.35}}))
-            at = autotune.AutoTune(mock.Mock(), d / "at.json", d / "at.jsonl")
-            self.assertEqual(config.SCAN["min_volume_h1_usd"], 3_000)   # new default stands
-            self.assertEqual(config.SCAN["min_trades_h1"], 30)
-            self.assertEqual(config.ANALYST_VALID_SCORE, 6)             # owner's 6 (default moved 5 -> 6)
-            self.assertEqual(set(at.dropped), {"score", "volume_h1", "trades_h1"})
-            at._persist()
-            st = json.loads((d / "at.json").read_text())
-            self.assertEqual(st["baseline"]["volume_h1"], 3_000)
-            # a gate tuned against the NEW baseline is restored normally
-            st["gates"]["volume_h1"] = 5_000
-            (d / "at.json").write_text(json.dumps(st))
-            autotune.AutoTune(mock.Mock(), d / "at.json", d / "at.jsonl")
-            self.assertEqual(config.SCAN["min_volume_h1_usd"], 5_000)
-        finally:
-            config.ANALYST_VALID_SCORE, config.MIN_SCORE = saved["v"], saved["m"]
-            config.SCAN.update(saved["scan"]); config.CHAIN.update(saved["chain"])
-
-    def test_owner_score_six_survives_restart_and_tuner_cannot_raise_it(self):
-        saved = {"v": config.ANALYST_VALID_SCORE, "m": config.MIN_SCORE}
-        try:
-            self.assertEqual((config.ANALYST_VALID_SCORE, config.MIN_SCORE), (6, 6))
-            d = Path(tempfile.mkdtemp())
-            # the live Turso file: self-tuner's 8, saved against the new-style baseline of 5
-            (d / "at.json").write_text(json.dumps({"gates": {"score": 8},
-                                                   "baseline": {**autotune.DEFAULTS, "score": 5}}))
-            autotune.AutoTune(mock.Mock(), d / "at.json", d / "at.jsonl")
-            self.assertEqual(config.ANALYST_VALID_SCORE, 6)
-            # even a file claiming the current baseline is clamped to the tight end, 6
-            (d / "at.json").write_text(json.dumps({"gates": {"score": 8}, "baseline": autotune.DEFAULTS}))
-            autotune.AutoTune(mock.Mock(), d / "at.json", d / "at.jsonl")
-            self.assertEqual(config.ANALYST_VALID_SCORE, 6)
-            for _ in range(5):
-                autotune.notch("score", False)                        # tighten as hard as it can
-            self.assertEqual(config.ANALYST_VALID_SCORE, 6)
-            self.assertFalse(autotune.can_move("score", False))
-        finally:
-            config.ANALYST_VALID_SCORE, config.MIN_SCORE = saved["v"], saved["m"]
 
     def test_swing_hold_is_four_hours_and_presets_match(self):
         sw = config.EXITS["profiles"]["swing"]

@@ -509,9 +509,6 @@ def confirm_proposal(pid: str, request: Request):
     who = _who(request)
     out = desk_settings.confirm(pid[:20], who)
     if out.get("ok"):
-        if any(a["setting"] in ("analyst.valid_score", "scan.min_volume_h1_usd", "scan.min_trades_h1")
-               for a in out["applied"]):
-            agent.autotune._persist()          # keep autotune's saved gate in step
         agent.emit("warn", "settings confirmed by " + who + ": " + ", ".join(
             f"{a['label']} {a['from']} -> {a['to']}" for a in out["applied"]), stage="settings")
     return JSONResponse(out, status_code=200 if out.get("ok") else out.pop("code", 400))

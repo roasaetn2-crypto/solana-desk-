@@ -1,4 +1,4 @@
-"""MERGE tests: scalp/swing exits, ladder, compounding, entry confirm, autotune floors."""
+"""MERGE tests: scalp/swing exits, ladder, compounding, entry confirm."""
 import sys, tempfile, time, unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -6,7 +6,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import config
-from desk import exits, autotune, scanner
+from desk import exits, scanner
 from desk.broker import PaperBroker
 from desk.risk import Account, check_token_trade
 from desk.solana_agent import SolanaAgent
@@ -114,59 +114,7 @@ class Gates(unittest.TestCase):
         self.assertIsNone(scanner.free_kill(t))
 
 
-class AutoTuneTests(unittest.TestCase):
-    def setUp(self):
-        self.saved = {"v": config.ANALYST_VALID_SCORE, "m": config.MIN_SCORE,
-                      "scan": dict(config.SCAN), "chain": dict(config.CHAIN)}
-        self.d = Path(tempfile.mkdtemp())
-        self.a = SolanaAgent(ledger=self.d / "p.json", bench_path=self.d / "b.db", live_ledger=self.d / "l.json")
-        self.a.autotune = autotune.AutoTune(self.a, self.d / "at.json", self.d / "at.jsonl")
-
-    def tearDown(self):
-        config.ANALYST_VALID_SCORE, config.MIN_SCORE = self.saved["v"], self.saved["m"]
-        config.SCAN.update(self.saved["scan"]); config.CHAIN.update(self.saved["chain"])
-
-    def test_idle_loosens_most_blocking_gate_one_notch_and_logs(self):
-        self.a.reject_reasons.update({"volume": 9, "trades": 2})
-        config.SCAN["min_volume_h1_usd"] = 8_000      # the retuned default (3k) already sits on the floor
-        v0 = config.SCAN["min_volume_h1_usd"]
-        now = time.time() + 3 * 3600
-        rec = self.a.autotune.tick(now)
-        self.assertEqual((rec["gate"], rec["dir"]), ("volume_h1", "loosen"))
-        self.assertEqual(config.SCAN["min_volume_h1_usd"], v0 - 1000)
-        self.assertTrue((self.d / "at.jsonl").read_text().strip())
-
-    def test_never_passes_hard_floors(self):
-        for _ in range(100):
-            for g in config.AUTOTUNE["gates"]:
-                autotune.notch(g, True)
-        self.assertGreaterEqual(config.ANALYST_VALID_SCORE, 4)
-        self.assertGreaterEqual(config.SCAN["min_volume_h1_usd"], 3_000)
-        self.assertGreaterEqual(config.SCAN["min_trades_h1"], 30)
-        self.assertLessEqual(config.CHAIN["max_top_10"], 0.45)
-        for _ in range(100):
-            for g in config.AUTOTUNE["gates"]:
-                autotune.notch(g, False)
-        self.assertLessEqual(config.ANALYST_VALID_SCORE, 8)
-        self.assertLessEqual(config.SCAN["min_volume_h1_usd"], 20_000)
-        self.assertGreaterEqual(config.CHAIN["max_top_10"], 0.25)
-
-    def test_bad_win_rate_tightens(self):
-        self.a.paper.s["closed"] = [{"mint": f"M{i}", "pnl_usd": -5.0} for i in range(7)]
-        rec = self.a.autotune.tick(time.time() + 31 * 60)
-        self.assertEqual(rec["dir"], "tighten")
-
-    def test_does_not_run_off_cycle_or_in_live(self):
-        self.assertIsNone(self.a.autotune.tick(time.time() + 60))
-
-    def test_does_not_touch_risk_or_scam_kills(self):
-        r, ch = dict(config.RISK), dict(config.CHAIN)
-        self.a.reject_reasons.update({"volume": 3})
-        self.a.autotune.tick(time.time() + 3 * 3600)
-        self.assertEqual(r, config.RISK)
-        for k in ("max_top_wallet", "allow_mint_authority", "allow_freeze_authority"):
-            self.assertEqual(ch[k], config.CHAIN[k])
-
+class DemoPool(unittest.TestCase):
     def test_demo_pool_never_fills(self):
         self.assertTrue(config.AGENT["demo_when_empty"] is False)
 

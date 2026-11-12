@@ -193,13 +193,13 @@ class Store(unittest.TestCase):
         journal.write_text("".join(json.dumps(e) + "\n" for e in events))
         (d / "paper_ledger.json").write_text(json.dumps({"cash": 18.5, "positions": {"MintA": {"qty": 1}}, "closed": []}))
         (d / "operator_intent.json").write_text(json.dumps({"loop": "running"}))
-        (d / "autotune.json").write_text(json.dumps({"gates": {"score": 6}}))
+        (d / "operator_settings.json").write_text(json.dumps({"risk.max_daily_loss_usd": 5.0}))
 
         out = store.restore()  # remote empty -> push local
         self.assertIn("journal:2", " ".join(out["pushed"]))
         self.assertIn("paper_ledger", out["pushed"])
         self.assertIn("operator_intent", out["pushed"])
-        self.assertIn("settings", out["pushed"])
+        self.assertIn("operator_settings", out["pushed"])
 
         store.append_journal({"time": "2026-11-12T00:01:00+00:00", "kind": "exit", "mint": "MintA"})
 
@@ -212,14 +212,14 @@ class Store(unittest.TestCase):
         self.assertIn("journal", pulled["pulled"])
         self.assertIn("paper_ledger", pulled["pulled"])
         self.assertIn("operator_intent", pulled["pulled"])
-        self.assertIn("settings", pulled["pulled"])
+        self.assertIn("operator_settings", pulled["pulled"])
         lines = [json.loads(ln) for ln in journal.read_text().splitlines() if ln.strip()]
         self.assertEqual(len(lines), 3)
         self.assertEqual(lines[-1]["kind"], "exit")
         ledger = json.loads((d / "paper_ledger.json").read_text())
         self.assertEqual(ledger["cash"], 18.5)
         self.assertEqual(json.loads((d / "operator_intent.json").read_text())["loop"], "running")
-        self.assertEqual(json.loads((d / "autotune.json").read_text())["gates"]["score"], 6)
+        self.assertEqual(json.loads((d / "operator_settings.json").read_text())["risk.max_daily_loss_usd"], 5.0)
 
     def test_errors_never_include_the_token(self):
         def boom(url, token, payload):

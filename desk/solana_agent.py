@@ -34,7 +34,6 @@ from desk import (analyst, brain, chain, dexscreener, devcheck, dialogue, exits,
 from desk import chart as candle_chart
 from desk import links as fomo_links
 from desk.age import created_at_of
-from desk.autotune import AutoTune
 from desk import equity_curve
 from desk import live as live_mod
 from desk.broker import PaperBroker
@@ -84,7 +83,7 @@ class SolanaAgent:
         self.live = live_mod.LiveBroker(live_ledger if live_ledger is not None else data_file("live_ledger.json"))
         self.mode = EXECUTION["default_mode"]          # always paper on boot
         self.bench = Bench(str(bench_path if bench_path is not None else data_file("desk.db")))
-        # MERGE: count why tokens were benched, so autotune can loosen the gate that blocks most
+        # MERGE: count why tokens were benched (funnel reporting)
         self.reject_reasons: Counter = Counter()
         _sit = self.bench.sit
 
@@ -97,12 +96,10 @@ class SolanaAgent:
         self.bench.sit = _counting_sit
         self.started_at = time.time()
         self.last_entry_ts: float | None = None
-        self.autotune = AutoTune(self)
-        # Operator-confirmed paper settings win over autotune's restored gates (re-validated).
+        # Operator-confirmed paper settings are re-applied on boot so they survive a redeploy.
         try:
             from desk import settings as desk_settings
-            if desk_settings.apply_saved():
-                self.autotune._persist()
+            desk_settings.apply_saved()
         except Exception as e:
             print(f"[desk] settings: re-apply skipped ({type(e).__name__})")
         self.session = requests.Session()
@@ -782,10 +779,6 @@ class SolanaAgent:
                 continue
 
         self.last_cycle_at = _now()
-        try:
-            self.autotune.tick()
-        except Exception as e:   # tuning must never break a cycle
-            self.emit("error", f"autotune failed ({type(e).__name__}: {e})")
         journal("cycle", **self.stats, equity=self.broker.equity())
         self._snapshot_equity()
         self._log_funnel(cycle)
@@ -1071,7 +1064,6 @@ class SolanaAgent:
                 "rpc": {**helius.health(), "endpoint": chain.rpc_source()},
                 "execution": self.mode_info(),
                 "stats": dict(self.stats),
-                "autotune": self.autotune.snapshot(),
                 "broker": broker,
                 "latest_buy": latest_buy,
                 "starting_equity": PAPER["starting_equity_usd"],

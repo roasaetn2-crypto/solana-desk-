@@ -37,7 +37,7 @@ class Isolation(unittest.TestCase):
     """Like brain_advisor's isolation test: the chat cannot reach trading code."""
 
     BANNED = ("broker", "risk", "live", "solana_agent", "ops", "intent", "store", "exits",
-              "guard", "jupiter", "autotune", "devices", "config")
+              "guard", "jupiter", "devices", "config")
 
     def test_imports_nothing_that_can_act(self):
         tree = ast.parse((ROOT / "desk/desk_chat.py").read_text(encoding="utf-8"))
@@ -158,6 +158,9 @@ class Limits(unittest.TestCase):
 class Endpoint(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
+        # remember the suite-wide data dir (tests/isolate_env.py) so tearDown can put it
+        # back; popping it outright sent every later test's journal into the repo root
+        self._prev_data_dir = os.environ.get("DESK_DATA_DIR")
         os.environ["DESK_DATA_DIR"] = self.tmp.name
         from desk import chat_memory
         chat_memory.reset()
@@ -176,7 +179,10 @@ class Endpoint(unittest.TestCase):
         from desk import chat_memory
         chat_memory.reset()
         os.environ.pop("DESK_TOKEN", None)
-        os.environ.pop("DESK_DATA_DIR", None)
+        if self._prev_data_dir is None:
+            os.environ.pop("DESK_DATA_DIR", None)
+        else:
+            os.environ["DESK_DATA_DIR"] = self._prev_data_dir
         sys.modules.pop("app", None)
         self.tmp.cleanup()
 

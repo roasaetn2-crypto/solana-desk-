@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 import config
-from config import AGENT, AUTOTUNE, ENTRY, EXITS, MEME, PAPER, RISK, SCAN
+from config import AGENT, ENTRY, EXITS, MEME, PAPER, RISK, SCAN
 from desk.ops import data_file
 
 PROPOSAL_TTL_S = 24 * 3600
@@ -226,20 +226,8 @@ _R += [
          (lambda: config.ANALYST_MAX_RED_FOR_VALID, _set_max_red), 0, 5),
     _num("meme.min_holders", "Min holders", "Analyst", "int", _d(MEME, "min_holders", int), 20, 5_000),
     _num("meme.min_community_score", "Min community score", "Analyst", "int", _d(MEME, "min_community_score", int), 0, 90, "/100"),
-    # loop / self-tune
+    # loop
     _num("agent.cycle_seconds", "Scan cycle", "Loop", "int", _d(AGENT, "cycle_seconds", int), 20, 300, "s"),
-    Setting("autotune.enabled", "Self-tune entry gates", "Loop", "bool", lambda: bool(AUTOTUNE["enabled"]),
-            lambda v: AUTOTUNE.__setitem__("enabled", bool(v))),
-    _num("autotune.interval_minutes", "Self-tune interval", "Loop", "int", _d(AUTOTUNE, "interval_minutes", int), 10, 240, "min"),
-    _num("autotune.idle_loosen_hours", "Self-tune: loosen after idle", "Loop", "float", _d(AUTOTUNE, "idle_loosen_hours"), 0.5, 24, "h"),
-    _num("autotune.tighten_below_win_rate", "Self-tune: tighten below win rate", "Loop", "pct",
-         _d(AUTOTUNE, "tighten_below_win_rate"), 0.05, 0.60, "",
-         "once this many closed paper trades exist, a win rate under this tightens the gate that "
-         "was loosened most recently, one notch. Never touches stops, sizing or the daily stop."),
-    _num("autotune.loosen_above_win_rate", "Self-tune: tighten back above win rate", "Loop", "pct",
-         _d(AUTOTUNE, "loosen_above_win_rate"), 0.50, 0.95, "",
-         "the mirror rule: a healthy win rate above this tightens the loosest gate back up one "
-         "notch, so a quiet stretch that loosened everything does not stay loose forever."),
 ]
 REGISTRY: dict[str, Setting] = {s.key: s for s in _R}
 for _k in REGISTRY:  # belt and braces: nothing excluded may sneak into the registry

@@ -29,7 +29,6 @@ _poster: Callable[[str, str, dict], tuple[int, dict]] | None = None
 _KV = (
     ("paper_ledger", lambda: data_file("paper_ledger.json")),
     ("operator_intent", lambda: data_file("operator_intent.json")),
-    ("settings", lambda: data_file("autotune.json")),
     ("operator_settings", lambda: data_file("operator_settings.json")),
     ("proposals", lambda: data_file("proposals.json")),
     ("desk_chat", lambda: data_file("desk_chat.json")),
@@ -363,7 +362,7 @@ def restore() -> dict:
 
 
 def sync_kv_file(key: str, path: Path | None = None) -> None:
-    """Push one local snapshot file. Used by ledger / intent / autotune hooks."""
+    """Push one local snapshot file. Used by ledger / intent / settings hooks."""
     if not configured() and _poster is None:
         return
     mapping = {k: fn for k, fn in _KV}
