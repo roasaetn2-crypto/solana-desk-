@@ -83,6 +83,16 @@ EXITS = {
     "max_no_quote_cycles": 3,      # quote API misses tolerated before forcing a close
 }
 
+# ---------- Entry confirmation (second read before a fill) ----------
+# The scanner sees a price; this is the re-read that happens a second before the
+# broker fills. It exists because a scan can be stale or the pool can be draining
+# while the desk is still deciding. If the second read disagrees, there is no trade.
+ENTRY = {
+    "require_confirm_quote": True,   # no confirm quote at all -> do not fill
+    "max_price_gap_pct": 5.0,        # scan vs confirm price more than 5% apart -> skip
+    "min_confirm_liq_ratio": 0.80,   # confirm liquidity under 80% of scan -> pool is draining
+}
+
 PAPER = {
     "starting_equity_usd": 1_000,
     "fee_pct": 0.01,               # pump.fun charges ~1% per swap on the curve
@@ -116,6 +126,8 @@ BENCH_MINUTES = {
     "mint_authority": 100_000, "freeze_authority": 100_000,
     "top_wallet": 120, "top_10": 120, "no_sells": 240,
     "skip": 60, "watch": 15, "score": 20,
+    # entry-confirm rejects: transient, so retry quickly instead of sitting out 30m
+    "no_confirm_quote": 5, "price_gap": 5, "liq_unconfirmed": 10,
     "age": 10, "liquidity": 10, "volume": 10, "mcap": 15, "trades": 10,
 }
 DEFAULT_BENCH = 30
