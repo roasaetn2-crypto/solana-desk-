@@ -183,3 +183,39 @@ AGENT = {
     "demo_when_empty": True,       # if a live scan returns nothing usable, feed a demo batch
     "max_events": 400,             # ring buffer size for the agent log
 }
+# ---------- Autotune (loosens gates that block too many tokens) ----------
+# desk/autotune.py reads this. Left DISABLED on purpose: it rewrites scanner
+# gates at runtime, and a desk that silently retunes itself is not one you can
+# reason about from the journal. Turn it on only after you trust the paper book.
+AUTOTUNE = {
+    "enabled": False,              # master switch. False = gates stay as written above
+    "every_cycles": 40,            # how often it re-evaluates, in agent cycles
+    "min_samples": 30,             # decisions needed before it changes anything
+    "max_step_pct": 0.25,          # never move a gate more than 25% in one step
+    "min_liquidity_usd": 1_500,    # hard floor: never loosen liquidity below this
+    "min_trades_h1": 15,           # hard floor for trades
+    "max_age_hours": 72,           # hard ceiling for age
+    "persist": True,               # remember learned gates across restarts
+}
+
+
+# ---------- safety net ---------------------------------------------------
+# This repo grows new modules (exits, goplus, gmgn, guard, heartbeat,
+# pumpportal, regime, signals, autotune ...) that import config blocks this
+# file may not define yet. A missing block used to kill the whole deploy with
+# an ImportError. Returning an empty mapping instead keeps the app importable:
+# any unset key reads as None, which is falsy, so an unknown feature stays off
+# rather than crashing the process.
+class _Unset(dict):
+    """Empty mapping: unknown keys read as None, and it is falsy."""
+
+    def __missing__(self, key):
+        return None
+
+
+def __getattr__(name: str):
+    """PEP 562: only called when normal attribute lookup fails."""
+    if name.isupper():
+        return _Unset()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    
