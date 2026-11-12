@@ -15,16 +15,14 @@ import time
 from datetime import date
 from pathlib import Path
 
-from config import EXITS, PAPER  # noqa: F401
-from desk import exits
-from desk.ops import data_file
+from config import EXITS, PAPER
 
 LEDGER = Path("paper_ledger.json")
 
 
 class PaperBroker:
-    def __init__(self, path: Path | str | None = None):
-        self.path = Path(path) if path is not None else data_file("paper_ledger.json")
+    def __init__(self, path: Path | str = LEDGER):
+        self.path = Path(path)
         if self.path.exists():
             self.s = json.loads(self.path.read_text())
         else:
@@ -36,13 +34,6 @@ class PaperBroker:
     # ---------- state ----------
     def _save(self):
         self.path.write_text(json.dumps(self.s, indent=1))
-        # paper book only; the live ledger is never pushed here
-        if self.path.name == "paper_ledger.json" or self.path.name.endswith("paper_ledger.json"):
-            try:
-                from desk.store import sync_kv_file
-                sync_kv_file("paper_ledger", self.path)
-            except Exception:
-                pass
 
     def _roll_day(self):
         if self.s["day"] != str(date.today()):
@@ -53,10 +44,6 @@ class PaperBroker:
         marks = marks or {}
         held = sum(p["qty"] * marks.get(m, p["last"]) for m, p in self.s["positions"].items())
         return round(self.s["cash"] + held, 2)
-
-    def realized_equity(self) -> float:
-        """Starting bankroll + closed-trade P&L. Unrealized gains are not sized against (compounding)."""
-        return round(PAPER["starting_equity_usd"] + sum(c.get("pnl_usd", 0.0) for c in self.s["closed"]), 2)
 
     def day_pnl(self) -> float:
         return round(self.equity() - self.s["day_start"], 2)
@@ -71,8 +58,7 @@ class PaperBroker:
         self._save()
 
     # ---------- orders ----------
-    def buy(self, mint: str, symbol: str, ticket_usd: float, price: float,
-            horizon: str = "swing") -> dict:
+    def buy(self, mint: str, symbol: str, ticket_usd: float, price: float) -> dict:
         fill = price * (1 + PAPER["slippage_pct"])
         fee = ticket_usd * PAPER["fee_pct"]
         qty = (ticket_usd - fee) / fill
@@ -80,10 +66,9 @@ class PaperBroker:
         self.s["positions"][mint] = {"symbol": symbol, "qty": qty, "entry": fill,
                                      "last": fill, "opened": time.time(),
                                      "cost": ticket_usd, "half_taken": False}
-        exits.init_state(self.s["positions"][mint], horizon)
         self._save()
         return {"side": "buy", "mint": mint, "symbol": symbol, "qty": qty, "fill": fill,
-                "fee": fee, "ticket_usd": ticket_usd, "horizon": horizon}
+                "fee": fee, "ticket_usd": ticket_usd}
 
     def sell(self, mint: str, fraction: float, price: float, reason: str) -> dict:
         p = self.s["positions"][mint]
@@ -114,7 +99,48 @@ class PaperBroker:
 
     def _exit_signal(self, mint, q, now):
         p = self.s["positions"][mint]
-        return exits.evaluate(p, q, now or time.time())
+        now = now or time.time()
+        held_min = (now - p["opened"]) / 60
+        if q is None:
+            # A missing quote is usually a transient API failure, not a dead token.
+            # The old code liquidated on the first miss, so a DexScreener hiccup
+            # closed good positions at a loss. Tolerate misses; only give up when
+            # they persist or the hold limit is reached.
+            p["no_quote"] = p.get("no_quote", 0) + 1
+            if p["no_quote"] >= EXITS.get("max_no_quote_cycles", 3):
+                return (1.0, f"no quote after {p['no_quote']} cycles, close")
+            if held_min >= EXITS["max_hold_hours"] * 60:
+                return (1.0, "max hold time (no quote)")
+            return None
+        p["no_quote"] = 0
+        price = q["price_usd"]
+        p["last"] = price
+        p["peak"] = max(p.get("peak", price), price)
+        if price <= p["entry"] * (1 - EXITS["stop_pct"]):
+            return (1.0, f"stop -{int(EXITS['stop_pct'] * 100)}%")
+        if not p["half_taken"] and price >= p["entry"] * EXITS["take_half_at"]:
+            p["half_taken"] = True
+            return (0.5, f"take half at {EXITS['take_half_at']}x")
+        # --- runner management ---
+        # Selling half does NOT free the slot: the other half stays open. The old
+        # code had no rule for it, so it sat there until max_hold_hours (24h) and
+        # every slot stayed full -- the desk then rejected every new setup with
+        # "max open positions". These three rules recycle the slot in minutes.
+        if p["half_taken"]:
+            if EXITS.get("breakeven_after_half", True) and price <= p["entry"]:
+                return (1.0, "runner back to breakeven")
+            trail = EXITS.get("runner_trail_pct")
+            if trail and price <= p["peak"] * (1 - trail):
+                return (1.0, f"runner trail -{int(trail * 100)}% from peak")
+            if held_min >= EXITS.get("runner_max_minutes", 180):
+                return (1.0, "runner time limit")
+        if held_min >= EXITS["volume_decay_min_minutes"] and q.get("volume_h24", 0) > 0:
+            ratio = q["volume_h6"] / (q["volume_h24"] / 4)
+            if ratio < EXITS["volume_decay_ratio"]:
+                return (1.0, f"volume decay {ratio:.2f}")
+        if held_min >= EXITS["max_hold_hours"] * 60:
+            return (1.0, "max hold time")
+        return None
 
     def snapshot(self) -> dict:
         return {
@@ -126,10 +152,9 @@ class PaperBroker:
                 {"mint": m, "symbol": p["symbol"], "qty": p["qty"], "entry": p["entry"],
                  "last": p["last"], "cost": p["cost"],
                  "pnl_pct": round((p["last"] / p["entry"] - 1) * 100, 2),
-                 "opened": p["opened"], "half_taken": p["half_taken"],
-                 "horizon": p.get("horizon"), "stage": p.get("stage", 0),
-                 "stop_price": p.get("stop_price"), "peak": p.get("peak")}
+                 "opened": p["opened"], "half_taken": p["half_taken"]}
                 for m, p in self.s["positions"].items()
             ],
             "closed": list(reversed(self.s["closed"][-30:])),
         }
+        
