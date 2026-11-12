@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import re
 
-from config import HOLD_HORIZONS, MEME
+from config import CHAIN, HOLD_HORIZONS, MEME
 
 
 def classify_narrative(symbol: str, name: str = "", website: str | None = None) -> dict:
@@ -62,6 +62,31 @@ def _clamp(x: float) -> float:
     return max(0.0, min(100.0, x))
 
 
+HOLDERS_NEUTRAL = 15.0      # half of the 30 holder points, when the real count is unknown
+
+
+def real_holder_count(facts: dict, dev: dict) -> int | None:
+    """A real holder total (Helius DAS or RugCheck totalHolders), or None.
+
+    The public RPC only shows the largest 20 accounts (facts["wallets_counted"]), and RugCheck's
+    topHolders list is the same kind of sample. A sample size is not a holder count, so a
+    number counts only when it is a positive total that is larger than the sample, or the sample
+    was not full (then the coin really has that few holders).
+    """
+    sample = max(int(facts.get("wallets_counted") or 0), int(dev.get("holder_sample") or 0))
+    full = CHAIN.get("largest_accounts_checked", 20)
+    best = None
+    for v in (facts.get("holder_count"), dev.get("holder_count")):
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or v <= 0:
+            continue
+        best = int(v) if best is None else max(best, int(v))
+    if best is None:
+        return None
+    if best > sample or sample < full:
+        return best
+    return None
+
+
 def scorecard(token: dict, facts: dict, ds: dict, dev: dict,
               narrative: dict | None = None) -> dict:
     """Score the five value drivers 0-100 each, then weight them."""
@@ -75,27 +100,18 @@ def scorecard(token: dict, facts: dict, ds: dict, dev: dict,
     buys = token.get("buys_h1") or ds.get("buys_h1") or 0
     sells = token.get("sells_h1") or ds.get("sells_h1") or 0
     buyers = token.get("buyers_h1") or 0
-    # The public RPC can only read the top 20 token accounts, so `wallets_counted`
-    # is a SAMPLE SIZE, not a holder count. The old code fed it into the community
-    # score as if it were the population: every token looked like it had exactly
-    # 20 holders, scored 4/30 on community, and was rejected as "no community".
-    # Only trust a count that is bigger than the sample it came from.
-    sampled = facts.get("wallets_counted") or 0
-    raw = dev.get("holder_count") or facts.get("holder_count") or 0
-    holders = raw if (raw and (not sampled or raw > sampled)) else 0
+    holders = real_holder_count(facts, dev)
 
     # ---------- community ----------
     community, c_why = 0.0, []
-    if holders >= MEME["min_holders"]:
+    if holders is None:
+        # No trustworthy total (only the top-20 sample): neither credit nor penalty.
+        community += HOLDERS_NEUTRAL; c_why.append("holder count unknown (neutral)")
+    elif holders >= MEME["min_holders"]:
         community += 30; c_why.append(f"{holders} holders")
-    elif holders:
+    else:
         community += min(30, holders / max(MEME["min_holders"], 1) * 30)
         c_why.append(f"only {holders} holders")
-    else:
-        # Unknown is not zero. Give the neutral middle and let the observable
-        # signals (socials, buy breadth) decide, rather than punishing a token
-        # for a field the free RPC cannot return.
-        community += 15; c_why.append(f"holder count unknown (top {sampled or 20} sampled)")
     if ds.get("has_x") or ds.get("has_telegram"):
         community += 20; c_why.append("socials published")
     else:
@@ -184,8 +200,6 @@ def scorecard(token: dict, facts: dict, ds: dict, dev: dict,
             "distribution": d_why,
         },
         "horizon": hold_horizon(token.get("age_minutes")),
-        "holders": holders or None,
-        "holders_sampled": sampled or None,
         "volume_mcap": round(vol1 / mcap, 3) if mcap else None,
         "sell_ratio": round(sells / buys, 3) if buys else None,
     }
@@ -198,4 +212,3 @@ def meme_kill(sc: dict) -> str | None:
     if sc["parts"]["community"] < MEME["min_community_score"]:
         return "no_community"
     return None
-        

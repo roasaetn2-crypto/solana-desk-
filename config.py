@@ -6,27 +6,43 @@ and move a number only when the journal tells you to.
 
 # ---------- Seat 1: scanner (free cuts, data already in the GeckoTerminal batch) ----------
 SCAN = {
-    # 3 feeds x `pages` calls per cycle. GeckoTerminal allows ~10 calls/min and a
-    # 30s cycle means 2 cycles/min, so pages=1 (3 calls/cycle = 6/min) stays under
-    # the limit. pages=2 was 12 calls/min: over the limit every single cycle, which
-    # is why the desk kept hitting 429s and looked frozen.
-    "pages": 1,                    # pages per cycle, per feed (1 page = 20 pools)
+    "pages": 1,                    # rotated GeckoTerminal feed pages per cycle (1 page = 20 pools), on top of new_pools p1
     "pump_only": False,            # True = only pump.fun curve + PumpSwap pools
     "pump_dexes": {"pump-fun", "pumpswap"},
-    "min_age_minutes": 1,          # younger: the data is noise
-    "max_age_hours": 48,           # older with no new move: not a launch any more
-    "min_liquidity_usd": 3_000,
-    "min_volume_h1_usd": 3_000,
-    "min_mcap_usd": 8_000,
+    "min_age_minutes": 1,          # younger: the data is noise (retune 2026-11-12: was 2)
+    "max_age_hours": 48,           # older with no new move: not a launch any more (retune: was 24)
+    "min_liquidity_usd": 3_000,    # retune: was 5_000
+    "min_volume_h1_usd": 3_000,    # retune: was 8_000
+    "min_mcap_usd": 8_000,         # retune: was 15_000
     "max_mcap_usd": 25_000_000,
-    "min_trades_h1": 30,
+    "min_trades_h1": 30,           # retune: was 60
+    "max_h1_change_pct": 250.0,    # MERGE (old desk scanner.max_h1_change_pct, paper 250): do not buy a vertical chart
     "min_sells_ratio_h1": 0.10,    # sells / buys. Below this nobody can sell = honeypot smell
-    # --- young + thin guard ---------------------------------------------------
-    # Paper testing showed both rugs (WINU, GTA 6) were 3-4 minutes old with
-    # ~$20k liquidity and collapsed to near-zero inside a single 30s cycle, so
-    # the stop could not fill. Under `young_minutes` we demand real depth.
-    "young_minutes": 10,
-    "young_min_liquidity_usd": 30_000,
+}
+
+# ---------- Scanner fetch (rate limits, cache, cooldown). Does not change filters. ----------
+SCAN_FETCH = {
+    "gt_per_min": 10,              # well under GeckoTerminal's ~30/min public cap
+    "gt_burst": 2,                 # at most 1-2 live GT calls in a short burst
+    "ds_per_min": 30,              # under profiles/boosts 60/min and search 300/min
+    "ds_burst": 4,
+    "cache_ttl_s": 90,             # reuse an endpoint body this long
+    "gt_max_page": 3,              # GT rotation walks pages 1..3 of new_pools / trending 5m / trending 1h
+    "pool_ttl_s": 600,             # rolling candidate pool, keyed by mint (~10 min)
+    "quote_ttl_s": 15,             # short cache for open-position price refreshes
+    "cooldown_floor_s": 30,        # even if Retry-After is 1s, back off at least this (per host)
+    "cooldown_cap_s": 120,         # exponential 429 cooldown cap; never sleep the cycle
+    "cooldown_jitter": 0.15,       # up to +15% on every cooldown so probes never sync up
+    # Jupiter tokens v2 (free, keyless): 1 cached discovery list + 1 PumpPortal hydrate per cycle
+    "jup_enabled": True,
+    "jup_per_min": 6,
+    "jup_burst": 3,
+    "jup_batch": 100,              # mints per search call (Jupiter's max)
+    "jup_rehydrate_s": 60,         # re-price a PumpPortal mint at most this often
+    "pp_max_age_s": 6 * 3600,      # hydrate PumpPortal launches up to this old
+    "pp_hot_trades": 15,           # a launch with this many 1h trades (or the volume below) is "hot"
+    "pp_hot_volume_usd": 1_500,
+    "pp_cold_recheck_s": 300,      # re-check a quiet launch this often (late movers)
 }
 
 # ---------- Seat 2: chain facts (Solana RPC) ----------
@@ -42,59 +58,68 @@ CHAIN = {
 ANALYST_MODEL = "claude-sonnet-4-20250514"
 REVIEW_MODEL = "claude-sonnet-4-20250514"
 ANALYST_MAX_TOKENS = 4_000
-MIN_SCORE = 5                        # 0-10, the analyst's score must clear this
+MIN_SCORE = 6                        # 0-10, the analyst's score must clear this (owner set 6, 2026-11-12)
 
 # The bar for the analyst to say "valid_setup" (the only verdict the risk engine
 # will size a ticket for). Lower = more trades, more noise. Raise it back to 7
 # for the original, stricter desk.
-ANALYST_VALID_SCORE = 5              # 0-10
+ANALYST_VALID_SCORE = 6              # 0-10 (owner set 6 on 2026-11-12; was 5)
 ANALYST_MAX_RED_FOR_VALID = 3        # red flags allowed on a valid setup
 
 # ---------- Seat 4: risk engine (pure code) ----------
 RISK = {
-    "max_risk_per_trade": 0.015,   # lose at most 1.5% of equity if the stop hits
-    "max_position_pct": 0.05,      # no position above 5% of equity (memecoins)
+    "max_risk_per_trade": 0.015,   # 1.5% of the paper book (retune 2026-11-12: was 5%)
+    "max_position_pct": 0.25,      # $5 cap on a $20 book (was 5% of $1,000 = $50)
     "max_pool_share": 0.02,        # never be more than 2% of the pool: you'd be the exit
-    "max_open_positions": 6,
-    # The breaker must be bigger than one position, or a single rug ends the day.
-    # max_position_pct is 5%, so a token that goes to zero costs 5% of equity --
-    # a 3% cap therefore halted the desk after the *first* bad trade. Measured in
-    # paper: one rug (WINU, -91% gap) put the day at -4.8% and nothing traded
-    # again until tomorrow. 8% allows roughly two full losses before standing down.
-    "max_daily_loss_pct": 0.08,    # down 8% on the day -> desk stops until tomorrow
-    "min_ticket_usd": 10,          # below this, fees eat the edge
+    "max_open_positions": 6,       # retune: was 4
+    "max_daily_loss_pct": 0.03,    # down 3% on the day -> desk stops until tomorrow
+    "min_ticket_usd": 10,          # live fee floor (unchanged). Paper floor is PAPER["min_ticket_usd"]
+    "compound": True,              # MERGE: size off REALIZED equity (start + closed P&L), so wins are reinvested
+                                   # and losses shrink size. Still capped by every cap below + 2% of pool.
     "quiet_hours": (0, 0),         # local hours with no new entries. (0,0) = trade 24/7.
                                    # Was (1, 7); disabled so the paper desk can trade now.
 }
 
 # ---------- Seat 5: exits (paper broker applies these, no model involved) ----------
 EXITS = {
-    "stop_pct": 0.30,              # -30% from entry -> close all
-    "take_half_at": 1.5,           # 1.5x -> sell half, let the rest ride
+    # legacy single-profile keys (kept: dashboard + volume-decay rule read them)
+    "stop_pct": 0.30,              # fallback stop for positions opened before profiles existed (retune: was 0.35)
+    "take_half_at": 1.5,
     "volume_decay_ratio": 0.20,    # h6 volume / (h24/4) under this -> close
     "volume_decay_min_minutes": 30,
-    "max_hold_hours": 4,           # memecoin momentum dies in hours, not days
-    # --- runner rules: what happens to the half left after take_half_at ---
-    # Without these the remainder sits in a slot until max_hold_hours, so all
-    # slots fill and the desk stops taking new setups.
-    "breakeven_after_half": True,  # after banking half, never give back entry
-    "runner_trail_pct": 0.20,      # close the runner 20% off its peak
-    "runner_max_minutes": 180,     # ...or after 3h, whichever comes first
-    "max_no_quote_cycles": 3,      # quote API misses tolerated before forcing a close
+    "max_hold_hours": 4,           # legacy fallback (retune: was 24)
+    # MERGE (from old desk agents/timeframe.py + agents/risk.py): the horizon is picked at entry.
+    # A pool younger than scalp_max_age_hours is a scalp (tight stop, short clock); older = swing.
+    # Ladder: sell tp1_frac at tp1_at (stop then moves to breakeven, never down), sell tp2_frac of
+    # what is left at tp2_at, and the remainder trails trail_pct below its peak.
+    "style": "both",               # PAPER trading style: both | scalp (young coins only) | swing (older only)
+    "scalp_max_age_hours": 6.0,
+    "missing_quote_closes": 3,     # close only after N quote misses in a row (one API blip is not an exit)
+    # PAPER runner rules (after TP1 sells part): the rest must not squat on a slot for days.
+    "breakeven_after_half": True,  # after TP1 the stop moves up to entry (never down)
+    "runner_trail_pct": 0.20,      # runner trails at most 20% below its peak (tighter profile trail wins)
+    "runner_max_minutes": 180,     # runner closes 3h after TP1, freeing the slot
+    "profiles": {
+        "scalp": {"stop_pct": 0.20, "tp1_at": 1.5, "tp1_frac": 0.33, "tp2_at": 2.0, "tp2_frac": 0.5,
+                  "trail_pct": 0.20, "timeout_hours": 3.0, "timeout_min_gain": 0.05,
+                  "max_hold_hours": 4.0},     # retune: was 6h
+        "swing": {"stop_pct": 0.30, "tp1_at": 1.5, "tp1_frac": 0.33, "tp2_at": 2.0, "tp2_frac": 0.5,
+                  "trail_pct": 0.30, "timeout_hours": 3.0, "timeout_min_gain": 0.05,
+                  "max_hold_hours": 4.0},     # owner: swing max hold 4h (was 72h; timeout was 24h)
+    },
 }
 
-# ---------- Entry confirmation (second read before a fill) ----------
-# The scanner sees a price; this is the re-read that happens a second before the
-# broker fills. It exists because a scan can be stale or the pool can be draining
-# while the desk is still deciding. If the second read disagrees, there is no trade.
+# ---------- Entry confirmation (MERGE, from old desk agents/research.py + scanner gates) ----------
+# Re-quote the coin on a second source right before the paper fill. The paper fill uses the fresh price.
 ENTRY = {
-    "require_confirm_quote": True,   # no confirm quote at all -> do not fill
-    "max_price_gap_pct": 5.0,        # scan vs confirm price more than 5% apart -> skip
-    "min_confirm_liq_ratio": 0.80,   # confirm liquidity under 80% of scan -> pool is draining
+    "max_price_gap_pct": 25.0,     # old desk research.max_price_gap_pct_paper (LIVE was 10)
+    "min_confirm_liq_ratio": 0.5,  # old desk research.confirm_liq_ratio_min: 2nd source must show >= 50% of the liquidity
+    "require_confirm_quote": True, # no confirming quote -> no trade
 }
 
 PAPER = {
-    "starting_equity_usd": 1_000,
+    "starting_equity_usd": 20,     # paper bankroll
+    "min_ticket_usd": 2,           # fee floor for the $20 book; live still uses RISK["min_ticket_usd"]
     "fee_pct": 0.01,               # pump.fun charges ~1% per swap on the curve
     "slippage_pct": 0.02,          # assume 2% worse than the quoted price
 }
@@ -126,10 +151,9 @@ BENCH_MINUTES = {
     "mint_authority": 100_000, "freeze_authority": 100_000,
     "top_wallet": 120, "top_10": 120, "no_sells": 240,
     "skip": 60, "watch": 15, "score": 20,
-    # entry-confirm rejects: transient, so retry quickly instead of sitting out 30m
-    "no_confirm_quote": 5, "price_gap": 5, "liq_unconfirmed": 10,
     "age": 10, "liquidity": 10, "volume": 10, "mcap": 15, "trades": 10,
 }
+BENCH_MINUTES.update({"style": 30, "chase": 20, "price_gap": 10, "liq_unconfirmed": 15, "no_confirm_quote": 5})
 DEFAULT_BENCH = 30
 
 # ---------- Meme coin value framework ----------
@@ -158,7 +182,7 @@ MEME = {
     "max_creator_prev_rugs": 0,      # any prior rugged launch from the same creator = no
     "max_sniper_pct": 0.20,          # bundled/sniper wallets above this = no
     "min_holders": 150,              # fewer real holders than this = not a community yet
-    "min_community_score": 35,       # 0-100, below this the desk will not call it a community coin
+    "min_community_score": 35,       # 0-100, below this the desk will not call it a community coin (retune: was 40)
     # score -> verdict bands for the meme scorecard
     "bands": {"strong": 70, "watch": 50},
 }
@@ -180,75 +204,26 @@ AGENT = {
     "cycle_seconds": 30,           # how often the agent wakes up
     "chain_budget": 24,            # RPC fact checks per cycle
     "analyst_budget": 6,           # analyst calls per cycle: caps the bill
-    "demo_when_empty": True,       # if a live scan returns nothing usable, feed a demo batch
+    "demo_when_empty": False,      # MERGE: no synthetic pools in paper P&L (demo can still be stepped by hand, never filled)
     "max_events": 400,             # ring buffer size for the agent log
 }
 
-# ---------- Autotune (loosens gates that block too many tokens) ----------
-# desk/autotune.py builds its DEFAULTS at import time from AUTOTUNE["gates"],
-# and get_gate() only knows four names: score, volume_h1, trades_h1, top_10.
-# Any other name raises KeyError before the app can start.
-#
-# Left DISABLED on purpose: it rewrites scanner gates at runtime, and a desk
-# that silently retunes itself is not one you can reason about from the journal.
-class _Cfg(dict):
-    """Config block that returns None for unknown keys instead of raising."""
 
-    def __missing__(self, key):
-        return None
-
-
-AUTOTUNE = _Cfg({
-    "enabled": False,              # master switch. False = gates stay as written above
-    "every_cycles": 40,            # how often it re-evaluates, in agent cycles
-    "min_samples": 30,             # decisions needed before it changes anything
-    "max_step_pct": 0.25,          # never move a gate more than 25% in one step
-    "persist": True,               # remember learned gates across restarts
-    # The gates it is allowed to touch.
-    #
-    # CRITICAL: these are NOT SCAN key names. desk/autotune.py has a fixed
-    # lookup table -- get_gate(name) only knows "score", "volume_h1",
-    # "trades_h1" and "top_10". Anything else raises KeyError at import time,
-    # before the app can start. Keep this list a subset of those four.
-    "gates": [
-        "score",        # -> ANALYST_VALID_SCORE
-        "volume_h1",    # -> SCAN["min_volume_h1_usd"]
-        "trades_h1",    # -> SCAN["min_trades_h1"]
-        "top_10",       # -> CHAIN["max_top_10"]
-    ],
-    # Hard floors/ceilings so autotune can never loosen a gate into nonsense.
-    "floor": _Cfg({
-        "score": 3,             # never let the analyst bar drop below 3/10
-        "volume_h1": 1_000,     # $1k of 1h volume is the absolute floor
-        "trades_h1": 15,        # 15 trades/hour is the absolute floor
-        "top_10": 0.50,         # top-10 wallets may never be allowed past 50%
-    }),
-    "ceiling": _Cfg({
-        "score": 8,
-        "volume_h1": 250_000,
-        "trades_h1": 500,
-        "top_10": 0.15,
-    }),
-})
-
-
-# ---------- safety net ---------------------------------------------------
-# This repo grows new modules (exits, goplus, gmgn, guard, heartbeat,
-# pumpportal, regime, signals, autotune ...) that import config blocks this
-# file may not define yet. A missing block used to kill the whole deploy with
-# an ImportError. Returning an empty mapping instead keeps the app importable:
-# any unset key reads as None, which is falsy, so an unknown feature stays off
-# rather than crashing the process.
-class _Unset(dict):
-    """Empty mapping: unknown keys read as None, and it is falsy."""
-
-    def __missing__(self, key):
-        return None
-
-
-def __getattr__(name: str):
-    """PEP 562: only called when normal attribute lookup fails."""
-    if name.isupper():
-        return _Unset()
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-    
+# ---------- Self-tune (MERGE, from old desk autotune idea): PAPER entry gates only ----------
+# Never touches stops, caps, daily loss, scam kills (mint/freeze/top wallet/dev) or live. Every change is logged.
+AUTOTUNE = {
+    "enabled": True,
+    "interval_minutes": 30,
+    "idle_loosen_hours": 2.0,      # no paper entry for this long -> loosen the most-blocking gate one notch
+    "min_closed_to_judge": 6,      # closed paper trades needed before win rate counts
+    "tighten_below_win_rate": 0.35,
+    "loosen_above_win_rate": 0.55,
+    "window_trades": 10,
+    # gate: (where, key, step toward LOOSER, hard floor/ceiling for the loose end, tight end)
+    "gates": {
+        "score":      {"loose_end": 4,       "tight_end": 6,       "step": 1},   # owner: never above 6 on its own
+        "volume_h1":  {"loose_end": 3_000,   "tight_end": 20_000,  "step": 1_000},
+        "trades_h1":  {"loose_end": 30,      "tight_end": 120,     "step": 10},
+        "top_10":     {"loose_end": 0.45,    "tight_end": 0.25,    "step": 0.03},
+    },
+}

@@ -12,7 +12,7 @@ import os
 import threading
 import urllib.request
 
-INTERVAL_S = 600
+INTERVAL_S = 300  # 5 min: well inside Render's ~15 min idle window, so one missed ping cannot sleep the box
 _stop = threading.Event()
 _thread: threading.Thread | None = None
 

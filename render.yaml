@@ -10,7 +10,15 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
+      # sync: false -> Render asks you for this value ONCE when you create the
+      # Blueprint, then stores it permanently. It survives every redeploy, so
+      # your login key never changes. (If you leave it blank, start.sh generates
+      # a temporary key and prints it in the logs instead of crashing.)
       - key: DESK_TOKEN
-        sync: false          # you type this in the Render dashboard, never in git
+        sync: false
       - key: PYTHONUNBUFFERED
+        value: "1"
+      # Self-ping every 5 min so the free plan does not spin down mid-session.
+      # Set to 0 to disable.
+      - key: SELF_PING
         value: "1"

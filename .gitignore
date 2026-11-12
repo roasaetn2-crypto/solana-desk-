@@ -27,3 +27,6 @@ private_key*.txt
 keys.txt
 *.key
 *.pem
+
+# generated fallback lock key (when host does not set DESK_TOKEN)
+.desk_token
