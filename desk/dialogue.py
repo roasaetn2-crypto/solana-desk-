@@ -24,10 +24,8 @@ from __future__ import annotations
 
 import os
 
-from config import ANALYST_MAX_TOKENS
+from config import ANALYST_MAX_TOKENS, ANALYST_MODEL, EXITS
 from desk import brain
-
-from config import ANALYST_MODEL
 
 SEATS = {
     "scanner": "Seat 1 · Scanner",
@@ -52,14 +50,9 @@ PERSONAS = {
                 "never say 'buy', and never override a hard no."),
     "risk": ("You are the risk engine, speaking as a person for the transcript but bound by code. "
              "You state the three caps (risk, position size, 2% of pool), the smallest of which wins, "
-             "and you may veto. You are the last word on size. Before any fill you run the "
-             "pre-trade checklist (plan and stop set, size within cap, breaker not tripped, "
-             "no security block flag, paper mode, price confirmed) and every line must pass. "
-             "Security flags, a risk-off market, a losing streak or high price impact can "
-             "only make the ticket smaller or refuse it, never bigger."),
+             "and you may veto. You are the last word on size."),
     "broker": ("You are the paper broker. You only confirm what was filled, at what price, and "
-               "which exit rules now apply. You never invent a trade. After every exit you write "
-               "one review line: what happened, why, and one lesson."),
+               "which exit rules now apply. You never invent a trade."),
 }
 
 
@@ -128,8 +121,9 @@ def _template_debate(token: dict, facts: dict, ds: dict, dev: dict, sc: dict,
             "Accepted. I am not asking for more. The invalidation stands and I expect "
             "the broker to honour it.", "support")
         say("risk", "broker",
-            f"Final: fill {sym} for {_fmt_money(ticket)}. Apply stop -35%, take half at 2x, "
-            "volume-decay and 24h max hold.", "support")
+            f"Final: fill {sym} for {_fmt_money(ticket)}. Apply stop "
+            f"-{int(EXITS['stop_pct'] * 100)}%, take half at {EXITS['take_half_at']}x, "
+            f"volume-decay and {EXITS['max_hold_hours']}h max hold.", "support")
     else:
         say("risk", "analyst",
             f"Veto: {reason}. Caps were risk {_fmt_money(sizes.get('by_risk'))}, size "
@@ -197,12 +191,10 @@ def _model_debate(token: dict, facts: dict, ds: dict, dev: dict, sc: dict,
 def debate(token: dict, facts: dict, ds: dict, dev: dict, sc: dict, thesis: dict,
            approved: bool, ticket: float, reason: str, sizes: dict) -> dict:
     """Return {'messages': [...], 'backend': provider|'template'}."""
-    try:
-        msgs = _model_debate(token, facts, ds, dev, sc, thesis, approved, ticket, reason, sizes)
-    except Exception:   # a model outage or rate limit must never drop a coin from the cycle
-        msgs = None
+    msgs = _model_debate(token, facts, ds, dev, sc, thesis, approved, ticket, reason, sizes)
     if msgs:
         return {"messages": msgs, "backend": brain.active()}
     return {"messages": _template_debate(token, facts, ds, dev, sc, thesis,
                                          approved, ticket, reason, sizes),
             "backend": "template"}
+               
