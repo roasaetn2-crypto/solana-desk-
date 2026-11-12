@@ -185,9 +185,9 @@ AGENT = {
 }
 
 # ---------- Autotune (loosens gates that block too many tokens) ----------
-# desk/autotune.py reads this at import time: it builds its DEFAULTS from
-# AUTOTUNE["gates"], so every name in that list MUST exist in SCAN or the
-# module dies with a KeyError before the app can even start.
+# desk/autotune.py builds its DEFAULTS at import time from AUTOTUNE["gates"],
+# and get_gate() only knows four names: score, volume_h1, trades_h1, top_10.
+# Any other name raises KeyError before the app can start.
 #
 # Left DISABLED on purpose: it rewrites scanner gates at runtime, and a desk
 # that silently retunes itself is not one you can reason about from the journal.
@@ -204,27 +204,30 @@ AUTOTUNE = _Cfg({
     "min_samples": 30,             # decisions needed before it changes anything
     "max_step_pct": 0.25,          # never move a gate more than 25% in one step
     "persist": True,               # remember learned gates across restarts
-    # The gates it is allowed to touch. Names must match SCAN keys exactly.
+    # The gates it is allowed to touch.
+    #
+    # CRITICAL: these are NOT SCAN key names. desk/autotune.py has a fixed
+    # lookup table -- get_gate(name) only knows "score", "volume_h1",
+    # "trades_h1" and "top_10". Anything else raises KeyError at import time,
+    # before the app can start. Keep this list a subset of those four.
     "gates": [
-        "min_liquidity_usd",
-        "min_volume_h1_usd",
-        "min_trades_h1",
-        "min_sells_ratio_h1",
-        "min_mcap_usd",
-        "max_mcap_usd",
-        "min_age_minutes",
-        "max_age_hours",
+        "score",        # -> ANALYST_VALID_SCORE
+        "volume_h1",    # -> SCAN["min_volume_h1_usd"]
+        "trades_h1",    # -> SCAN["min_trades_h1"]
+        "top_10",       # -> CHAIN["max_top_10"]
     ],
     # Hard floors/ceilings so autotune can never loosen a gate into nonsense.
     "floor": _Cfg({
-        "min_liquidity_usd": 1_500,
-        "min_volume_h1_usd": 1_000,
-        "min_trades_h1": 15,
-        "min_sells_ratio_h1": 0.05,
-        "min_mcap_usd": 5_000,
-        "max_mcap_usd": 50_000_000,
-        "min_age_minutes": 1,
-        "max_age_hours": 72,
+        "score": 3,             # never let the analyst bar drop below 3/10
+        "volume_h1": 1_000,     # $1k of 1h volume is the absolute floor
+        "trades_h1": 15,        # 15 trades/hour is the absolute floor
+        "top_10": 0.50,         # top-10 wallets may never be allowed past 50%
+    }),
+    "ceiling": _Cfg({
+        "score": 8,
+        "volume_h1": 250_000,
+        "trades_h1": 500,
+        "top_10": 0.15,
     }),
 })
 
