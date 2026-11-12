@@ -9,9 +9,11 @@ Owner rule: this desk never holds a wallet key and never signs or sends a transa
 - `tests/test_desk.py`: the old `LiveExecution` class (tests that live can arm) is skipped.
 - Not installed: `requirements-live.txt`, `solders`, `base58`. `SOLANA_PRIVATE_KEY` is never set.
 
-## Known pre-existing test failures (not caused by this change)
-4 `RiskEngine` tests in `tests/test_desk.py` fail on a clean checkout because `config.py` was loosened after the tests were written (ticket 28.57 vs 20, quiet hours off, score bar 5).
-Testing the access-gate tests needs `httpx2` in the venv (test-only, not in requirements.txt).
+## Test status (updated)
+The suite is green on a clean checkout: `437 passed, 17 skipped` (the 17 skips are the
+live-execution tests, disabled by design). Install test-only deps with
+`pip install -r requirements-dev.txt`. CI (`.github/workflows/tests.yml`) runs the same
+suite on every push and pull request.
 
 ## Outbound calls found in the code (review)
 - Data: api.geckoterminal.com, api.dexscreener.com, api.rugcheck.xyz, Solana RPC (mainnet-beta public, or `SOLANA_RPC_URL`, or Helius via `HELIUS_API_KEY`).

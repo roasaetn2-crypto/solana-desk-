@@ -1,0 +1,10 @@
+# Minimal project/tooling config. Runtime deps stay in requirements.txt
+# (Render installs from there); this file only configures the test runner.
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Keep the output readable; the suite is fast (~2s) and network-free.
+addopts = "-ra"
+filterwarnings = [
+    # Starlette still imports httpx for TestClient; harmless for our use.
+    "ignore::DeprecationWarning:starlette.*",
+]
