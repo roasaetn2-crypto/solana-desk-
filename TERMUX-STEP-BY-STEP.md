@@ -174,3 +174,45 @@ Stop it with `Ctrl+C` in Termux, or swipe the notification away.
   live requirements, exporting `SOLANA_PRIVATE_KEY`, and arming live mode by
   typing the confirmation phrase.
 - Never use `./run.sh --open` — that removes the lock entirely.
+
+---
+
+## Optional: turn on the AI advisor (free keys)
+
+The desk runs fine without AI keys — the gates, the scanner and the paper broker
+never call a model. With a key set, the **AI** tab stops saying *"AI keys not
+set"* and each candidate gets a second opinion in the log that you can Confirm
+or ignore. The advisor is advisory only: it cannot size a trade, open one,
+loosen a gate or override a kill.
+
+```bash
+cd ~/solana-desk
+grep -v -e '^GEMINI_API_KEY=' -e '^OPENROUTER_API_KEY=' -e '^BRAIN_GEMINI_MODEL=' .env 2>/dev/null > .env.new; mv .env.new .env
+printf 'GEMINI_API_KEY=your_gemini_key\nOPENROUTER_API_KEY=your_openrouter_key\nBRAIN_GEMINI_MODEL=gemini-3.5-flash-lite\n' >> .env
+chmod 600 .env
+pkill -f "[u]vicorn app:app"; sleep 6
+curl -s http://127.0.0.1:8000/api/health | head -c 300; echo
+```
+
+- Gemini key: https://aistudio.google.com/apikey (free tier)
+- OpenRouter key: https://openrouter.ai/keys (free models only; 50 requests/day
+  without credits, resets at 00:00 UTC)
+- Groq is optional: `GROQ_API_KEY` from https://console.groq.com/keys
+
+`.env` is gitignored, so keys are never committed. `load_env()` runs once at
+startup, so **any change to `.env` needs a restart** — unlike the dashboard
+files, which are served fresh from disk on every request.
+
+### Why `gemini-3.5-flash-lite` and not the default
+
+`gemini-3.6-flash` reasons before it answers. Measured on a free key it took
+**42 seconds** for a one-line reply, which is past the 8s per-call timeout, so
+every review failed with `gemini: timeout`. `gemini-3.5-flash-lite` answered the
+same prompt in **0.7s**. If you want the bigger model, raise the timeout instead:
+
+```bash
+printf 'BRAIN_TIMEOUT_S=45\n' >> ~/solana-desk/.env
+```
+
+A timeout now falls through to the next model in the list rather than failing
+the whole review.

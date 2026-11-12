@@ -64,7 +64,11 @@ def gemini_models(primary: str | None = None) -> list[str]:
 
 GEMINI_MODELS = gemini_models()
 
-TIMEOUT_S = 8.0                 # per HTTP call
+TIMEOUT_S = float(os.getenv("BRAIN_TIMEOUT_S", "8"))   # per HTTP call
+# gemini-3.6-flash "thinks" before answering: measured 42s on a free key, which is
+# past the 8s default. gemini-3.5-flash-lite answered the same prompt in 0.7s.
+# Set BRAIN_GEMINI_MODEL=gemini-3.5-flash-lite (or raise BRAIN_TIMEOUT_S) if the
+# primary model keeps timing out.
 DEADLINE_S = 40.0               # whole review incl. debate
 PER_CYCLE = int(os.getenv("BRAIN_PER_CYCLE", "2"))      # coins reviewed per cycle
 DEBATES_PER_CYCLE = 1
@@ -423,7 +427,12 @@ class Gemini(Provider):
                 return out
             except ProviderError as e:
                 last = e
-                if e.status not in (404, 500, 502, 503, 504) or not self.available():
+                # 404/5xx = model gone or overloaded; a timeout means this model is too
+                # slow for TIMEOUT_S, so the next one is worth a try rather than failing
+                # the whole review.
+                retry = e.status in (404, 500, 502, 503, 504) or (
+                    e.status is None and "timeout" in str(e))
+                if not retry or not self.available():
                     raise
         raise last or ProviderError("gemini: no model available")
 
