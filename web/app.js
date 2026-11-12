@@ -344,7 +344,11 @@ function renderRisk(s) {
     banner.hidden = true;
     btn.hidden = true;
   }
-  renderDailyStop(rk, limitLabel);
+  // Daily-stop summary line. Kept inline: the old renderDailyStop() helper was
+  // removed with the self-tune cleanup but this call stayed behind, throwing a
+  // ReferenceError that aborted render() before the agent cards could paint.
+  const dsNow = $("dailyStopNow");
+  if (dsNow) dsNow.textContent = limitLabel + (rk.hit ? " \u2014 hit" : "");
 }
 
 function initDailyStop() {
