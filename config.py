@@ -183,20 +183,50 @@ AGENT = {
     "demo_when_empty": True,       # if a live scan returns nothing usable, feed a demo batch
     "max_events": 400,             # ring buffer size for the agent log
 }
+
 # ---------- Autotune (loosens gates that block too many tokens) ----------
-# desk/autotune.py reads this. Left DISABLED on purpose: it rewrites scanner
-# gates at runtime, and a desk that silently retunes itself is not one you can
-# reason about from the journal. Turn it on only after you trust the paper book.
-AUTOTUNE = {
+# desk/autotune.py reads this at import time: it builds its DEFAULTS from
+# AUTOTUNE["gates"], so every name in that list MUST exist in SCAN or the
+# module dies with a KeyError before the app can even start.
+#
+# Left DISABLED on purpose: it rewrites scanner gates at runtime, and a desk
+# that silently retunes itself is not one you can reason about from the journal.
+class _Cfg(dict):
+    """Config block that returns None for unknown keys instead of raising."""
+
+    def __missing__(self, key):
+        return None
+
+
+AUTOTUNE = _Cfg({
     "enabled": False,              # master switch. False = gates stay as written above
     "every_cycles": 40,            # how often it re-evaluates, in agent cycles
     "min_samples": 30,             # decisions needed before it changes anything
     "max_step_pct": 0.25,          # never move a gate more than 25% in one step
-    "min_liquidity_usd": 1_500,    # hard floor: never loosen liquidity below this
-    "min_trades_h1": 15,           # hard floor for trades
-    "max_age_hours": 72,           # hard ceiling for age
     "persist": True,               # remember learned gates across restarts
-}
+    # The gates it is allowed to touch. Names must match SCAN keys exactly.
+    "gates": [
+        "min_liquidity_usd",
+        "min_volume_h1_usd",
+        "min_trades_h1",
+        "min_sells_ratio_h1",
+        "min_mcap_usd",
+        "max_mcap_usd",
+        "min_age_minutes",
+        "max_age_hours",
+    ],
+    # Hard floors/ceilings so autotune can never loosen a gate into nonsense.
+    "floor": _Cfg({
+        "min_liquidity_usd": 1_500,
+        "min_volume_h1_usd": 1_000,
+        "min_trades_h1": 15,
+        "min_sells_ratio_h1": 0.05,
+        "min_mcap_usd": 5_000,
+        "max_mcap_usd": 50_000_000,
+        "min_age_minutes": 1,
+        "max_age_hours": 72,
+    }),
+})
 
 
 # ---------- safety net ---------------------------------------------------
