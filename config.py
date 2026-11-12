@@ -6,16 +6,16 @@ and move a number only when the journal tells you to.
 
 # ---------- Seat 1: scanner (free cuts, data already in the GeckoTerminal batch) ----------
 SCAN = {
-    "pages": 3,                    # pages per cycle, per source (1 page = 20 pools)
+    "pages": 1,                    # rotated GeckoTerminal feed pages per cycle (1 page = 20 pools), on top of new_pools p1
     "pump_only": False,            # True = only pump.fun curve + PumpSwap pools
     "pump_dexes": {"pump-fun", "pumpswap"},
-    "min_age_minutes": 2,          # younger: the data is noise
-    "max_age_hours": 24,           # older with no new move: not a launch any more
-    "min_liquidity_usd": 5_000,
-    "min_volume_h1_usd": 8_000,
-    "min_mcap_usd": 15_000,
+    "min_age_minutes": 1,          # younger: the data is noise (retune 2026-11-12: was 2)
+    "max_age_hours": 48,           # older with no new move: not a launch any more (retune: was 24)
+    "min_liquidity_usd": 3_000,    # retune: was 5_000
+    "min_volume_h1_usd": 3_000,    # retune: was 8_000
+    "min_mcap_usd": 8_000,         # retune: was 15_000
     "max_mcap_usd": 25_000_000,
-    "min_trades_h1": 60,
+    "min_trades_h1": 30,           # retune: was 60
     "max_h1_change_pct": 250.0,    # MERGE (old desk scanner.max_h1_change_pct, paper 250): do not buy a vertical chart
     "min_sells_ratio_h1": 0.10,    # sells / buys. Below this nobody can sell = honeypot smell
 }
@@ -27,6 +27,7 @@ SCAN_FETCH = {
     "ds_per_min": 30,              # under profiles/boosts 60/min and search 300/min
     "ds_burst": 4,
     "cache_ttl_s": 90,             # reuse an endpoint body this long
+    "gt_max_page": 3,              # GT rotation walks pages 1..3 of new_pools / trending 5m / trending 1h
     "pool_ttl_s": 600,             # rolling candidate pool, keyed by mint (~10 min)
     "quote_ttl_s": 15,             # short cache for open-position price refreshes
     "cooldown_floor_s": 30,        # even if Retry-After is 1s, back off at least this (per host)
@@ -67,10 +68,10 @@ ANALYST_MAX_RED_FOR_VALID = 3        # red flags allowed on a valid setup
 
 # ---------- Seat 4: risk engine (pure code) ----------
 RISK = {
-    "max_risk_per_trade": 0.05,    # 5% of the $20 paper book: scalp ~$5, swing ~$3.33
+    "max_risk_per_trade": 0.015,   # 1.5% of the paper book (retune 2026-11-12: was 5%)
     "max_position_pct": 0.25,      # $5 cap on a $20 book (was 5% of $1,000 = $50)
     "max_pool_share": 0.02,        # never be more than 2% of the pool: you'd be the exit
-    "max_open_positions": 4,
+    "max_open_positions": 6,       # retune: was 4
     "max_daily_loss_pct": 0.03,    # down 3% on the day -> desk stops until tomorrow
     "min_ticket_usd": 10,          # live fee floor (unchanged). Paper floor is PAPER["min_ticket_usd"]
     "compound": True,              # MERGE: size off REALIZED equity (start + closed P&L), so wins are reinvested
@@ -82,11 +83,11 @@ RISK = {
 # ---------- Seat 5: exits (paper broker applies these, no model involved) ----------
 EXITS = {
     # legacy single-profile keys (kept: dashboard + volume-decay rule read them)
-    "stop_pct": 0.35,              # fallback stop for positions opened before profiles existed
+    "stop_pct": 0.30,              # fallback stop for positions opened before profiles existed (retune: was 0.35)
     "take_half_at": 1.5,
     "volume_decay_ratio": 0.20,    # h6 volume / (h24/4) under this -> close
     "volume_decay_min_minutes": 30,
-    "max_hold_hours": 24,
+    "max_hold_hours": 4,           # legacy fallback (retune: was 24)
     # MERGE (from old desk agents/timeframe.py + agents/risk.py): the horizon is picked at entry.
     # A pool younger than scalp_max_age_hours is a scalp (tight stop, short clock); older = swing.
     # Ladder: sell tp1_frac at tp1_at (stop then moves to breakeven, never down), sell tp2_frac of
@@ -94,10 +95,14 @@ EXITS = {
     "style": "both",               # PAPER trading style: both | scalp (young coins only) | swing (older only)
     "scalp_max_age_hours": 6.0,
     "missing_quote_closes": 3,     # close only after N quote misses in a row (one API blip is not an exit)
+    # PAPER runner rules (after TP1 sells part): the rest must not squat on a slot for days.
+    "breakeven_after_half": True,  # after TP1 the stop moves up to entry (never down)
+    "runner_trail_pct": 0.20,      # runner trails at most 20% below its peak (tighter profile trail wins)
+    "runner_max_minutes": 180,     # runner closes 3h after TP1, freeing the slot
     "profiles": {
         "scalp": {"stop_pct": 0.20, "tp1_at": 1.5, "tp1_frac": 0.33, "tp2_at": 2.0, "tp2_frac": 0.5,
                   "trail_pct": 0.20, "timeout_hours": 3.0, "timeout_min_gain": 0.05,
-                  "max_hold_hours": 6.0},
+                  "max_hold_hours": 4.0},     # retune: was 6h
         "swing": {"stop_pct": 0.30, "tp1_at": 1.5, "tp1_frac": 0.33, "tp2_at": 2.0, "tp2_frac": 0.5,
                   "trail_pct": 0.30, "timeout_hours": 24.0, "timeout_min_gain": 0.05,
                   "max_hold_hours": 72.0},
@@ -177,7 +182,7 @@ MEME = {
     "max_creator_prev_rugs": 0,      # any prior rugged launch from the same creator = no
     "max_sniper_pct": 0.20,          # bundled/sniper wallets above this = no
     "min_holders": 150,              # fewer real holders than this = not a community yet
-    "min_community_score": 40,       # 0-100, below this the desk will not call it a community coin
+    "min_community_score": 35,       # 0-100, below this the desk will not call it a community coin (retune: was 40)
     # score -> verdict bands for the meme scorecard
     "bands": {"strong": 70, "watch": 50},
 }
@@ -217,7 +222,7 @@ AUTOTUNE = {
     # gate: (where, key, step toward LOOSER, hard floor/ceiling for the loose end, tight end)
     "gates": {
         "score":      {"loose_end": 4,       "tight_end": 8,       "step": 1},
-        "volume_h1":  {"loose_end": 4_000,   "tight_end": 20_000,  "step": 1_000},
+        "volume_h1":  {"loose_end": 3_000,   "tight_end": 20_000,  "step": 1_000},
         "trades_h1":  {"loose_end": 30,      "tight_end": 120,     "step": 10},
         "top_10":     {"loose_end": 0.45,    "tight_end": 0.25,    "step": 0.03},
     },

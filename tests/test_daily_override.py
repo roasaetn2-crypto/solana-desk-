@@ -19,6 +19,7 @@ from desk import analyst                                                  # noqa
 from desk.risk import (DAILY_LOSS_REASON, Account, check_live_trade,     # noqa: E402
                        check_token_trade, daily_override_active)
 from desk.solana_agent import SolanaAgent                                 # noqa: E402
+from legacy_book import legacy_book  # noqa: E402
 
 NOON = datetime(2026, 10, 26, 12, 0)
 EQ = PAPER["starting_equity_usd"]
@@ -38,6 +39,7 @@ def down_account(open_positions=0):
                    open_positions=open_positions, realized_equity=EQ)
 
 
+@legacy_book
 class OverrideRule(unittest.TestCase):
     def test_limit_is_still_three_percent(self):
         self.assertEqual(RISK["max_daily_loss_pct"], 0.03)

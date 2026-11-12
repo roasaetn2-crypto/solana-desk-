@@ -7,6 +7,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import config  # noqa: E402
 from desk import dexscreener, promo, scanner
 from test_scanner_sources import FakeResp
 
@@ -94,9 +95,11 @@ class HostCooldown(unittest.TestCase):
         self.assertFalse(scanner.host_cooling("geckoterminal", self.clock.t))
         self.assertEqual(scanner._HOST_COOL["geckoterminal"]["strikes"], 0)
 
-    def test_page_2_is_every_fourth_cycle(self):
-        pages = [c for c in range(8) if any(e["id"] == "gt:new_pools:2" for e in scanner._schedule(c))]
-        self.assertEqual(pages, [1, 5])
+    def test_gt_schedule_is_page_one_plus_one_rotated_slot(self):
+        for c in range(8):
+            gt = [e["id"] for e in scanner._schedule(c) if e["source"] == "geckoterminal"]
+            self.assertEqual(len(gt), 1 + config.SCAN["pages"])
+            self.assertIn("gt:new_pools:1", gt)
 
     def test_direct_callers_respect_and_feed_the_host_cooldown(self):
         s = mock.Mock()

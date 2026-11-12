@@ -103,6 +103,7 @@ def _new_buckets() -> dict[str, TokenBucket]:
 
 _BUCKETS = _new_buckets()
 _cycle = 0
+_gt_cursor = [0]           # next GeckoTerminal rotation slot; advances only when a slot was served
 # endpoint id -> {"until": ts, "strikes": int}  (non-429 errors only)
 _COOL: dict[str, dict] = {}
 # host ("geckoterminal" | "dexscreener") -> {"until": ts, "strikes": int}
@@ -143,6 +144,7 @@ def reset_runtime() -> None:
     """Clear limiter / cache / cooldown / cycle state. Used by tests."""
     global _cycle, _BUCKETS
     _cycle = 0
+    _gt_cursor[0] = 0
     _BUCKETS = _new_buckets()
     _jup_base[0] = 0
     _JUP_ROWS.clear()
@@ -578,17 +580,40 @@ def _pool_tokens(now: float) -> list[dict]:
 
 # ---------- endpoint schedules ----------
 
+# GeckoTerminal feeds the rotation walks through: (id part, path, extra params).
+# new_pools page 1 is fetched every cycle; everything else takes turns, one slot per cycle,
+# so the desk sees more than the same 20 newest pools without spending more GT calls.
+GT_FEEDS = (
+    ("new_pools", "new_pools", {}),
+    ("trending_5m", "trending_pools", {"duration": "5m"}),
+    ("trending_1h", "trending_pools", {"duration": "1h"}),
+)
+
+
+def _gt_ep(feed: str, path: str, extra: dict, page: int) -> dict:
+    q = "".join(f" {k}={v}" for k, v in extra.items())
+    return {"id": f"gt:{feed}:{page}", "source": "geckoterminal",
+            "url": f"{GT}/networks/solana/{path}",
+            "params": {**extra, "page": page, "include": "base_token,dex"},
+            "label": f"/networks/solana/{path}{q} page={page}",
+            # trending lists mix in old pools: only launch-window rows enter the pool
+            "kind": "gt_pools", "age_cut": path != "new_pools"}
+
+
 def _gt_endpoints() -> list[dict]:
-    return [
-        {"id": "gt:new_pools:1", "source": "geckoterminal",
-         "url": f"{GT}/networks/solana/new_pools",
-         "params": {"page": 1, "include": "base_token,dex"},
-         "label": "/networks/solana/new_pools page=1", "kind": "gt_pools"},
-        {"id": "gt:new_pools:2", "source": "geckoterminal",
-         "url": f"{GT}/networks/solana/new_pools",
-         "params": {"page": 2, "include": "base_token,dex"},
-         "label": "/networks/solana/new_pools page=2", "kind": "gt_pools"},
-    ]
+    """[new_pools page 1] + the rotation (page-major: every feed's page 1, then page 2, ...)."""
+    first = _gt_ep(*GT_FEEDS[0], 1)
+    rot = []
+    for page in range(1, int(SCAN_FETCH.get("gt_max_page", 3)) + 1):
+        for feed, path, extra in GT_FEEDS:
+            if feed == "new_pools" and page == 1:
+                continue
+            rot.append(_gt_ep(feed, path, extra, page))
+    return [first] + rot
+
+
+def _gt_rotation() -> list[dict]:
+    return _gt_endpoints()[1:]
 
 
 def _jup_endpoints() -> list[dict]:
@@ -710,15 +735,18 @@ def _ds_rotation() -> list[dict]:
     ]
 
 
-def _absorb_gt(body: dict, now: float) -> int:
+def _absorb_gt(body: dict, now: float, age_cut: bool = False) -> int:
     if not isinstance(body, dict):
         return 0
     symbols = {i["id"]: i["attributes"].get("symbol", "?")
                for i in body.get("included", []) if i.get("type") == "token"}
+    max_age_min = SCAN["max_age_hours"] * 60
     n = 0
     for pool in body.get("data") or []:
         t = _keep(parse_pool(pool, symbols))
         if not t:
+            continue
+        if age_cut and t["age_minutes"] > max_age_min:
             continue
         _put_pool(t, now)
         n += 1
@@ -818,12 +846,21 @@ def _hydrate_mints(s: requests.Session, mints: list[str], now: float) -> int:
 
 
 def _schedule(cycle: int) -> list[dict]:
-    """1-2 GeckoTerminal calls and exactly one DexScreener discovery slot per cycle."""
+    """GeckoTerminal: new_pools page 1 plus SCAN["pages"] rotated feed/page slots (the cursor
+    moves on only after a slot was actually served), and exactly one DexScreener slot."""
     planned: list[dict] = []
     gt = _gt_endpoints()
-    planned.append(gt[0])                    # new_pools page 1 every cycle
-    if cycle % 4 == 1:
-        planned.append(gt[1])                # page 2 every 4th cycle (older pools, mostly cut by age)
+    planned.append(gt[0])                    # new_pools page 1 every cycle (freshest launches)
+    rot_gt = gt[1:]
+    for i in range(max(0, int(SCAN.get("pages", 1)))):
+        if rot_gt:
+            ep = dict(rot_gt[(_gt_cursor[0] + i) % len(rot_gt)])
+            ep["rot"] = True
+            planned.append(ep)
+    if cycle % 2 and len(planned) > 1:
+        # GT is often cooling and grants one call at a time: on odd cycles the rotated slot
+        # goes first, so page 1 cannot take every call and starve the rest of the feed.
+        planned = planned[1:] + planned[:1]
     rot = _ds_rotation()
     # If the rotated slot is cooling, try the next ones rather than skip DS entirely.
     for i in range(len(rot)):
@@ -839,8 +876,9 @@ def _schedule(cycle: int) -> list[dict]:
 def new_tokens(session: requests.Session | None = None) -> list[dict]:
     """Solana pools worth looking at, deduplicated by mint.
 
-    Each cycle spends at most 1-2 GeckoTerminal calls (new_pools page 1 always,
-    page 2 every 4th cycle) and one rotated DexScreener discovery endpoint.
+    Each cycle spends at most 1 + SCAN["pages"] GeckoTerminal calls (new_pools page 1 always,
+    plus the next slot of a feed/page rotation: new_pools p2-3, trending 5m and 1h p1-3) and one
+    rotated DexScreener discovery endpoint. All GT calls share one token bucket (gt_per_min).
     Responses are cached (90s) and merged into a rolling 10-minute pool, so a
     429 cannot empty the candidate set. 429s cool that endpoint and never sleep.
     """
@@ -862,7 +900,9 @@ def new_tokens(session: requests.Session | None = None) -> list[dict]:
         if ep["kind"] == "jup_tokens":
             _absorb_jup(body, now)
         elif ep["kind"] == "gt_pools":
-            _absorb_gt(body, now)
+            _absorb_gt(body, now, age_cut=bool(ep.get("age_cut")))
+            if ep.get("rot"):
+                _gt_cursor[0] = (_gt_cursor[0] + 1) % max(1, len(_gt_rotation()))
         elif ep["kind"] == "ds_pairs":
             _absorb_pairs(body, now)
         elif ep["kind"] == "ds_mints":

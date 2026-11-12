@@ -22,6 +22,12 @@ def profile(name: str | None, overrides: dict | None = None) -> dict:
     return base
 
 
+def runner_trail(pr: dict) -> float:
+    """Trail for the runner after TP1: the profile's trail, capped by EXITS["runner_trail_pct"]."""
+    cap = EXITS.get("runner_trail_pct")
+    return min(pr["trail_pct"], cap) if cap else pr["trail_pct"]
+
+
 def init_state(pos: dict, horizon: str) -> None:
     pr = profile(horizon)
     pos.update({"horizon": horizon, "stop_pct": pr["stop_pct"], "peak": pos["entry"],
@@ -51,15 +57,26 @@ def evaluate(pos: dict, q: dict | None, now: float, prof: dict | None = None) ->
     if price <= pos["stop_price"]:
         tag = "breakeven stop" if pos["stop_price"] >= entry else f"stop -{int(pr['stop_pct'] * 100)}%"
         return (1.0, tag)
-    if pos["stage"] >= 1 and price <= pos["peak"] * (1 - pr["trail_pct"]):
-        return (1.0, f"trail -{int(pr['trail_pct'] * 100)}% from peak")
+    if pos["stage"] >= 1:
+        # Runner (what is left after TP1). It trails no looser than runner_trail_pct and
+        # has its own clock, so a sleepy runner frees its slot instead of holding it for days.
+        trail = runner_trail(pr)
+        if price <= pos["peak"] * (1 - trail):
+            return (1.0, f"trail -{int(round(trail * 100))}% from peak")
+        cap_min = EXITS.get("runner_max_minutes")
+        if cap_min:
+            half_at = pos.setdefault("half_at", now)   # older runners: the clock starts now
+            if (now - half_at) / 60 >= cap_min:
+                return (1.0, f"runner time cap {int(cap_min)}m after TP1")
     if pos["stage"] == 1 and price >= entry * pr["tp2_at"]:
         pos["stage"] = 2
         return (pr["tp2_frac"], f"TP2 at {pr['tp2_at']}x")
     if pos["stage"] == 0 and price >= entry * pr["tp1_at"]:
         pos["stage"] = 1
         pos["half_taken"] = True
-        pos["stop_price"] = max(pos["stop_price"], entry)
+        pos["half_at"] = now
+        if EXITS.get("breakeven_after_half", True):
+            pos["stop_price"] = max(pos["stop_price"], entry)     # only ever up
         return (pr["tp1_frac"], f"TP1 at {pr['tp1_at']}x")
     if held_min >= EXITS["volume_decay_min_minutes"] and q.get("volume_h24", 0) > 0:
         ratio = q.get("volume_h6", 0) / (q["volume_h24"] / 4)

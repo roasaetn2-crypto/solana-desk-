@@ -247,6 +247,21 @@ def facts(mint: str, session: requests.Session | None = None) -> dict:
     }
 
 
+def with_fallback_concentration(f: dict, dev: dict | None) -> dict | None:
+    """When the RPC could not measure holder concentration (top_wallet_pct None, usually a 429
+    on getTokenLargestAccounts), fill it from RugCheck's topHolders with pool / locker / vault /
+    market accounts excluded (creator kept). Returns the new facts, or None when nothing to add.
+
+    This can only add a block: it runs on coins that had no concentration check at all, and
+    chain_kill applies the same CHAIN limits to it.
+    """
+    c = (dev or {}).get("concentration") or {}
+    if f.get("top_wallet_pct") is not None or c.get("top_wallet_pct") is None:
+        return None
+    return {**f, "top_wallet_pct": c["top_wallet_pct"], "top_10_pct": c.get("top_10_pct"),
+            "concentration_source": c.get("source", "rugcheck")}
+
+
 def chain_kill(f: dict) -> str | None:
     """Plain facts against plain limits. First failure wins."""
     if f["mint_authority"] and not CHAIN["allow_mint_authority"]:

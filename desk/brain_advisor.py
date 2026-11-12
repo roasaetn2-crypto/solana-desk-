@@ -171,6 +171,15 @@ def redact(text) -> str:
     return s
 
 
+def _holders(f: dict, dev: dict) -> int | None:
+    """Real holder total for the AI summary (never the top-20 sample); None when unknown."""
+    try:
+        from desk.meme import real_holder_count
+        return real_holder_count(f or {}, dev or {})
+    except Exception:
+        return None
+
+
 def _clean(text, n=160) -> str:
     s = re.sub(r"[\x00-\x1f\x7f<>`]", " ", str(text))
     s = re.sub(r"\s+", " ", s).strip()
@@ -579,7 +588,7 @@ class Advisor:
             "buys_h1": t.get("buys_h1"), "sells_h1": t.get("sells_h1"), "buyers_h1": t.get("buyers_h1"),
             "change_m5_pct": t.get("change_m5"), "change_h1_pct": t.get("change_h1"),
             "change_h6_pct": t.get("change_h6"),
-            "holders": f.get("holders"), "top_wallet_pct": f.get("top_wallet_pct"),
+            "holders": _holders(f, dev), "top_wallet_pct": f.get("top_wallet_pct"),
             "top_10_pct": f.get("top_10_pct"),
             "mint_authority": f.get("mint_authority"), "freeze_authority": f.get("freeze_authority"),
             "dev": {"hold_pct": dev.get("dev_hold_pct", dev.get("creator_hold_pct")),

@@ -65,6 +65,14 @@ def notch(name: str, loosen: bool) -> tuple[float, float]:
     return cur, get_gate(name)
 
 
+# The config defaults the saved gates were tuned from. When an approved retune changes a
+# default, a gate the self-tuner saved against the OLD default is dropped on restore so the new
+# default goes live. Operator-confirmed values (desk/settings.py) are re-applied after this and
+# still win. State files written before baselines existed were tuned from these defaults.
+DEFAULTS = {n: get_gate(n) for n in AUTOTUNE["gates"]}
+LEGACY_BASELINE = {"score": 5, "volume_h1": 8_000, "trades_h1": 60, "top_10": 0.35}
+
+
 class AutoTune:
     def __init__(self, agent, state_path: Path | str | None = None, log_path: Path | str | None = None):
         self.agent = agent
@@ -73,6 +81,7 @@ class AutoTune:
         self.last_run = time.time()
         self.last_change_ts = 0.0
         self.history: list[dict] = []
+        self.dropped: dict = {}
         self._restore()
 
     def _restore(self):
@@ -82,15 +91,25 @@ class AutoTune:
             st = json.loads(self.state_path.read_text())
         except Exception:
             return
+        base = st.get("baseline") if isinstance(st.get("baseline"), dict) else LEGACY_BASELINE
+        self.dropped: dict = {}
         for name, v in (st.get("gates") or {}).items():
-            if name in AUTOTUNE["gates"]:
-                set_gate(name, v)          # clamped by the hard floors
+            if name not in AUTOTUNE["gates"]:
+                continue
+            if name in base and name in DEFAULTS and base[name] != DEFAULTS[name]:
+                self.dropped[name] = v     # tuned from an old default: the new default stands
+                continue
+            set_gate(name, v)              # clamped by the hard floors
+        if self.dropped:
+            print("[desk] autotune: new defaults replace saved self-tuned gate(s) "
+                  + ", ".join(f"{n} {v} -> {get_gate(n)}" for n, v in self.dropped.items()), flush=True)
         self.history = st.get("history", [])[-50:]
 
     def _persist(self):
         try:
             self.state_path.write_text(json.dumps(
-                {"gates": {n: get_gate(n) for n in AUTOTUNE["gates"]}, "history": self.history[-50:]}, indent=1))
+                {"gates": {n: get_gate(n) for n in AUTOTUNE["gates"]}, "baseline": DEFAULTS,
+                 "history": self.history[-50:]}, indent=1))
         except Exception:
             pass
         try:

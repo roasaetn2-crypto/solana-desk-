@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from desk import analyst, brain, chain, helius, live, meme, scanner                # noqa: E402
 from desk.solana_agent import SolanaAgent                                          # noqa: E402
+from legacy_book import legacy_book  # noqa: E402
 from desk.broker import PaperBroker                           # noqa: E402
 from config import EXITS, PAPER, RISK                         # noqa: E402
 from desk.risk import (Account, check_live_trade, check_token_trade,  # noqa: E402
@@ -47,7 +48,7 @@ class FreeKill(unittest.TestCase):
         self.assertIsNone(scanner.free_kill(token()))
 
     def test_each_cut(self):
-        self.assertEqual(scanner.free_kill(token(age_minutes=1)), "age")
+        self.assertEqual(scanner.free_kill(token(age_minutes=0.5)), "age")
         self.assertEqual(scanner.free_kill(token(liquidity_usd=1_000)), "liquidity")
         self.assertEqual(scanner.free_kill(token(volume_h1=500)), "volume")
         self.assertEqual(scanner.free_kill(token(mcap_usd=99_000_000)), "mcap")
@@ -121,15 +122,17 @@ class ChainFacts(unittest.TestCase):
         self.assertEqual(a, b)
 
 
+@legacy_book
 class RiskEngine(unittest.TestCase):
     acct = Account(equity=PAPER["starting_equity_usd"], day_pnl=0, open_positions=0,
                    realized_equity=PAPER["starting_equity_usd"])
 
     def test_sizing_takes_the_smallest_cap(self):
         ok, ticket, _ = check_token_trade(thesis(), self.acct, 30_000, now=NOON)
-        # $20 book, fallback stop 35%: risk 20*5%/35% = 2.86, size 25% = 5, pool 600 -> 2.86
+        # $20 book, fallback stop 30% (retune; was 35%): risk 20*5%/30% = 3.33, size 25% = 5,
+        # pool 600 -> 3.33
         self.assertTrue(ok)
-        self.assertEqual(ticket, 2.86)
+        self.assertEqual(ticket, 3.33)
 
     def test_thin_pool_caps_ticket(self):
         ok, ticket, reason = check_token_trade(thesis(), self.acct, 50, now=NOON)
@@ -159,7 +162,7 @@ class RiskEngine(unittest.TestCase):
 
     def test_sizing_breakdown(self):
         b = sizing_breakdown(self.acct, 30_000)
-        self.assertEqual(b["ticket"], 2.86)
+        self.assertEqual(b["ticket"], 3.33)
         self.assertLessEqual(b["ticket"], min(b["by_risk"], b["by_size"], b["by_pool"]))
 
 
@@ -407,6 +410,12 @@ class AccessGate(unittest.TestCase):
         snap = json.dumps(body)
         self.assertNotIn("pumpportal.fun", snap)
         self.assertNotIn("api-key", snap.lower())
+        desk = body["desk"]                             # live gates + data source, numbers only
+        self.assertNotIn("error", desk)
+        self.assertEqual(desk["mode"], "paper")
+        self.assertIn("data_source", desk)
+        self.assertEqual(desk["gates"]["max_daily_loss_pct"], RISK["max_daily_loss_pct"])
+        self.assertNotIn("s3cret", snap)
 
     def test_wrong_token_rejected_right_token_accepted(self):
         c = self._client("s3cret")

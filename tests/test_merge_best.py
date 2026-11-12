@@ -11,6 +11,7 @@ from desk.broker import PaperBroker
 from desk.risk import Account, check_token_trade
 from desk.solana_agent import SolanaAgent
 from desk import analyst
+from legacy_book import legacy_book  # noqa: E402
 
 
 def q(price, h6=1000, h24=4000):
@@ -127,6 +128,7 @@ class AutoTuneTests(unittest.TestCase):
 
     def test_idle_loosens_most_blocking_gate_one_notch_and_logs(self):
         self.a.reject_reasons.update({"volume": 9, "trades": 2})
+        config.SCAN["min_volume_h1_usd"] = 8_000      # the retuned default (3k) already sits on the floor
         v0 = config.SCAN["min_volume_h1_usd"]
         now = time.time() + 3 * 3600
         rec = self.a.autotune.tick(now)
@@ -139,7 +141,7 @@ class AutoTuneTests(unittest.TestCase):
             for g in config.AUTOTUNE["gates"]:
                 autotune.notch(g, True)
         self.assertGreaterEqual(config.ANALYST_VALID_SCORE, 4)
-        self.assertGreaterEqual(config.SCAN["min_volume_h1_usd"], 4_000)
+        self.assertGreaterEqual(config.SCAN["min_volume_h1_usd"], 3_000)
         self.assertGreaterEqual(config.SCAN["min_trades_h1"], 30)
         self.assertLessEqual(config.CHAIN["max_top_10"], 0.45)
         for _ in range(100):
@@ -173,6 +175,7 @@ if __name__ == "__main__":
     unittest.main()
 
 
+@legacy_book
 class EndToEnd(unittest.TestCase):
     """Mocked network: one good pool goes scan -> confirm -> paper buy -> ladder exit."""
     def run_agent(self, quote):

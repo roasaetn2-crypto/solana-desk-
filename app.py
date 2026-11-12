@@ -300,7 +300,44 @@ def health():
             "error": pp.get("error"),
         },
         "ai": _ai_health(),
+        "desk": _desk_health(),
     }
+
+
+def _desk_health() -> dict:
+    """Where pools come from and the PAPER gate values actually live (after saved overrides).
+    Numbers only: no keys, no wallet, nothing that changes state."""
+    try:
+        import config as c
+        S, R, E, M = c.SCAN, c.RISK, c.EXITS, c.MEME
+        st = agent.stats
+        return {
+            "data_source": agent.data_source,
+            "last_cycle_at": agent.last_cycle_at,
+            "mode": agent.mode,
+            "gates": {
+                "style": E.get("style", "both"),
+                "min_age_minutes": S["min_age_minutes"], "max_age_hours": S["max_age_hours"],
+                "min_liquidity_usd": S["min_liquidity_usd"], "min_volume_h1_usd": S["min_volume_h1_usd"],
+                "min_mcap_usd": S["min_mcap_usd"], "min_trades_h1": S["min_trades_h1"], "pages": S["pages"],
+                "max_open_positions": R["max_open_positions"], "max_risk_per_trade": R["max_risk_per_trade"],
+                "max_daily_loss_pct": R["max_daily_loss_pct"], "min_paper_ticket_usd": c.PAPER["min_ticket_usd"],
+                "fallback_stop_pct": E["stop_pct"], "fallback_max_hold_hours": E["max_hold_hours"],
+                "scalp_stop_pct": E["profiles"]["scalp"]["stop_pct"],
+                "scalp_max_hold_hours": E["profiles"]["scalp"]["max_hold_hours"],
+                "swing_stop_pct": E["profiles"]["swing"]["stop_pct"],
+                "swing_max_hold_hours": E["profiles"]["swing"]["max_hold_hours"],
+                "breakeven_after_half": E.get("breakeven_after_half"),
+                "runner_trail_pct": E.get("runner_trail_pct"), "runner_max_minutes": E.get("runner_max_minutes"),
+                "min_community_score": M["min_community_score"], "analyst_min_score": c.ANALYST_VALID_SCORE,
+            },
+            "stats": {k: st.get(k, 0) for k in ("cycles", "seen", "free_rejects", "chain_rejects", "dev_rejects",
+                                                "sec_rejects", "meme_rejects", "risk_rejects", "guard_rejects",
+                                                "entries", "exits", "errors")},
+            "open_positions": agent.broker.open_count(),
+        }
+    except Exception as e:  # health must never fail
+        return {"error": type(e).__name__}
 
 
 def _ai_health() -> dict:

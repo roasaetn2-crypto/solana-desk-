@@ -13,6 +13,7 @@ os.environ.setdefault("DESK_OFFLINE", "1")
 import config  # noqa: E402
 from desk import scanner, signals  # noqa: E402
 from desk.solana_agent import SolanaAgent  # noqa: E402
+from legacy_book import legacy_book  # noqa: E402
 
 TOK = {"mint": "REALMINT1" + "x" * 30, "symbol": "GOOD", "name": "GOOD", "pool": "P",
        "dex": "pumpswap", "price_usd": 0.001, "mcap_usd": 300_000, "liquidity_usd": 40_000,
@@ -64,6 +65,7 @@ class Base(unittest.TestCase):
         return a.paper.s["positions"][TOK["mint"]]["cost"]
 
 
+@legacy_book
 class CautionLayer(Base):
     def test_baseline_enters_at_full_size(self):
         a = self.run_agent()
@@ -144,6 +146,7 @@ class CautionLayer(Base):
         self.assertEqual(ig["gmgn"]["status"], "waiting on key")
 
 
+@legacy_book
 class ExitReview(Base):
     def test_exit_writes_review_and_jupiter_note(self):
         a = self.run_agent()

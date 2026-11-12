@@ -244,10 +244,10 @@ PRESETS: dict[str, dict] = {
                          "exits.swing.trail_pct": 0.30, "exits.swing.timeout_hours": 24,
                          "exits.swing.max_hold_hours": 72}},
     "balanced": {"label": "Both (desk default)", "reason": "Back to the desk's default mix: scalp young coins, swing older ones.",
-                 "values": {"trading.style": "both", "scan.max_age_hours": 24, "exits.scalp_max_age_hours": 6.0,
+                 "values": {"trading.style": "both", "scan.max_age_hours": 48, "exits.scalp_max_age_hours": 6.0,
                             "exits.scalp.stop_pct": 0.20, "exits.scalp.tp1_at": 1.5, "exits.scalp.tp2_at": 2.0,
                             "exits.scalp.trail_pct": 0.20, "exits.scalp.timeout_hours": 3.0,
-                            "exits.scalp.max_hold_hours": 6.0, "exits.swing.stop_pct": 0.30,
+                            "exits.scalp.max_hold_hours": 4.0, "exits.swing.stop_pct": 0.30,
                             "exits.swing.tp1_at": 1.5, "exits.swing.tp2_at": 2.0, "exits.swing.trail_pct": 0.30,
                             "exits.swing.timeout_hours": 24.0, "exits.swing.max_hold_hours": 72.0}},
 }

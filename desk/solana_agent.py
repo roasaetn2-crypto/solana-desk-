@@ -88,8 +88,11 @@ class SolanaAgent:
         self.reject_reasons: Counter = Counter()
         _sit = self.bench.sit
 
+        self.funnel: Counter = Counter()   # reject reasons since the last funnel log line
+
         def _counting_sit(mint, reason, *a, **k):
             self.reject_reasons[reason] += 1
+            self.funnel[reason] += 1
             return _sit(mint, reason, *a, **k)
         self.bench.sit = _counting_sit
         self.started_at = time.time()
@@ -545,6 +548,18 @@ class SolanaAgent:
                             reason=k, dev=dev)
                     continue
 
+                # seat 2 fallback: RPC had no holder concentration -> RugCheck's list, pools excluded
+                if (f2 := chain.with_fallback_concentration(f, dev)) is not None:
+                    f = f2
+                    if (k := chain.chain_kill(f)):
+                        self.bench.sit(t["mint"], k)
+                        self.stats["chain_rejects"] += 1
+                        self.emit("reject", f"{t['symbol']}: chain fact killed it ({k}, via RugCheck holders)",
+                                  stage="chain", reason=k, symbol=t["symbol"], mint=t["mint"])
+                        journal("reject", stage="chain", mint=t["mint"], symbol=t["symbol"],
+                                reason=k, facts=f)
+                        continue
+
                 # seat 2b+: free security / launch / promo signals (fail open to "unknown")
                 sec = signals.security(t["mint"], self.session)
                 if sec["block"]:
@@ -761,6 +776,7 @@ class SolanaAgent:
             self.emit("error", f"autotune failed ({type(e).__name__}: {e})")
         journal("cycle", **self.stats, equity=self.broker.equity())
         self._snapshot_equity()
+        self._log_funnel(cycle)
         return {"cycle": cycle, "source": source, "stats": dict(self.stats)}
 
     def _advise(self, t: dict, f: dict, dev: dict, sc: dict, sec: dict, links: dict,
@@ -796,6 +812,19 @@ class SolanaAgent:
                 decision.pop("brain", None)
         except Exception:
             pass
+
+    FUNNEL_EVERY = 10
+
+    def _log_funnel(self, cycle: int) -> None:
+        """Every N cycles, one log line: where candidates died, and entries so far. Read-only."""
+        if cycle % self.FUNNEL_EVERY:
+            return
+        top = ", ".join(f"{r}={n}" for r, n in self.funnel.most_common(10)) or "none"
+        st = self.stats
+        print(f"[desk] funnel: cycles {cycle - self.FUNNEL_EVERY + 1}-{cycle} rejects {top}; "
+              f"totals seen={st.get('seen', 0)} entries={st.get('entries', 0)} "
+              f"exits={st.get('exits', 0)} open={self.broker.open_count()}", flush=True)
+        self.funnel.clear()
 
     def _caution(self, t: dict, ticket: float, sec: dict, brk: dict, stop: float,
                  acct: Account) -> tuple[bool, float, str, dict, list]:

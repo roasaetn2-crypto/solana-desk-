@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import config
 from desk import backtest
+from legacy_book import legacy_book  # noqa: E402
 
 
 def _iso(ts):
@@ -134,6 +135,7 @@ class Gates(unittest.TestCase):
         self.assertEqual(backtest.decide(c, s)[0], "unknown")
 
 
+@legacy_book
 class Replay(unittest.TestCase):
     def setUp(self):
         self.t0 = 1_700_000_000
