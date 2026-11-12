@@ -65,6 +65,19 @@ def notch(name: str, loosen: bool) -> tuple[float, float]:
     return cur, get_gate(name)
 
 
+def looser_than_default(name: str) -> bool:
+    """True when the live gate sits on the LOOSE side of the shipped default.
+
+    A hard outer bound for the "win rate is healthy, tighten back" rule: even when the
+    tuner is allowed to move a gate, it stops at the shipped default and never goes
+    tighter. See also AutoTune.tuned, which is the precise guard.
+    """
+    if name not in DEFAULTS:
+        return False
+    cur, d = get_gate(name), DEFAULTS[name]
+    return (cur - d) * _toward_loose(name) > 0
+
+
 # The config defaults the saved gates were tuned from. When an approved retune changes a
 # default, a gate the self-tuner saved against the OLD default is dropped on restore so the new
 # default goes live. Operator-confirmed values (desk/settings.py) are re-applied after this and
@@ -82,6 +95,10 @@ class AutoTune:
         self.last_change_ts = 0.0
         self.history: list[dict] = []
         self.dropped: dict = {}
+        # gate -> the exact value autotune itself last wrote. The "tighten back" rule only
+        # touches a gate while the live value still equals this, so a value the operator set
+        # (or an approved retune applied) is never clawed back by the tuner.
+        self.tuned: dict[str, float] = {}
         self._restore()
 
     def _restore(self):
@@ -104,12 +121,14 @@ class AutoTune:
             print("[desk] autotune: new defaults replace saved self-tuned gate(s) "
                   + ", ".join(f"{n} {v} -> {get_gate(n)}" for n, v in self.dropped.items()), flush=True)
         self.history = st.get("history", [])[-50:]
+        self.tuned = {k: float(v) for k, v in (st.get("tuned") or {}).items()
+                      if k in AUTOTUNE["gates"]}
 
     def _persist(self):
         try:
             self.state_path.write_text(json.dumps(
                 {"gates": {n: get_gate(n) for n in AUTOTUNE["gates"]}, "baseline": DEFAULTS,
-                 "history": self.history[-50:]}, indent=1))
+                 "tuned": self.tuned, "history": self.history[-50:]}, indent=1))
         except Exception:
             pass
         try:
@@ -123,6 +142,12 @@ class AutoTune:
                 "gates": {n: get_gate(n) for n in AUTOTUNE["gates"]},
                 "floors": {n: {"loose_end": g["loose_end"], "tight_end": g["tight_end"]}
                            for n, g in AUTOTUNE["gates"].items()},
+                "defaults": dict(DEFAULTS),
+                "tuned": dict(self.tuned),
+                "interval_minutes": AUTOTUNE["interval_minutes"],
+                "idle_loosen_hours": AUTOTUNE["idle_loosen_hours"],
+                "tighten_below_win_rate": AUTOTUNE["tighten_below_win_rate"],
+                "loosen_above_win_rate": AUTOTUNE["loosen_above_win_rate"],
                 "last_changes": self.history[-5:]}
 
     def _recent_closed(self) -> list[dict]:
@@ -150,6 +175,17 @@ class AutoTune:
             gate = next((g for g in cands if can_move(g, False)), None)
             if gate:
                 action = (gate, False, f"win rate {wr:.0%} over last {n} closed paper trades")
+        elif n >= AUTOTUNE["min_closed_to_judge"] and wr >= AUTOTUNE["loosen_above_win_rate"]:
+            # The mirror rule: a healthy win rate tightens back the gate autotune loosened
+            # furthest past the shipped default. Without this the tuner only ratchets one way -
+            # a long quiet stretch walks every gate to its loosest end and they stay there.
+            cands = [h["gate"] for h in reversed(self.history) if h["dir"] == "loosen"] + ORDER
+            gate = next((g for g in cands
+                         if self.tuned.get(g) == get_gate(g) and looser_than_default(g)
+                         and can_move(g, False)), None)
+            if gate:
+                action = (gate, False, f"win rate {wr:.0%} over last {n} closed paper trades; "
+                                       f"tightening back toward the default")
         elif idle_h >= AUTOTUNE["idle_loosen_hours"] and now - self.last_change_ts >= AUTOTUNE["interval_minutes"] * 60:
             tally = {g: 0 for g in ORDER}
             for reason, cnt in a.reject_reasons.items():
@@ -165,6 +201,13 @@ class AutoTune:
             return None
         gate, loosen, why = action
         before, after = notch(gate, loosen)
+        if loosen:
+            self.tuned[gate] = after          # autotune owns this value now
+        elif gate in self.tuned:
+            if after == DEFAULTS.get(gate):
+                self.tuned.pop(gate, None)    # back at the shipped default: nothing left to undo
+            else:
+                self.tuned[gate] = after
         rec = {"time": time.strftime("%Y-%m-%d %H:%M:%S"), "gate": gate,
                "dir": "loosen" if loosen else "tighten", "from": before, "to": after,
                "why": why, "closed_n": n, "win_rate": None if wr is None else round(wr, 3)}

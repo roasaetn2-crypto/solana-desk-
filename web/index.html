@@ -102,6 +102,36 @@
     </div>
   </details>
 
+  <details class="daily-stop" id="tuneCard">
+    <summary>Self-tune <span id="tuneNow">—</span></summary>
+    <div class="daily-stop-body">
+      <label class="ds-row ds-check">
+        <input id="tnEnabled" type="checkbox">
+        <span>Let the desk tune its own entry gates (paper only)</span>
+      </label>
+      <p class="ds-hint">It can only move the four entry gates below, one notch at a time, and only
+        inside their hard limits. It never touches stops, sizing, the daily stop or the scam checks.</p>
+      <div class="tn-gates" id="tnGates"></div>
+      <label class="ds-row">
+        <span>Tighten when win rate is under</span>
+        <input id="tnTighten" type="number" min="5" max="60" step="1" inputmode="decimal">
+        <span class="ds-unit">%</span>
+      </label>
+      <label class="ds-row">
+        <span>Tighten back when win rate is over</span>
+        <input id="tnLoosen" type="number" min="50" max="95" step="1" inputmode="decimal">
+        <span class="ds-unit">%</span>
+      </label>
+      <p class="ds-hint">The second rule only undoes loosening the tuner did itself, and never goes
+        tighter than the shipped default — so a gate you set by hand is left alone.</p>
+      <div class="ds-actions">
+        <button class="btn" id="tnSave" type="button">Propose change</button>
+        <span class="ds-note" id="tnNote"></span>
+      </div>
+      <p class="ds-hint" id="tnHistory">No changes yet.</p>
+    </div>
+  </details>
+
 
   <section class="hero" id="hero">
     <div class="hero-equity" id="heroEquity">$20.00</div>
@@ -419,7 +449,7 @@
     </div>
   </section>
 
-  <script src="/static/app.js?v=20261112b"></script>
+  <script src="/static/app.js?v=20261112c"></script>
   <script src="/static/ai-chat.js?v=20261112d"></script>
 </body>
 </html>

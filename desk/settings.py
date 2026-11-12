@@ -232,6 +232,14 @@ _R += [
             lambda v: AUTOTUNE.__setitem__("enabled", bool(v))),
     _num("autotune.interval_minutes", "Self-tune interval", "Loop", "int", _d(AUTOTUNE, "interval_minutes", int), 10, 240, "min"),
     _num("autotune.idle_loosen_hours", "Self-tune: loosen after idle", "Loop", "float", _d(AUTOTUNE, "idle_loosen_hours"), 0.5, 24, "h"),
+    _num("autotune.tighten_below_win_rate", "Self-tune: tighten below win rate", "Loop", "pct",
+         _d(AUTOTUNE, "tighten_below_win_rate"), 0.05, 0.60, "",
+         "once this many closed paper trades exist, a win rate under this tightens the gate that "
+         "was loosened most recently, one notch. Never touches stops, sizing or the daily stop."),
+    _num("autotune.loosen_above_win_rate", "Self-tune: tighten back above win rate", "Loop", "pct",
+         _d(AUTOTUNE, "loosen_above_win_rate"), 0.50, 0.95, "",
+         "the mirror rule: a healthy win rate above this tightens the loosest gate back up one "
+         "notch, so a quiet stretch that loosened everything does not stay loose forever."),
 ]
 REGISTRY: dict[str, Setting] = {s.key: s for s in _R}
 for _k in REGISTRY:  # belt and braces: nothing excluded may sneak into the registry

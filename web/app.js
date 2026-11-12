@@ -345,6 +345,95 @@ function renderRisk(s) {
     btn.hidden = true;
   }
   renderDailyStop(rk, limitLabel);
+  renderTune(s);
+}
+
+let tnTouched = false;
+
+function tuneGateLabel(name) {
+  return { score: "Analyst score", volume_h1: "1h volume", trades_h1: "1h trades", top_10: "Top-10 share" }[name] || name;
+}
+
+function tuneGateValue(name, v) {
+  if (name === "volume_h1") return "$" + Math.round(v).toLocaleString();
+  if (name === "top_10") return Math.round(v * 100) + "%";
+  if (name === "trades_h1") return String(Math.round(v));
+  return String(Math.round(v));
+}
+
+function renderTune(s) {
+  const tn = s.autotune || {};
+  const now = $("tuneNow");
+  const en = $("tnEnabled");
+  const gates = $("tnGates");
+  const hist = $("tnHistory");
+  if (!now || !en || !gates) return;
+  const changes = tn.last_changes || [];
+  now.textContent = tn.enabled
+    ? (changes.length ? "on \u00b7 " + changes.length + " recent change" + (changes.length > 1 ? "s" : "") : "on")
+    : "off";
+  if (!tnTouched) {
+    en.checked = !!tn.enabled;
+    const t = $("tnTighten");
+    const l = $("tnLoosen");
+    if (t) t.value = Math.round(Number(tn.tighten_below_win_rate || 0.35) * 100);
+    if (l) l.value = Math.round(Number(tn.loosen_above_win_rate || 0.55) * 100);
+  }
+  const floors = tn.floors || {};
+  const tuned = tn.tuned || {};
+  gates.innerHTML = Object.keys(tn.gates || {}).map((g) => {
+    const f = floors[g] || {};
+    const cur = tn.gates[g];
+    const own = Object.prototype.hasOwnProperty.call(tuned, g)
+      ? " <span class=\"tn-own\">tuned</span>" : "";
+    return "<div class=\"tn-gate\"><span class=\"tn-name\">" + tuneGateLabel(g) + "</span>" +
+      "<span class=\"tn-val\">" + tuneGateValue(g, cur) + own + "</span>" +
+      "<span class=\"tn-range\">" + tuneGateValue(g, f.loose_end) + " \u2013 " + tuneGateValue(g, f.tight_end) + "</span></div>";
+  }).join("");
+  if (hist) {
+    hist.textContent = changes.length
+      ? "Last: " + changes.slice().reverse().map((c) =>
+          c.dir + " " + c.gate + " " + c.from + " \u2192 " + c.to).join(" \u00b7 ")
+      : "No changes yet.";
+  }
+}
+
+function initTune() {
+  const en = $("tnEnabled");
+  const save = $("tnSave");
+  const note = $("tnNote");
+  if (!en || !save) return;
+  const touch = () => { tnTouched = true; };
+  en.addEventListener("change", touch);
+  ["tnTighten", "tnLoosen"].forEach((id) => { const e = $(id); if (e) e.addEventListener("input", touch); });
+  save.onclick = async () => {
+    const values = {
+      "autotune.enabled": !!en.checked,
+      "autotune.tighten_below_win_rate": Number($("tnTighten").value || 35) / 100,
+      "autotune.loosen_above_win_rate": Number($("tnLoosen").value || 55) / 100
+    };
+    const r = await api("/api/proposals", "POST", { values: values, title: "Self-tune" });
+    if (!r || !r.ok) {
+      if (note) note.textContent = (r && (r.error || r.detail)) || "Could not propose that change";
+      toast((r && (r.error || r.detail)) || "Could not propose that change");
+      return;
+    }
+    const p = r.proposal || {};
+    const list = (p.changes || []).map((c) => c.label + ": " + c.current + " \u2192 " + c.proposed);
+    if (note) note.textContent = "Proposed \u2014 confirm below to apply.";
+    toast("Proposed. Confirm it to apply.");
+    if (list.length && confirm("Apply these changes?\n\n" + list.join("\n"))) {
+      const c = await api("/api/proposals/" + encodeURIComponent(p.id) + "/confirm", "POST", null);
+      if (c && c.ok) {
+        tnTouched = false;
+        if (note) note.textContent = "Applied.";
+        toast("Self-tune updated");
+        refresh && refresh();
+      } else {
+        toast((c && (c.error || c.detail)) || "Confirm refused");
+      }
+    }
+  };
 }
 
 
@@ -1356,6 +1445,7 @@ if (equityTabs) {
 window.addEventListener("resize", () => { if (lastState) drawEquity(lastState); });
 
 initDailyStop();
+initTune();
 refresh();
 refreshBacktest(true);
 setInterval(refresh, 2000);
