@@ -62,73 +62,6 @@ def _demo_report(mint: str) -> dict:
     }
 
 
-# RugCheck knownAccounts types that are not a seller in the usual sense: pools, lockers, vaults.
-# CREATOR is deliberately NOT here: a dev wallet holding the float is exactly what we must see.
-_NON_HOLDER_TYPES = {"AMM", "LOCKER", "VAULT"}
-
-
-def _real_holder_count(body: dict) -> int | None:
-    """RugCheck totalHolders, when it is a real positive count. 0 / missing = unknown, not zero."""
-    n = body.get("totalHolders")
-    if isinstance(n, bool) or not isinstance(n, (int, float)):
-        return None
-    n = int(n)
-    return n if n > 0 else None
-
-
-def _pool_accounts(body: dict) -> set[str]:
-    """Every address RugCheck tells us is a pool / locker / vault, or a market's own account."""
-    out: set[str] = set()
-    for addr, info in (body.get("knownAccounts") or {}).items():
-        if isinstance(info, dict) and str(info.get("type", "")).upper() in _NON_HOLDER_TYPES:
-            out.add(addr)
-    for m in body.get("markets") or []:
-        if not isinstance(m, dict):
-            continue
-        for k in ("pubkey", "liquidityA", "liquidityB", "mintLP"):
-            v = m.get(k)
-            if isinstance(v, str) and v:
-                out.add(v)
-        for k in ("liquidityAAccount", "liquidityBAccount"):
-            v = m.get(k)
-            if isinstance(v, dict):
-                for kk in ("pubkey", "address", "owner"):
-                    if isinstance(v.get(kk), str) and v[kk]:
-                        out.add(v[kk])
-            elif isinstance(v, str) and v:
-                out.add(v)
-    return out
-
-
-def rugcheck_concentration(body: dict) -> dict | None:
-    """Top real wallet and top-10 share from RugCheck's topHolders, pools excluded.
-
-    Used only when the RPC could not measure concentration (top_wallet_pct is None), so it can
-    only ADD a block, never remove one. Pool / locker / vault / market accounts are excluded the
-    same way the RPC path excludes program-owned accounts; the creator wallet is kept.
-    """
-    top = [h for h in (body.get("topHolders") or []) if isinstance(h, dict)]
-    if not top:
-        return None
-    pools = _pool_accounts(body)
-    wallets: dict[str, float] = {}
-    excluded = 0.0
-    for h in top:
-        pct = _f(h.get("pct")) / 100.0
-        addr, owner = h.get("address") or "", h.get("owner") or ""
-        if addr in pools or owner in pools:
-            excluded += pct
-            continue
-        key = owner or addr
-        wallets[key] = wallets.get(key, 0.0) + pct
-    ranked = sorted(wallets.values(), reverse=True)
-    if not ranked:
-        return {"top_wallet_pct": 0.0, "top_10_pct": 0.0, "excluded_pct": round(excluded, 4),
-                "wallets_counted": 0, "source": "rugcheck"}
-    return {"top_wallet_pct": round(ranked[0], 6), "top_10_pct": round(sum(ranked[:10]), 6),
-            "excluded_pct": round(excluded, 4), "wallets_counted": len(ranked), "source": "rugcheck"}
-
-
 def investigate(mint: str, chain_facts: dict | None = None,
                 session: requests.Session | None = None) -> dict:
     """Return a normalised dev report. Always returns a dict, never raises."""
@@ -142,10 +75,7 @@ def investigate(mint: str, chain_facts: dict | None = None,
             raise ValueError("rugcheck returned no report")
         top = body.get("topHolders") or []
         creator = body.get("creator") or ""
-        # topHolders "address" is the token account; the wallet is "owner". Match either, so
-        # the creator's share is actually seen (matching only "address" never found it).
-        creator_row = next((h for h in top if creator and creator in (h.get("owner"), h.get("address"))),
-                           None)
+        creator_row = next((h for h in top if h.get("address") == creator), None)
         insiders = [h for h in top if h.get("insider") or h.get("sniper")]
         token = body.get("token") or {}
         rep = {
@@ -157,10 +87,7 @@ def investigate(mint: str, chain_facts: dict | None = None,
             "creator_prev_rugs": None,
             "sniper_pct": round(sum(_f(h.get("pct")) for h in top if h.get("sniper")) / 100.0, 4),
             "insider_pct": round(sum(_f(h.get("pct")) for h in insiders) / 100.0, 4),
-            # A real total from RugCheck, never the size of the top-holders sample.
-            "holder_count": _real_holder_count(body),
-            "holder_sample": len(top),
-            "concentration": rugcheck_concentration(body),
+            "holder_count": body.get("totalHolders") or None,  # len(top) is a sample
             "lp_locked": any("lp" in str(r.get("name", "")).lower() and r.get("value")
                              for r in (body.get("risks") or [])),
             "mint_renounced": token.get("mintAuthority") in (None, ""),
@@ -183,7 +110,10 @@ def investigate(mint: str, chain_facts: dict | None = None,
         "creator_prev_rugs": None,
         "sniper_pct": None,
         "insider_pct": None,
-        "holder_count": cf.get("holder_count"),     # a real count or None; never the top-20 sample
+        # NOT wallets_counted: that is the size of the top-20 sample, not a
+        # holder count. Passing it here made every token look like it had 20
+        # holders and fail the community gate.
+        "holder_count": None,
         "lp_locked": None,
         "mint_renounced": cf.get("mint_authority") is None,
         "freeze_renounced": cf.get("freeze_authority") is None,
@@ -259,3 +189,4 @@ def _finish(rep: dict, chain_facts: dict | None) -> dict:
 def dev_kill(rep: dict) -> str | None:
     """Hard evidence that the dev is the exit. First failure wins."""
     return rep["hard_no"][0] if rep.get("hard_no") else None
+  
