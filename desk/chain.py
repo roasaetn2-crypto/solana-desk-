@@ -6,18 +6,14 @@ so it never reaches the analyst.
 from __future__ import annotations
 
 import hashlib
-import logging
 import os
 import random
-import threading
 import time
 
 import requests
 
 from config import CHAIN
 from desk import helius
-
-log = logging.getLogger("desk.chain")
 
 PUBLIC_RPC = "https://api.mainnet-beta.solana.com"
 SYSTEM_PROGRAM = "11111111111111111111111111111111"
@@ -29,106 +25,39 @@ def rpc_url() -> str:
     Resolved per call, not at import, so the desk can be pointed at a better
     node without a restart and so a missing key is never a crash.
     """
-    custom = os.getenv("SOLANA_RPC_URL", "").strip()
-    if custom and not custom.lower().startswith(("http://", "https://")):
-        custom = ""        # a bare key or typo is not a URL: use the public node, never crash
-    return helius.rpc_url() or custom or PUBLIC_RPC
+    return helius.rpc_url() or os.getenv("SOLANA_RPC_URL", PUBLIC_RPC)
 
 
 def rpc_source() -> str:
     return "helius" if helius.configured() else (
-        "custom" if rpc_url() != PUBLIC_RPC else "public")
-
-
-# After a Helius HTTP error, skip it for a bit so one 401/429 does not
-# stall every mint in the cycle. Tests call reset_rpc_state().
-_COOL_LOCK = threading.Lock()
-_cool_until = 0.0
-_COOL_S = {401: 300, 403: 300, 429: 15}
-
-
-def reset_rpc_state() -> None:
-    global _cool_until
-    with _COOL_LOCK:
-        _cool_until = 0.0
-    helius.reset_throttle()
-
-
-def _cool_helius(status: int) -> None:
-    global _cool_until
-    seconds = _COOL_S.get(status, 15 if status >= 500 else 15)
-    with _COOL_LOCK:
-        _cool_until = max(_cool_until, time.time() + seconds)
-
-
-def _helius_cooled() -> bool:
-    with _COOL_LOCK:
-        return time.time() < _cool_until
-
-
-def _http_error(method: str, r: requests.Response) -> requests.HTTPError:
-    # Never put the request URL in the exception: it may contain the API key.
-    return requests.HTTPError(f"{method} HTTP {r.status_code}", response=r)
-
-
-def _post_rpc(url: str, method: str, params: list, session: requests.Session | None):
-    """One JSON-RPC call to a specific URL, with backoff on 429/5xx."""
-    if helius.is_helius_url(url):
-        helius.throttle()
-    s = session or requests.Session()
-    last = None
-    for attempt in range(4):
-        if helius.is_helius_url(url) and attempt:
-            helius.throttle()
-        r = s.post(url,
-                   json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params},
-                   timeout=20)
-        if r.status_code == 429 or r.status_code >= 500:
-            last = r
-            time.sleep(1.5 * (attempt + 1))   # 1.5s, 3s, 4.5s
-            continue
-        if r.status_code >= 400:
-            raise _http_error(method, r)
-        body = r.json()
-        err = body.get("error") if isinstance(body, dict) else None
-        if err is not None:
-            code = err.get("code") if isinstance(err, dict) else None
-            if code == 429:
-                last = r
-                time.sleep(1.5 * (attempt + 1))
-                continue
-            raise RuntimeError(f"{method}: {err}")
-        return body["result"]
-    if last is not None:
-        raise _http_error(method, last)
-    raise RuntimeError(f"{method}: retries exhausted")
+        "custom" if os.getenv("SOLANA_RPC_URL") else "public")
 
 
 def rpc(method: str, params: list, session: requests.Session | None = None):
-    """One JSON-RPC call, with backoff and a public-RPC fallback.
+    """One JSON-RPC call, with backoff.
 
     The free public node allows only a handful of requests per second and
     answers 429 under any real load. A single 429 used to abort the whole
     token, which is why nothing ever reached the analyst. Retry instead.
-
-    When Helius is configured it is tried first. An HTTP error from Helius
-    (401/403 from a bad key, 429 on the free tier, 5xx) must not kill the
-    coin: fall back to the public node, which is how the desk ran before.
-    Exception text never includes the request URL, so the API key stays out
-    of logs and the journal.
     """
-    primary = rpc_url()
-    url = PUBLIC_RPC if (helius.is_helius_url(primary) and _helius_cooled()) else primary
-    try:
-        return _post_rpc(url, method, params, session)
-    except requests.HTTPError as e:
-        status = e.response.status_code if e.response is not None else 0
-        if helius.is_helius_url(url) and url.rstrip("/") != PUBLIC_RPC.rstrip("/"):
-            _cool_helius(status)
-            log.warning("helius %s failed (HTTP %s); falling back to public RPC",
-                        method, status or "error")
-            return _post_rpc(PUBLIC_RPC, method, params, session)
-        raise
+    s = session or requests.Session()
+    last = None
+    for attempt in range(4):
+        r = s.post(rpc_url(),
+                   json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params},
+                   timeout=20)
+        if r.status_code == 429:
+            last = r
+            time.sleep(1.5 * (attempt + 1))   # 1.5s, 3s, 4.5s
+            continue
+        r.raise_for_status()
+        body = r.json()
+        if "error" in body:
+            raise RuntimeError(f"{method}: {body['error']}")
+        return body["result"]
+    if last is not None:
+        last.raise_for_status()
+    raise RuntimeError(f"{method}: retries exhausted")
 
 
 def _demo_facts(mint: str) -> dict:
@@ -173,7 +102,6 @@ def facts(mint: str, session: requests.Session | None = None) -> dict:
         "mint_authority": parsed.get("mintAuthority"),
         "freeze_authority": parsed.get("freezeAuthority"),
         "supply": supply,
-        "decimals": decimals,
         "top_wallet_pct": None,
         "top_10_pct": None,
         "program_held_pct": None,
@@ -190,7 +118,11 @@ def facts(mint: str, session: requests.Session | None = None) -> dict:
     try:
         largest = rpc("getTokenLargestAccounts", [mint], session)["value"]
     except Exception:
-        return base
+        # The public RPC throttled us. That used to leave top_wallet_pct = None,
+        # and chain_kill treats None as "no evidence" and lets the token through
+        # -- so the concentration gate silently never ran. RugCheck publishes the
+        # same top-holder percentages for free, so ask it instead of trading blind.
+        return _rugcheck_distribution(mint, base, session)
 
     largest = largest[: CHAIN["largest_accounts_checked"]]
     token_accts = [x["address"] for x in largest]
@@ -236,7 +168,6 @@ def facts(mint: str, session: requests.Session | None = None) -> dict:
         "mint_authority": parsed.get("mintAuthority"),
         "freeze_authority": parsed.get("freezeAuthority"),
         "supply": supply,
-        "decimals": decimals,
         "top_wallet_pct": share(ranked[:1]),
         "top_10_pct": share(ranked[:10]),
         "program_held_pct": share([excluded]),
@@ -247,19 +178,65 @@ def facts(mint: str, session: requests.Session | None = None) -> dict:
     }
 
 
-def with_fallback_concentration(f: dict, dev: dict | None) -> dict | None:
-    """When the RPC could not measure holder concentration (top_wallet_pct None, usually a 429
-    on getTokenLargestAccounts), fill it from RugCheck's topHolders with pool / locker / vault /
-    market accounts excluded (creator kept). Returns the new facts, or None when nothing to add.
+RUGCHECK = "https://api.rugcheck.xyz/v1/tokens"
 
-    This can only add a block: it runs on coins that had no concentration check at all, and
-    chain_kill applies the same CHAIN limits to it.
-    """
-    c = (dev or {}).get("concentration") or {}
-    if f.get("top_wallet_pct") is not None or c.get("top_wallet_pct") is None:
-        return None
-    return {**f, "top_wallet_pct": c["top_wallet_pct"], "top_10_pct": c.get("top_10_pct"),
-            "concentration_source": c.get("source", "rugcheck")}
+
+# RugCheck labels every account it recognises (AMM pools, lockers, the creator).
+# Its `topHolders` list is the raw token-account list, so the pool's own token
+# vault shows up as the biggest "holder" -- a brand new token often reads as
+# 80-99% top wallet when the truth is "the liquidity is sitting in the pool".
+# Counting that as a whale rejected perfectly good tokens. AMM and LOCKER
+# balances are not sell pressure, so they are excluded from concentration;
+# CREATOR is kept, because a dev bag is real risk.
+_NOT_SELL_PRESSURE = {"AMM", "LOCKER", "LOCKER_STAKE", "VAULT"}
+
+
+def _rugcheck_distribution(mint: str, base: dict, session=None) -> dict:
+    """Top-holder concentration from RugCheck, for when the RPC will not answer."""
+    s = session or requests.Session()
+    try:
+        body = s.get(f"{RUGCHECK}/{mint}/report", headers={"Accept": "application/json"},
+                     timeout=15).json()
+    except Exception:
+        return base
+    known = body.get("knownAccounts") or {}
+    # Also collect the market/pool account addresses directly, in case a pool is
+    # missing from `knownAccounts`.
+    pool_addrs = set()
+    for m in body.get("markets") or []:
+        for k in ("pubkey", "mintLP", "liquidityA", "liquidityB",
+                  "mintAAccount", "mintBAccount", "mintLPAccount",
+                  "liquidityAAccount", "liquidityBAccount"):
+            v = m.get(k)
+            if isinstance(v, str) and v:
+                pool_addrs.add(v)
+
+    pcts, excluded = [], 0
+    for h in body.get("topHolders") or []:
+        addr = h.get("address")
+        owner = h.get("owner")
+        meta = known.get(addr) or known.get(owner) or {}
+        if (meta.get("type") in _NOT_SELL_PRESSURE
+                or addr in pool_addrs or owner in pool_addrs):
+            excluded += 1
+            continue
+        try:
+            pcts.append(float(h.get("pct") or 0) / 100.0)
+        except (TypeError, ValueError):
+            continue
+    if not pcts:
+        return base
+    pcts.sort(reverse=True)
+    return {
+        **base,
+        "top_wallet_pct": round(pcts[0], 4),
+        "top_10_pct": round(sum(pcts[:10]), 4),
+        "wallets_counted": len(pcts),
+        "holder_count": body.get("totalHolders") or None,
+        "pool_accounts_excluded": excluded,
+        "source": base.get("source", "public") + "+rugcheck",
+        "partial": False,
+    }
 
 
 def chain_kill(f: dict) -> str | None:
@@ -273,3 +250,4 @@ def chain_kill(f: dict) -> str | None:
     if f["top_10_pct"] is not None and f["top_10_pct"] > CHAIN["max_top_10"]:
         return "top_10"
     return None
+    
