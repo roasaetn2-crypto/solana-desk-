@@ -118,8 +118,8 @@ ENTRY = {
 }
 
 PAPER = {
-    "starting_equity_usd": 20,     # paper bankroll
-    "min_ticket_usd": 2,           # fee floor for the $20 book; live still uses RISK["min_ticket_usd"]
+    "starting_equity_usd": 100,    # paper bankroll (was 20: at $20 the risk cap produced $1.50 tickets, under the $2 floor)
+    "min_ticket_usd": 2,           # paper fee floor; live still uses RISK["min_ticket_usd"]
     "fee_pct": 0.01,               # pump.fun charges ~1% per swap on the curve
     "slippage_pct": 0.02,          # assume 2% worse than the quoted price
 }
