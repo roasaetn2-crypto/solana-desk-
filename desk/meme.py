@@ -93,5 +93,109 @@ def scorecard(token: dict, facts: dict, ds: dict, dev: dict,
         c_why.append(f"only {holders} holders")
     else:
         # Unknown is not zero. Give the neutral middle and let the observable
-        # signals (socials, buy breadth) decide
+        # signals (socials, buy breadth) decide, rather than punishing a token
+        # for a field the free RPC cannot return.
+        community += 15; c_why.append(f"holder count unknown (top {sampled or 20} sampled)")
+    if ds.get("has_x") or ds.get("has_telegram"):
+        community += 20; c_why.append("socials published")
+    else:
+        c_why.append("no socials")
+    if buys >= 200:
+        community += 20; c_why.append(f"{buys} buys/h")
+    elif buys >= 60:
+        community += 10; c_why.append(f"{buys} buys/h")
+    if buyers and buys:
+        per = buys / max(buyers, 1)
+        if per <= 2.5:
+            community += 20; c_why.append(f"{buyers} distinct buyers")
+        elif per > 4:
+            c_why.append("few wallets doing many buys")
+    if ds.get("boosts_active"):
+        community += 5; c_why.append("paid boosts active")
+    community = _clamp(community)
+
+    # ---------- dev legitimacy ----------
+    dev_legit = _clamp(dev.get("dev_score", 0))
+
+    # ---------- narrative ----------
+    narrative_s = {"celebrity": 80, "animal": 72, "community": 60,
+                   "culture": 45, "utility": 55}.get(narrative["primary"], 40)
+    if len(narrative["tags"]) > 1:
+        narrative_s += 8
+    if narrative.get("has_utility_story"):
+        narrative_s += 5
+    narrative_s = _clamp(narrative_s)
+
+    # ---------- distribution ----------
+    distribution, d_why = 60.0, []
+    top1 = facts.get("top_wallet_pct")
+    top10 = facts.get("top_10_pct")
+    if top1 is not None:
+        if top1 <= 0.03:
+            distribution += 20; d_why.append(f"top wallet {top1:.1%}")
+        elif top1 <= 0.08:
+            distribution += 8; d_why.append(f"top wallet {top1:.1%}")
+        else:
+            distribution -= 30; d_why.append(f"top wallet {top1:.1%}")
+    if top10 is not None:
+        if top10 <= 0.25:
+            distribution += 15; d_why.append(f"top10 {top10:.1%}")
+        elif top10 > 0.40:
+            distribution -= 25; d_why.append(f"top10 {top10:.1%}")
+    sniper = dev.get("sniper_pct")
+    if sniper is not None and sniper > MEME["max_sniper_pct"]:
+        distribution -= 25; d_why.append(f"snipers {sniper:.1%}")
+    distribution = _clamp(distribution)
+
+    # ---------- utility ----------
+    utility = 20.0
+    if narrative.get("has_utility_story"):
+        utility += 35
+    if ds.get("has_website"):
+        utility += 15
+    if liq >= 50_000:
+        utility += 10
+    if ds.get("boosts_active"):
+        utility += 5
+    utility = _clamp(utility)
+
+    parts = {"community": community, "dev_legit": dev_legit, "narrative": narrative_s,
+             "distribution": distribution, "utility": utility}
+    total = sum(parts[k] * MEME["weights"][k] for k in parts)
+    total = round(_clamp(total))
+
+    bands = MEME["bands"]
+    if total >= bands["strong"] and dev.get("legit"):
+        verdict = "community_coin"
+    elif total >= bands["watch"]:
+        verdict = "watch"
+    else:
+        verdict = "not_a_community_coin"
+
+    return {
+        "total": total,
+        "verdict": verdict,
+        "parts": {k: round(v) for k, v in parts.items()},
+        "weights": MEME["weights"],
+        "narrative": narrative,
+        "reasons": {
+            "community": c_why,
+            "dev_legit": dev.get("reasons", []),
+            "distribution": d_why,
+        },
+        "horizon": hold_horizon(token.get("age_minutes")),
+        "holders": holders or None,
+        "holders_sampled": sampled or None,
+        "volume_mcap": round(vol1 / mcap, 3) if mcap else None,
+        "sell_ratio": round(sells / buys, 3) if buys else None,
+    }
+
+
+def meme_kill(sc: dict) -> str | None:
+    """A scorecard can veto on its own: no community, no trade."""
+    if sc["verdict"] == "not_a_community_coin":
+        return "meme_score"
+    if sc["parts"]["community"] < MEME["min_community_score"]:
+        return "no_community"
+    return None
         
