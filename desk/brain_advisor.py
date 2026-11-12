@@ -411,7 +411,12 @@ class Provider:
 
 class Gemini(Provider):
     """Tries the next verified model when one is gone (404) or overloaded (5xx)."""
-    models = GEMINI_MODELS
+
+    @property
+    def models(self) -> list[str]:
+        # Read at call time, not import time: .env is loaded by app.py and an
+        # import-time snapshot would freeze the default model list.
+        return gemini_models()
 
     @property
     def model(self):
@@ -470,7 +475,11 @@ class Groq(Provider):
 
 class OpenRouter(Provider):
     """Free ":free" models. Tries the next model in the list if one is unavailable."""
-    models = OPENROUTER_MODELS
+
+    @property
+    def models(self) -> list[str]:
+        # Lazy for the same reason as Gemini: .env arrives after import.
+        return openrouter_models()
 
     @property
     def model(self):
@@ -552,8 +561,8 @@ class Advisor:
     def status(self) -> dict:
         return {"enabled": self.enabled(), "resting": self.resting(), "per_cycle": PER_CYCLE,
                 "opinion_ttl_s": CACHE_TTL_S, "material_move": MATERIAL_MOVE,
-                "models": {"gemini": GEMINI_MODELS, "groq": GROQ_MODEL,
-                           "openrouter": OPENROUTER_MODELS},
+                "models": {"gemini": gemini_models(), "groq": GROQ_MODEL,
+                           "openrouter": openrouter_models()},
                 "providers": {p.name: p.snapshot() for p in self.providers()},
                 "cached": len(self._cache)}
 

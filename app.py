@@ -62,13 +62,19 @@ from fastapi import Body, FastAPI, Form, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from desk import devices, keepalive, pumpportal
 from desk.ops import KILL_FILE, load_env
-from desk.solana_agent import SolanaAgent
-from desk.store import restore as restore_store
-from desk.intent import maybe_autostart
 
+# load_env() must run BEFORE anything imports desk.brain_advisor. That module
+# reads BRAIN_GEMINI_MODEL / BRAIN_OPENROUTER_MODEL at import time to build its
+# model list, so loading .env afterwards silently ignored the override and the
+# desk kept calling the slow default model. Import order is load-bearing here.
 load_env()
+
+from desk import devices, keepalive, pumpportal  # noqa: E402
+from desk.solana_agent import SolanaAgent  # noqa: E402
+from desk.store import restore as restore_store  # noqa: E402
+from desk.intent import maybe_autostart  # noqa: E402
+
 restore_store()
 
 @asynccontextmanager
