@@ -53,9 +53,32 @@ def sizing_base(account: Account) -> float:
 DAILY_LOSS_REASON = "daily loss limit hit, desk halted until tomorrow"
 
 
+def daily_loss_limit_usd(account: Account) -> float:
+    """The daily stop in dollars.
+
+    RISK["max_daily_loss_usd"] (0 = off) wins when it is set, so the operator can
+    name the day's loss in cash instead of a percentage of a small paper book.
+    Otherwise the stop is RISK["max_daily_loss_pct"] of the book.
+    """
+    usd_limit = float(RISK.get("max_daily_loss_usd") or 0.0)
+    if usd_limit > 0:
+        return usd_limit
+    return RISK["max_daily_loss_pct"] * account.equity
+
+
 def daily_loss_hit(account: Account) -> bool:
-    """The 3% daily stop. The limit itself lives in config.RISK and is never changed here."""
-    return account.day_pnl <= -RISK["max_daily_loss_pct"] * account.equity
+    """True once the day's realised loss reaches the daily stop.
+
+    The limit lives in config.RISK and is never changed here. Either a hard
+    dollar stop (RISK["max_daily_loss_usd"], 0 = disabled) or a percentage of
+    the book (RISK["max_daily_loss_pct"]); the dollar stop takes precedence
+    when set. Once hit, check_token_trade refuses every new entry until the
+    day rolls over (or the operator uses the paper-only "continue today").
+    """
+    limit = daily_loss_limit_usd(account)
+    if limit <= 0:
+        return False
+    return account.day_pnl <= -limit
 
 
 def daily_override_active(mode: str | None, override_date: str | None, today: str) -> bool:

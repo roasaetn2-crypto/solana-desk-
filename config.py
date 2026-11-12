@@ -73,6 +73,12 @@ RISK = {
     "max_pool_share": 0.02,        # never be more than 2% of the pool: you'd be the exit
     "max_open_positions": 6,       # retune: was 4
     "max_daily_loss_pct": 0.03,    # down 3% on the day -> desk stops until tomorrow
+    "max_daily_loss_usd": 0.0,     # hard dollar daily stop. 0 = off (use the % above). When set it
+                                   # REPLACES the % limit, so you can name the day's loss in cash.
+                                   # Useful on a small book where 3% is only a dollar or two.
+    "auto_continue_after_daily_stop": False,  # PAPER only. When True the daily stop still fires and is
+                                   # still journaled, but it does not block new entries (same effect as
+                                   # tapping "Continue today" every day). LIVE ignores this entirely.
     "min_ticket_usd": 10,          # live fee floor (unchanged). Paper floor is PAPER["min_ticket_usd"]
     "compound": True,              # MERGE: size off REALIZED equity (start + closed P&L), so wins are reinvested
                                    # and losses shrink size. Still capped by every cap below + 2% of pool.

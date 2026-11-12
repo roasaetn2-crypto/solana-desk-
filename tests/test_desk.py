@@ -124,8 +124,12 @@ class ChainFacts(unittest.TestCase):
 
 @legacy_book
 class RiskEngine(unittest.TestCase):
-    acct = Account(equity=PAPER["starting_equity_usd"], day_pnl=0, open_positions=0,
-                   realized_equity=PAPER["starting_equity_usd"])
+    @property
+    def acct(self):
+        # Built per test, not at import time, so the legacy_book patch of
+        # PAPER["starting_equity_usd"] is actually reflected in the account.
+        return Account(equity=PAPER["starting_equity_usd"], day_pnl=0, open_positions=0,
+                       realized_equity=PAPER["starting_equity_usd"])
 
     def test_sizing_takes_the_smallest_cap(self):
         ok, ticket, _ = check_token_trade(thesis(), self.acct, 30_000, now=NOON)

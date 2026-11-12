@@ -40,7 +40,7 @@ from desk import live as live_mod
 from desk.broker import PaperBroker
 from desk.netutil import offline
 from desk.ops import Bench, alert, data_file, journal, killed
-from desk.risk import daily_loss_hit, daily_override_active
+from desk.risk import daily_loss_hit, daily_loss_limit_usd, daily_override_active
 from desk.risk import (Account, check_live_trade, check_token_trade,
                        live_sizing_breakdown, sizing_base, sizing_breakdown)
 
@@ -290,9 +290,17 @@ class SolanaAgent:
                        realized_equity=self.paper.realized_equity())
 
     def daily_override_today(self) -> bool:
-        """Operator tapped Continue today. Never true in LIVE; expires at the day roll."""
+        """Operator tapped Continue today, or auto-continue is switched on.
+
+        Never true in LIVE; the manual override expires at the day roll. The
+        auto-continue setting (RISK["auto_continue_after_daily_stop"]) is an
+        explicit operator choice: the daily stop still fires and is still
+        journaled, but new paper entries are not blocked by it.
+        """
         if not self._paper_only():
             return False
+        if RISK.get("auto_continue_after_daily_stop"):
+            return True
         return daily_override_active(self.mode, self.paper.s.get("daily_loss_override_date"),
                                      str(date.today()))
 
@@ -308,9 +316,13 @@ class SolanaAgent:
             paper = self._paper_only()
             halted = self.daily_loss_halted()
             override = self.daily_override_today()
+            acct = self._paper_account() if paper else None
             return {
                 "mode": self.mode,
                 "daily_loss_limit_pct": RISK["max_daily_loss_pct"],
+                "daily_loss_limit_usd_setting": float(RISK.get("max_daily_loss_usd") or 0.0),
+                "daily_loss_limit_usd": round(daily_loss_limit_usd(acct), 2) if acct else None,
+                "auto_continue": bool(RISK.get("auto_continue_after_daily_stop")),
                 "day": self.paper.s.get("day"),
                 "day_pnl": self.paper.day_pnl() if paper else None,
                 "daily_loss_halted": halted,

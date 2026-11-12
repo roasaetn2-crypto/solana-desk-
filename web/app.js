@@ -324,15 +324,20 @@ function renderRisk(s) {
   if (!banner || !btn || !txt) return;
   const paper = (rk.mode || (s.execution || {}).mode) === "paper";
   const pct = Math.round((rk.daily_loss_limit_pct || 0.03) * 100);
+  const usdSet = Number(rk.daily_loss_limit_usd_setting || 0);
+  const usd = Number(rk.daily_loss_limit_usd || 0);
+  const limitLabel = usdSet > 0 ? "$" + usd.toFixed(2) : pct + "%";
   if (paper && rk.override_today) {
     banner.hidden = false;
     banner.classList.add("overridden");
-    txt.textContent = "Daily stop overridden for today \u2014 resets at day roll";
+    txt.textContent = rk.auto_continue
+      ? "Daily stop is auto-continued (" + limitLabel + ") \u2014 entries keep going"
+      : "Daily stop overridden for today \u2014 resets at day roll";
     btn.hidden = true;
   } else if (paper && rk.daily_loss_halted) {
     banner.hidden = false;
     banner.classList.remove("overridden");
-    txt.textContent = "Daily loss stop hit (" + pct + "%, day P&L $" +
+    txt.textContent = "Daily loss stop hit (" + limitLabel + ", day P&L $" +
       Number(rk.day_pnl || 0).toFixed(2) + "). New paper entries paused for today.";
     btn.hidden = !rk.can_continue;
   } else {

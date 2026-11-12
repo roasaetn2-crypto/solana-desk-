@@ -155,6 +155,16 @@ _R: list[Setting] = [
     _num("risk.max_open_positions", "Max open positions", "Risk", "int", _d(RISK, "max_open_positions", int), 1, 10),
     _num("risk.max_daily_loss_pct", "Daily loss stop", "Risk", "pct", _d(RISK, "max_daily_loss_pct"), 0.005, 0.10, "of book",
          "the desk halts new entries for the day past this; capped at 10%"),
+    _num("risk.max_daily_loss_usd", "Daily loss stop (USD)", "Risk", "float", _d(RISK, "max_daily_loss_usd"), 0.0, 500.0, "USD",
+         "hard dollar daily stop: the desk halts new entries once the day is down this much. "
+         "0 = off (use the % limit above). When above 0 this replaces the % limit, so you can "
+         "name the day's loss in cash on a small paper book."),
+    Setting("risk.auto_continue_after_daily_stop", "Keep trading after daily stop", "Risk", "bool",
+            lambda: bool(RISK.get("auto_continue_after_daily_stop", False)),
+            lambda v: RISK.__setitem__("auto_continue_after_daily_stop", bool(v)),
+            help="PAPER only. The daily stop still fires and is still logged, but it will not pause "
+                 "new entries (same as tapping Continue today every day). Live trading always honours "
+                 "its daily stop and ignores this."),
     Setting("risk.compound", "Compound wins", "Risk", "bool", lambda: bool(RISK["compound"]),
             lambda v: RISK.__setitem__("compound", bool(v))),
     _num("paper.min_ticket_usd", "Min paper ticket", "Risk", "float", _d(PAPER, "min_ticket_usd"), 0.5, 10, "USD"),

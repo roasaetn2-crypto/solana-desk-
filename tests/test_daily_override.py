@@ -100,8 +100,11 @@ class AgentContinue(unittest.TestCase):
         self.env.stop()
         self.tmp.cleanup()
 
-    def lose(self, usd=1.0):
-        """Push today's paper P&L past -3% of a $20 book."""
+    def lose(self, usd=None):
+        """Push today's paper P&L past the daily stop, whatever the book size is."""
+        from desk.risk import daily_loss_limit_usd
+        if usd is None:
+            usd = daily_loss_limit_usd(self.a._paper_account()) + 0.01
         self.a.paper.s["day_start"] = self.a.paper.equity() + usd
         self.a.paper._save()
 
@@ -216,7 +219,9 @@ class Endpoint(unittest.TestCase):
         self.assertEqual(code, 409); self.assertIn("PAPER only", body["error"])
 
     def test_accepts_when_halted_in_paper(self):
-        self.agent.paper.s["day_start"] = self.agent.paper.equity() + 1
+        from desk.risk import daily_loss_limit_usd
+        loss = daily_loss_limit_usd(self.agent._paper_account()) + 0.01
+        self.agent.paper.s["day_start"] = self.agent.paper.equity() + loss
         code, body = self.call()
         self.assertEqual(code, 200); self.assertTrue(body["risk"]["override_today"])
 
