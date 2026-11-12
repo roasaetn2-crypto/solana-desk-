@@ -59,7 +59,7 @@ from fastapi import Body, FastAPI, Form, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from desk import devices, pumpportal
+from desk import devices, keepalive, pumpportal
 from desk.ops import KILL_FILE, load_env
 from desk.solana_agent import SolanaAgent
 from desk.store import restore as restore_store
@@ -74,7 +74,10 @@ async def _lifespan(app):
     pumpportal.start()
     # PAPER only, and only if the operator did not pause the desk.
     maybe_autostart(agent)
+    # Free plan sleeps after ~15 min idle; ping our own public URL.
+    keepalive.start()
     yield
+    keepalive.stop()
     pumpportal.stop()
 
 
