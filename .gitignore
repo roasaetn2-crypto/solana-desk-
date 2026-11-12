@@ -10,6 +10,8 @@ autotune_log.jsonl
 autotune.json
 operator_intent.json
 desk_chat.json
+operator_settings.json
+proposals.json
 
 # python
 __pycache__/

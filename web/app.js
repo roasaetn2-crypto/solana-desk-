@@ -344,6 +344,60 @@ function renderRisk(s) {
     banner.hidden = true;
     btn.hidden = true;
   }
+  renderDailyStop(rk, limitLabel);
+}
+
+
+let dsTouched = false;
+
+function renderDailyStop(rk, limitLabel) {
+  const now = $("dailyStopNow");
+  const usd = $("dsUsd");
+  const auto = $("dsAuto");
+  if (!now || !usd || !auto) return;
+  now.textContent = limitLabel + (rk.auto_continue ? " \u00b7 keeps trading" : "");
+  if (!dsTouched) {
+    usd.value = Number(rk.daily_loss_limit_usd_setting || 0) || "";
+    auto.checked = !!rk.auto_continue;
+  }
+}
+
+function initDailyStop() {
+  const usd = $("dsUsd");
+  const auto = $("dsAuto");
+  const save = $("dsSave");
+  const note = $("dsNote");
+  if (!usd || !auto || !save) return;
+  const touch = () => { dsTouched = true; };
+  usd.addEventListener("input", touch);
+  auto.addEventListener("change", touch);
+  save.onclick = async () => {
+    const values = {
+      "risk.max_daily_loss_usd": Number(usd.value || 0),
+      "risk.auto_continue_after_daily_stop": !!auto.checked
+    };
+    const r = await api("/api/proposals", "POST", { values: values, title: "Daily loss stop" });
+    if (!r || !r.ok) {
+      if (note) note.textContent = (r && (r.error || r.detail)) || "Could not propose that change";
+      toast((r && (r.error || r.detail)) || "Could not propose that change");
+      return;
+    }
+    const p = r.proposal || {};
+    const changes = (p.changes || []).map((c) => c.label + ": " + c.current + " \u2192 " + c.proposed);
+    if (note) note.textContent = "Proposed \u2014 confirm below to apply.";
+    toast("Proposed. Confirm it to apply.");
+    if (changes.length && confirm("Apply these changes?\n\n" + changes.join("\n"))) {
+      const c = await api("/api/proposals/" + encodeURIComponent(p.id) + "/confirm", "POST", null);
+      if (c && c.ok) {
+        dsTouched = false;
+        if (note) note.textContent = "Applied.";
+        toast("Daily stop updated");
+        refresh && refresh();
+      } else {
+        toast((c && (c.error || c.detail)) || "Confirm refused");
+      }
+    }
+  };
 }
 
 async function api(path, method = "GET", body = null) {
@@ -1301,6 +1355,7 @@ if (equityTabs) {
 }
 window.addEventListener("resize", () => { if (lastState) drawEquity(lastState); });
 
+initDailyStop();
 refresh();
 refreshBacktest(true);
 setInterval(refresh, 2000);

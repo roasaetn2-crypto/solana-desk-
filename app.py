@@ -493,8 +493,13 @@ def get_proposals():
 def new_proposal(payload: dict = Body(...)):
     """Operator-made proposal from a preset button. Still needs Confirm."""
     from desk import settings as desk_settings
-    preset = str((payload or {}).get("preset", ""))[:20]
-    out = desk_settings.create_preset(preset, "operator")
+    payload = payload or {}
+    values = payload.get("values")
+    if isinstance(values, dict) and values:
+        out = desk_settings.create_values(values, str(payload.get("title") or "Operator change")[:80])
+    else:
+        preset = str(payload.get("preset", ""))[:20]
+        out = desk_settings.create_preset(preset, "operator")
     return JSONResponse(out, status_code=200 if out.get("ok") else 400)
 
 

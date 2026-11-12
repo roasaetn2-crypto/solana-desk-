@@ -81,6 +81,27 @@
     <button class="btn warn" id="btnContinue" hidden>Continue today</button>
   </div>
 
+  <details class="daily-stop" id="dailyStop">
+    <summary>Daily loss stop <span id="dailyStopNow">—</span></summary>
+    <div class="daily-stop-body">
+      <label class="ds-row">
+        <span>Stop the day at a loss of</span>
+        <input id="dsUsd" type="number" min="0" max="500" step="0.5" inputmode="decimal" placeholder="0 = off">
+        <span class="ds-unit">USD</span>
+      </label>
+      <p class="ds-hint">Leave at 0 to use the % of book instead. When set, this replaces the %.</p>
+      <label class="ds-row ds-check">
+        <input id="dsAuto" type="checkbox">
+        <span>Keep trading after the daily stop is hit (paper only)</span>
+      </label>
+      <p class="ds-hint">The stop still fires and is still logged; it just won't pause new entries. Live always honours its stop.</p>
+      <div class="ds-actions">
+        <button class="btn" id="dsSave" type="button">Propose change</button>
+        <span class="ds-note" id="dsNote"></span>
+      </div>
+    </div>
+  </details>
+
 
   <section class="hero" id="hero">
     <div class="hero-equity" id="heroEquity">$20.00</div>
@@ -398,7 +419,7 @@
     </div>
   </section>
 
-  <script src="/static/app.js?v=20261112a"></script>
+  <script src="/static/app.js?v=20261112b"></script>
   <script src="/static/ai-chat.js?v=20261112d"></script>
 </body>
 </html>

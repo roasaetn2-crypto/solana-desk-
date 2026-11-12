@@ -497,6 +497,21 @@ def create_preset(name: str, source: str = "operator") -> dict:
     return out
 
 
+def create_values(values: dict, title: str = "Operator change", source: str = "operator") -> dict:
+    """Operator-made proposal from explicit {key: value} pairs (no AI needed).
+
+    Still goes through validate_changes and still needs Confirm, so the audit
+    trail and the bounds are the same as an AI recommendation.
+    """
+    if not isinstance(values, dict) or not values:
+        return {"ok": False, "error": "no values given"}
+    raw = [{"setting": k, "proposed": v} for k, v in list(values.items())[:MAX_CHANGES]]
+    out = create(raw, "operator set " + ", ".join(sorted(values)[:4]), source, title)
+    if not out["ok"] and not out.get("dropped"):
+        out["error"] = "those values are already what the desk runs"
+    return out
+
+
 def _clean(s, n):
     return re.sub(r"\s+", " ", re.sub(r"[\x00-\x1f\x7f<>`]", " ", str(s or ""))).strip()[:n]
 
