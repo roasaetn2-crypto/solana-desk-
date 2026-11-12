@@ -21,8 +21,8 @@
   let busy = false;
   let openedByPush = false;
 
-  try { msgs = JSON.parse(sessionStorage.getItem(KEY) || "[]").slice(-40); } catch (e) { msgs = []; }
-  const save = () => { try { sessionStorage.setItem(KEY, JSON.stringify(msgs.slice(-40))); } catch (e) {} };
+  try { msgs = JSON.parse(sessionStorage.getItem(KEY) || "[]").slice(-50); } catch (e) { msgs = []; }
+  const save = () => { try { sessionStorage.setItem(KEY, JSON.stringify(msgs.slice(-50))); } catch (e) {} };
   const hhmm = (t) => new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
 
   function chipsHtml(agents) {
@@ -163,7 +163,7 @@
   function render() {
     const intro = {
       role: "ai", t: Date.now(), agents: [],
-      text: "Hi, I'm Desk AI. Ask me about your paper desk: open positions, recent decisions and brain verdicts, today's P&L, or the risk stop.\nI can also suggest paper setting changes (risk, stop loss, scalper mode…). They show up as cards, and nothing changes until you tap Confirm.",
+      text: "Hi, I'm Desk AI. Ask me about your paper desk: open positions, why a coin was skipped, today's P&L, last trades, breaker status, or what the desk is doing. I remember this chat after a restart.\nI can also suggest paper setting changes (risk, stop loss, scalper mode…). They show up as cards, and nothing changes until you tap Confirm.",
     };
     chat.innerHTML = '<div class="ai-day">TODAY</div>' + rowHtml(intro) + msgs.map(rowHtml).join("") +
       (busy ? `<div class="ai-row bot ai-typing"><div class="ai-mini"><span class="ai-sprite think"></span></div>
@@ -205,7 +205,7 @@
   async function ask(text) {
     text = String(text || "").trim().slice(0, 500);
     if (!text || busy) return;
-    const past = msgs.slice(-6).map((m) => ({ role: m.role === "user" ? "user" : "ai", text: m.text }));
+    const past = msgs.slice(-8).map((m) => ({ role: m.role === "user" ? "user" : "ai", text: m.text }));
     msgs.push({ role: "user", text, t: Date.now() });
     save();
     setBusy(true);
@@ -230,6 +230,39 @@
     setBusy(false);
   }
 
+  async function loadHistory() {
+    try {
+      const r = await fetch("/api/ai/history", { cache: "no-store" });
+      if (r.status === 401 || !r.ok) return;
+      const d = await r.json();
+      const server = Array.isArray(d.messages) ? d.messages : [];
+      if (server.length) {
+        msgs = server.slice(-50);
+        save();
+        render();
+      } else if (msgs.length) {
+        await fetch("/api/ai/history", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: msgs }),
+        });
+      }
+    } catch (e) {}
+  }
+
+  async function clearChat() {
+    if (busy) return;
+    if (!window.confirm("Clear Desk AI chat history?")) return;
+    try {
+      const r = await fetch("/api/ai/chat/clear", { method: "POST" });
+      if (r.status === 401) { toastSafe("Session expired. Sign in again."); return; }
+      msgs = [];
+      save();
+      render();
+    } catch (e) {
+      toastSafe("Couldn't reach the desk.");
+    }
+  }
+
   function open(push) {
     if (!view.hidden) return;
     view.hidden = false;
@@ -238,6 +271,7 @@
     render();
     status();
     syncPending();
+    loadHistory();
     setTimeout(() => input.focus({ preventScroll: true }), 50);
   }
   function close(fromPop) {
@@ -267,5 +301,7 @@
   setBody.addEventListener("click", (e) => { const b = e.target.closest("button[data-preset]"); if (b) preset(b.dataset.preset, b.textContent.trim()); });
   document.getElementById("aiSetBack").onclick = closeSettings;
   document.getElementById("aiSetRec").onclick = recommend;
+  const clearBtn = document.getElementById("aiClear");
+  if (clearBtn) clearBtn.onclick = clearChat;
   if (location.hash === "#ai") open(false);
 })();

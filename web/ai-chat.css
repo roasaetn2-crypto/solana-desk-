@@ -89,7 +89,7 @@ body.ai-open .ai-fab { display: none; }
 .ai-composer input::placeholder { color: #6f6a7a; }
 .ai-send { width: 42px; height: 42px; border-radius: 13px; border: 0; display: grid; place-items: center; cursor: pointer; flex: none;
   background: linear-gradient(135deg, var(--ai-purple), var(--ai-teal2)); box-shadow: 0 4px 14px rgba(153,69,255,.45); }
-.ai-paper { text-align: center; font-size: 9.5px; color: #6f6a7a; margin-top: 8px; }
+.ai-paper { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 10px; text-align: center; font-size: 9.5px; color: #6f6a7a; margin-top: 8px; }
 @media (prefers-reduced-motion: reduce) { .ai-sprite.blink, .ai-sprite.think, .ai-typing .ai-bubble i { animation: none; } }
 
 /* setting proposals (PAPER, confirm / reject) */
@@ -132,3 +132,7 @@ body.ai-open .ai-fab { display: none; }
 .ai-set-presets { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0; }
 .ai-set-presets button { flex: 1 1 30%; min-height: 42px; border-radius: 12px; border: 1px solid rgba(20,241,149,.45); background: #0d1f1a;
   color: #c9ffe9; font: 700 12.5px var(--sans); cursor: pointer; }
+
+.ai-clear { background: none; border: 0; color: #8a8494; font: 600 11px var(--sans);
+  cursor: pointer; padding: 2px 0; text-decoration: underline; text-underline-offset: 2px; }
+.ai-clear:hover, .ai-clear:focus { color: #ffd9a0; }

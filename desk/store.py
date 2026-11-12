@@ -32,6 +32,7 @@ _KV = (
     ("settings", lambda: data_file("autotune.json")),
     ("operator_settings", lambda: data_file("operator_settings.json")),
     ("proposals", lambda: data_file("proposals.json")),
+    ("desk_chat", lambda: data_file("desk_chat.json")),
 )
 _JOURNAL = "journal"
 

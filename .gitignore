@@ -9,6 +9,7 @@ desk.log
 autotune_log.jsonl
 autotune.json
 operator_intent.json
+desk_chat.json
 
 # python
 __pycache__/

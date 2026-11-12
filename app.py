@@ -32,7 +32,10 @@ Endpoints
     POST /api/agent/stop       pause the background loop
     POST /api/risk/continue    PAPER only: resume entries today after the 3% daily stop
     GET  /api/ai/status        Desk AI chat: keys present? limits (never key values)
+    GET  /api/ai/history       Desk AI: persisted conversation (last ~50 messages)
+    POST /api/ai/history       seed history if the server has none (from the phone cache)
     POST /api/ai/chat          Desk AI: advisory answer; may return PENDING setting proposals
+    POST /api/ai/chat/clear    wipe the persisted Desk AI conversation
     POST /api/ai/recommend     Desk AI: recommend paper settings from recent performance (pending only)
     GET  /api/settings         every proposable PAPER setting: value, type, bounds; exclusions
     GET  /api/proposals        pending + recent setting proposals
@@ -314,23 +317,75 @@ def ai_status():
     return desk_chat.status()
 
 
+@app.get("/api/ai/history")
+def ai_history():
+    """Persisted Desk AI conversation. Behind the same key / paired-device gate as chat."""
+    from desk import chat_memory
+    return {"ok": True, "messages": chat_memory.messages()}
+
+
+@app.post("/api/ai/history")
+def ai_history_seed(payload: dict = Body(None)):
+    """Adopt the phone's cached chat only when the server has none (first run of this feature)."""
+    from desk import chat_memory
+    msgs = (payload or {}).get("messages") if isinstance(payload, dict) else None
+    return {"ok": True, "messages": chat_memory.seed(msgs if isinstance(msgs, list) else [])}
+
+
+@app.post("/api/ai/chat/clear")
+def ai_chat_clear():
+    """Wipe the persisted Desk AI conversation. Same auth as chat. Does not touch trades."""
+    from desk import chat_memory
+    chat_memory.clear()
+    return {"ok": True, "messages": []}
+
+
 @app.post("/api/ai/chat")
 def ai_chat(payload: dict = Body(...)):
     """Desk AI. Advisory and read-only: it gets a whitelisted copy of the state, never the
     agent, so it cannot start, stop, trade, reset, kill or switch mode. Behind the same
     key / paired-device gate as Start and Pause; rate-limited per minute and per day."""
     from desk import desk_chat
+    from desk import chat_memory
     q = str((payload or {}).get("message", ""))[:2000]
     if not q.strip():
         return JSONResponse({"ok": False, "error": "empty message"}, status_code=400)
     why = desk_chat.LIMITER.take()
     if why:
         return JSONResponse({"ok": False, "error": why}, status_code=429)
-    hist = (payload or {}).get("history")
+    client_hist = (payload or {}).get("history")
+    client_hist = client_hist if isinstance(client_hist, list) else None
+    server_hist = chat_memory.history_for_model()
+    hist = server_hist or client_hist
+    if client_hist and (not server_hist or len(client_hist) > len(server_hist)):
+        hist = client_hist
     from desk import settings as desk_settings
-    out = desk_chat.answer(q, agent.status(), hist if isinstance(hist, list) else None,
+    out = desk_chat.answer(q, agent.status(), hist,
                            settings=desk_settings.compact_for_ai())
-    return _with_proposals(out, "desk_ai")
+    out = _with_proposals(out, "desk_ai")
+    _remember_chat("user", q)
+    if out.get("reply"):
+        _remember_chat("ai", out.get("reply"), out)
+    return out
+
+
+def _remember_chat(role: str, text: str, out: dict | None = None) -> None:
+    """Best-effort persist. Never raises into the chat response."""
+    try:
+        from desk import chat_memory
+        msg = {"role": role, "text": text, "t": int(time.time() * 1000)}
+        if out:
+            if out.get("agents"):
+                msg["agents"] = out["agents"]
+            if out.get("provider"):
+                msg["provider"] = out["provider"]
+            if out.get("proposals"):
+                msg["proposals"] = out["proposals"]
+            if out.get("dropped"):
+                msg["dropped"] = out["dropped"]
+        chat_memory.append(msg)
+    except Exception:
+        pass
 
 
 def _with_proposals(out: dict, source: str) -> dict:
@@ -367,7 +422,11 @@ def ai_recommend():
         bt = None
     out = desk_chat.answer(desk_chat.RECOMMEND_Q, st, None, settings=desk_settings.compact_for_ai(),
                            perf=desk_chat.performance(st, bt))
-    return _with_proposals(out, "recommend")
+    out = _with_proposals(out, "recommend")
+    _remember_chat("user", "Recommend settings")
+    if out.get("reply"):
+        _remember_chat("ai", out.get("reply"), out)
+    return out
 
 
 def _who(request: Request) -> str:

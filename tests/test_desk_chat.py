@@ -3,6 +3,7 @@ import ast
 import json
 import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -111,7 +112,7 @@ class Answers(unittest.TestCase):
     def test_no_keys_is_friendly(self):
         for k in ("GEMINI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY"):
             os.environ.pop(k, None)
-        r = dc.answer("how is the desk?", STATE)
+        r = dc.answer("hello there", STATE)
         self.assertTrue(r["ok"])
         self.assertEqual(r["source"], "no_keys")
         self.assertIn("AI keys not set", r["reply"])
@@ -155,6 +156,12 @@ class Limits(unittest.TestCase):
 
 
 class Endpoint(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        os.environ["DESK_DATA_DIR"] = self.tmp.name
+        from desk import chat_memory
+        chat_memory.reset()
+
     def _client(self, token):
         os.environ.pop("DESK_TOKEN", None)
         if token:
@@ -166,8 +173,12 @@ class Endpoint(unittest.TestCase):
         return TestClient(appmod.app)
 
     def tearDown(self):
+        from desk import chat_memory
+        chat_memory.reset()
         os.environ.pop("DESK_TOKEN", None)
+        os.environ.pop("DESK_DATA_DIR", None)
         sys.modules.pop("app", None)
+        self.tmp.cleanup()
 
     def test_locked_needs_key(self):
         c = self._client("s3cret")
@@ -198,6 +209,194 @@ class Endpoint(unittest.TestCase):
         c = self._client(None)
         self.assertEqual(c.post("/api/ai/chat", json={"message": "  "}).status_code, 400)
 
+    def test_history_and_clear(self):
+        c = self._client(None)
+        r = c.get("/api/ai/history")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["messages"], [])
+        r = c.post("/api/ai/chat", json={"message": "today's P&L"})
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("P&L", r.json()["reply"])
+        hist = c.get("/api/ai/history").json()["messages"]
+        self.assertGreaterEqual(len(hist), 2)
+        self.assertEqual(hist[0]["role"], "user")
+        self.assertEqual(hist[0]["text"], "today's P&L")
+        self.assertEqual(hist[1]["role"], "ai")
+        self.assertTrue(hist[1]["text"])
+        clr = c.post("/api/ai/chat/clear")
+        self.assertEqual(clr.status_code, 200)
+        self.assertEqual(c.get("/api/ai/history").json()["messages"], [])
+
+    def test_history_locked_needs_key(self):
+        c = self._client("s3cret")
+        self.assertEqual(c.get("/api/ai/history").status_code, 401)
+        self.assertEqual(c.post("/api/ai/chat/clear").status_code, 401)
+        c.post("/login", data={"token": "s3cret"}, follow_redirects=False)
+        self.assertEqual(c.get("/api/ai/history").status_code, 200)
+        self.assertEqual(c.post("/api/ai/chat/clear").status_code, 200)
+
+    def test_clear_does_not_touch_the_agent(self):
+        c = self._client(None)
+        ag = self.appmod.agent
+        with mock.patch.object(ag, "start") as st, mock.patch.object(ag, "stop") as sp, \
+                mock.patch.object(ag, "reset") as rs, mock.patch.object(ag, "set_mode") as sm, \
+                mock.patch.object(ag, "continue_today") as ct:
+            c.post("/api/ai/chat/clear")
+        for m in (st, sp, rs, sm, ct):
+            m.assert_not_called()
+
+    def test_seed_only_when_empty(self):
+        c = self._client(None)
+        payload = {"messages": [
+            {"role": "user", "text": "hi from phone", "t": 1},
+            {"role": "ai", "text": "hello back", "t": 2},
+        ]}
+        r = c.post("/api/ai/history", json=payload)
+        self.assertEqual(len(r.json()["messages"]), 2)
+        r2 = c.post("/api/ai/history", json={"messages": [{"role": "user", "text": "overwrite", "t": 3}]})
+        texts = [m["text"] for m in r2.json()["messages"]]
+        self.assertIn("hi from phone", texts)
+        self.assertNotIn("overwrite", texts)
+
+
 
 if __name__ == "__main__":
     unittest.main()
+
+# Extra state: a skipped coin, reject events, a tripped breaker. Mints stay for search only.
+STATE_RICH = json.loads(json.dumps(STATE))
+STATE_RICH["last_cycle_at"] = "2026-11-12T04:00:00+00:00"
+STATE_RICH["starting_equity"] = 20.0
+STATE_RICH["broker"]["open_count"] = 1
+STATE_RICH["guard"] = {"breaker": {"state": "reduce", "mult": 0.5,
+                                    "reason": "2 losses in a row, half size"},
+                       "regime": {"tag": "risk_on"}}
+STATE_RICH["decisions"] = list(STATE["decisions"]) + [
+    {"symbol": "PEPE", "mint": "MintPEPE1111111111111111111111111111111",
+     "approved": False, "reason": "ticket $1.40 is under the $2 fee floor",
+     "ticket_usd": 1.40, "time": "2026-11-12T03:58:00+00:00",
+     "thesis": {"verdict": "valid_setup", "score": 7},
+     "brain": {"verdict": "watch", "confidence": 55, "agreement": "split"}},
+]
+STATE_RICH["events"] = [
+    {"kind": "reject", "symbol": "BONK", "mint": "MintBONK1111111111111111111111111111111",
+     "stage": "scanner", "reason": "low_liq",
+     "message": "BONK: cut at scanner (low_liq)", "time": "2026-11-12T03:59:00+00:00"},
+    {"kind": "reject", "symbol": "PEPE", "mint": "MintPEPE1111111111111111111111111111111",
+     "stage": "risk", "reason": "ticket $1.40 is under the $2 fee floor",
+     "message": "PEPE: risk engine said no (ticket $1.40 is under the $2 fee floor)",
+     "time": "2026-11-12T03:58:00+00:00"},
+]
+STATE_RICH["execution"] = {"wallet": "WALLETSECRET", "mode": "paper"}
+
+
+class Commands(unittest.TestCase):
+    def test_intent_examples(self):
+        cases = {
+            "why was PEPE skipped": "skipped",
+            "Why was $BONK skipped?": "skipped",
+            "why no trade on PEPE": "skipped",
+            "what happened to BONK": "skipped",
+            "show my open trades": "positions",
+            "Summarize my open paper positions.": "positions",
+            "today's P&L": "pnl",
+            "How is my paper P&L today?": "pnl",
+            "breaker status": "breaker",
+            "What's the breaker status?": "breaker",
+            "last trades": "trades",
+            "Show my last trades": "trades",
+            "what's the desk doing": "status",
+            "What is the scanner seeing right now?": "status",
+            "Explain the last few decisions and the brain verdicts.": "decisions",
+            "Risk check: is the daily loss stop close, and what is blocking entries?": "risk",
+        }
+        for q, want in cases.items():
+            got = dc.match_intent(q)
+            self.assertIsNotNone(got, q)
+            self.assertEqual(got["intent"], want, q)
+        self.assertEqual(dc.match_intent("why was PEPE skipped")["query"], "PEPE")
+        self.assertEqual(dc.match_intent("Why was $BONK skipped?")["query"], "BONK")
+
+    def test_settings_requests_are_not_commands(self):
+        for q in ("set min paper ticket to 3", "change the stop loss to 15%",
+                  "recommend settings", "scalper mode"):
+            self.assertIsNone(dc.match_intent(q), q)
+
+    def test_plain_fallback_without_keys(self):
+        for k in ("GEMINI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY"):
+            os.environ.pop(k, None)
+        r = dc.answer("why was PEPE skipped", STATE_RICH)
+        self.assertTrue(r["ok"])
+        self.assertEqual(r["source"], "desk")
+        self.assertIn("PEPE", r["reply"])
+        self.assertIn("1.40", r["reply"])
+        self.assertNotIn("AI keys not set", r["reply"])
+        self.assertNotIn("MintPEPE", r["reply"])
+        self.assertNotIn("WALLETSECRET", r["reply"])
+
+    def test_unknown_chat_without_keys_still_asks_for_keys(self):
+        for k in ("GEMINI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY"):
+            os.environ.pop(k, None)
+        r = dc.answer("hello there", STATE_RICH)
+        self.assertEqual(r["source"], "no_keys")
+        self.assertIn("AI keys not set", r["reply"])
+
+    def test_lookup_by_mint_does_not_leak_mint(self):
+        mint = "MintBONK1111111111111111111111111111111"
+        intent = dc.match_intent(f"why was {mint} skipped")
+        self.assertEqual(intent["intent"], "skipped")
+        facts = dc.command_facts(intent, STATE_RICH)
+        blob = json.dumps(facts) + dc.format_command(intent, facts)
+        self.assertIn("BONK", blob)
+        self.assertNotIn(mint, blob)
+        self.assertNotIn("WALLETSECRET", blob)
+        self.assertNotIn("fomo_url", blob)
+
+    def test_open_trades_and_pnl_and_breaker(self):
+        for k in ("GEMINI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY"):
+            os.environ.pop(k, None)
+        pos = dc.answer("show my open trades", STATE_RICH)
+        self.assertIn("MEOW", pos["reply"])
+        self.assertIn("open paper", pos["reply"].lower())
+        pnl = dc.answer("today's P&L", STATE_RICH)
+        self.assertIn("0.60", pnl["reply"])
+        br = dc.answer("breaker status", STATE_RICH)
+        self.assertIn("half", br["reply"].lower())
+        trades = dc.answer("last trades", STATE_RICH)
+        self.assertIn("OLD", trades["reply"])
+        st = dc.answer("what's the desk doing", STATE_RICH)
+        self.assertIn("running", st["reply"].lower())
+
+    def test_busy_ai_falls_back_to_desk_data(self):
+        from desk.brain_advisor import ProviderError
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": GKEY}), \
+                mock.patch.object(ADVISOR.gemini, "call", side_effect=ProviderError("429", 429)):
+            r = dc.answer("why was BONK skipped", STATE_RICH)
+        self.assertEqual(r["source"], "desk")
+        self.assertIn("BONK", r["reply"])
+        self.assertIn("scanner", r["reply"].lower())
+
+    def test_prompt_includes_desk_facts(self):
+        seen = {}
+
+        def fake(system, user, max_tokens=700):
+            seen["p"] = system + user
+            return '{"reply":"PEPE was skipped because the ticket was under the floor.","agents":["risk"]}'
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": GKEY}), \
+                mock.patch.object(ADVISOR.gemini, "call", side_effect=fake):
+            r = dc.answer("why was PEPE skipped", STATE_RICH)
+        self.assertEqual(r["source"], "ai")
+        self.assertIn("desk_facts", seen["p"])
+        self.assertIn("PEPE", seen["p"])
+        self.assertNotIn("MintPEPE", seen["p"])
+        self.assertNotIn(GKEY, seen["p"])
+        self.assertNotIn("WALLETSECRET", seen["p"])
+
+    def test_snapshot_breaker_and_rejects_still_whitelist(self):
+        snap = json.dumps(dc.snapshot(STATE_RICH))
+        for leak in ("WALLETSECRET", "fomo_url", "access", "execution", "mint", "MintPEPE", "MintBONK"):
+            self.assertNotIn(leak, snap)
+        s = dc.snapshot(STATE_RICH)
+        self.assertEqual(s["breaker"]["state"], "reduce")
+        self.assertEqual(s["breaker"]["mult"], 0.5)
+        self.assertEqual(s["recent_rejects"][0]["symbol"], "BONK")
