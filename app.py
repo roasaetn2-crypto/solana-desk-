@@ -327,6 +327,8 @@ def _desk_health() -> dict:
                 "scalp_max_hold_hours": E["profiles"]["scalp"]["max_hold_hours"],
                 "swing_stop_pct": E["profiles"]["swing"]["stop_pct"],
                 "swing_max_hold_hours": E["profiles"]["swing"]["max_hold_hours"],
+                "scalp_timeout_hours": E["profiles"]["scalp"]["timeout_hours"],
+                "swing_timeout_hours": E["profiles"]["swing"]["timeout_hours"],
                 "breakeven_after_half": E.get("breakeven_after_half"),
                 "runner_trail_pct": E.get("runner_trail_pct"), "runner_max_minutes": E.get("runner_max_minutes"),
                 "min_community_score": M["min_community_score"], "analyst_min_score": c.ANALYST_VALID_SCORE,

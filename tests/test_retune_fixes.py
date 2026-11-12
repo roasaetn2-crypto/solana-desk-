@@ -172,7 +172,7 @@ class Runner(unittest.TestCase):
 
     def test_before_tp1_nothing_changes(self):
         p = self.pos("swing")
-        self.assertIsNone(exits.evaluate(p, {"price_usd": 1.2}, 600 + 300 * 60))
+        self.assertIsNone(exits.evaluate(p, {"price_usd": 1.2}, 600 + 200 * 60))
         self.assertNotIn("half_at", p)
 
 
@@ -281,8 +281,8 @@ class Retune(unittest.TestCase):
             at = autotune.AutoTune(mock.Mock(), d / "at.json", d / "at.jsonl")
             self.assertEqual(config.SCAN["min_volume_h1_usd"], 3_000)   # new default stands
             self.assertEqual(config.SCAN["min_trades_h1"], 30)
-            self.assertEqual(config.ANALYST_VALID_SCORE, 6)             # default unchanged -> kept
-            self.assertEqual(set(at.dropped), {"volume_h1", "trades_h1"})
+            self.assertEqual(config.ANALYST_VALID_SCORE, 6)             # owner's 6 (default moved 5 -> 6)
+            self.assertEqual(set(at.dropped), {"score", "volume_h1", "trades_h1"})
             at._persist()
             st = json.loads((d / "at.json").read_text())
             self.assertEqual(st["baseline"]["volume_h1"], 3_000)
@@ -294,6 +294,38 @@ class Retune(unittest.TestCase):
         finally:
             config.ANALYST_VALID_SCORE, config.MIN_SCORE = saved["v"], saved["m"]
             config.SCAN.update(saved["scan"]); config.CHAIN.update(saved["chain"])
+
+    def test_owner_score_six_survives_restart_and_tuner_cannot_raise_it(self):
+        saved = {"v": config.ANALYST_VALID_SCORE, "m": config.MIN_SCORE}
+        try:
+            self.assertEqual((config.ANALYST_VALID_SCORE, config.MIN_SCORE), (6, 6))
+            d = Path(tempfile.mkdtemp())
+            # the live Turso file: self-tuner's 8, saved against the new-style baseline of 5
+            (d / "at.json").write_text(json.dumps({"gates": {"score": 8},
+                                                   "baseline": {**autotune.DEFAULTS, "score": 5}}))
+            autotune.AutoTune(mock.Mock(), d / "at.json", d / "at.jsonl")
+            self.assertEqual(config.ANALYST_VALID_SCORE, 6)
+            # even a file claiming the current baseline is clamped to the tight end, 6
+            (d / "at.json").write_text(json.dumps({"gates": {"score": 8}, "baseline": autotune.DEFAULTS}))
+            autotune.AutoTune(mock.Mock(), d / "at.json", d / "at.jsonl")
+            self.assertEqual(config.ANALYST_VALID_SCORE, 6)
+            for _ in range(5):
+                autotune.notch("score", False)                        # tighten as hard as it can
+            self.assertEqual(config.ANALYST_VALID_SCORE, 6)
+            self.assertFalse(autotune.can_move("score", False))
+        finally:
+            config.ANALYST_VALID_SCORE, config.MIN_SCORE = saved["v"], saved["m"]
+
+    def test_swing_hold_is_four_hours_and_presets_match(self):
+        sw = config.EXITS["profiles"]["swing"]
+        self.assertEqual((sw["max_hold_hours"], sw["timeout_hours"]), (4.0, 3.0))
+        self.assertLessEqual(sw["timeout_hours"], sw["max_hold_hours"])
+        for name in ("swing", "balanced"):
+            v = settings.PRESETS[name]["values"]
+            self.assertEqual(v["exits.swing.max_hold_hours"], 4, name)
+            self.assertEqual(v["exits.swing.timeout_hours"], 3, name)
+            vals = settings.current_values(); vals.update(v)
+            self.assertEqual(settings._cross_check(vals), [], name)
 
     def test_operator_confirmed_values_still_win(self):
         saved = (dict(config.SCAN), dict(config.RISK))

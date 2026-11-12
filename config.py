@@ -58,12 +58,12 @@ CHAIN = {
 ANALYST_MODEL = "claude-sonnet-4-20250514"
 REVIEW_MODEL = "claude-sonnet-4-20250514"
 ANALYST_MAX_TOKENS = 4_000
-MIN_SCORE = 5                        # 0-10, the analyst's score must clear this
+MIN_SCORE = 6                        # 0-10, the analyst's score must clear this (owner set 6, 2026-11-12)
 
 # The bar for the analyst to say "valid_setup" (the only verdict the risk engine
 # will size a ticket for). Lower = more trades, more noise. Raise it back to 7
 # for the original, stricter desk.
-ANALYST_VALID_SCORE = 5              # 0-10
+ANALYST_VALID_SCORE = 6              # 0-10 (owner set 6 on 2026-11-12; was 5)
 ANALYST_MAX_RED_FOR_VALID = 3        # red flags allowed on a valid setup
 
 # ---------- Seat 4: risk engine (pure code) ----------
@@ -104,8 +104,8 @@ EXITS = {
                   "trail_pct": 0.20, "timeout_hours": 3.0, "timeout_min_gain": 0.05,
                   "max_hold_hours": 4.0},     # retune: was 6h
         "swing": {"stop_pct": 0.30, "tp1_at": 1.5, "tp1_frac": 0.33, "tp2_at": 2.0, "tp2_frac": 0.5,
-                  "trail_pct": 0.30, "timeout_hours": 24.0, "timeout_min_gain": 0.05,
-                  "max_hold_hours": 72.0},
+                  "trail_pct": 0.30, "timeout_hours": 3.0, "timeout_min_gain": 0.05,
+                  "max_hold_hours": 4.0},     # owner: swing max hold 4h (was 72h; timeout was 24h)
     },
 }
 
@@ -221,7 +221,7 @@ AUTOTUNE = {
     "window_trades": 10,
     # gate: (where, key, step toward LOOSER, hard floor/ceiling for the loose end, tight end)
     "gates": {
-        "score":      {"loose_end": 4,       "tight_end": 8,       "step": 1},
+        "score":      {"loose_end": 4,       "tight_end": 6,       "step": 1},   # owner: never above 6 on its own
         "volume_h1":  {"loose_end": 3_000,   "tight_end": 20_000,  "step": 1_000},
         "trades_h1":  {"loose_end": 30,      "tight_end": 120,     "step": 10},
         "top_10":     {"loose_end": 0.45,    "tight_end": 0.25,    "step": 0.03},
