@@ -45,7 +45,8 @@ class PaperBroker:
             eq = PAPER["starting_equity_usd"]
             self.s = {"cash": eq, "positions": {}, "day": str(date.today()), "day_start": eq,
                       "start_equity": eq, "closed": []}
-        self._repair()
+        self.last_fixes: list[dict] = []
+        self.last_fixes = self._repair()
         self._roll_day()
 
     # ---------- state ----------

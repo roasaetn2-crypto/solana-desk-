@@ -124,7 +124,10 @@ def main() -> int:
 
     from desk.broker import PaperBroker
     b = PaperBroker(path)
-    fixes = b._repair()
+    # The constructor already repairs and saves, so its fixes are the real ones.
+    # Calling _repair() again would return [] and print a misleading
+    # "nothing to repair" even though the book was just healed.
+    fixes = list(getattr(b, "last_fixes", []) or []) or b._repair()
     print()
     if fixes:
         for f in fixes:
