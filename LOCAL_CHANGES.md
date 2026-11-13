@@ -147,3 +147,22 @@ be floor-relative instead of magic-number-relative. `tests/legacy_book.py` still
 pins the $20 book for the older sizing tests, by design.
 
 A fresh install now boots at equity $50.00, cash $50.00, day P&L $0.00.
+
+# "pumpportal: websocket-client missing" (2026-11-14)
+
+The import is `import websocket`, but the PyPI package is `websocket-client`.
+`pip install websocket` installs a DIFFERENT project that shadows the right
+module, so the desk keeps failing even after a "successful" install.
+
+- `desk/pumpportal.py`: the retry log now prints the exact fix, and
+  `health()["hint"]` carries it too, so the dashboard can show it.
+- `termux/fix-deps.sh`: uninstalls the wrong `websocket` package, installs
+  `requirements.txt`, then verifies `create_connection` /
+  `WebSocketTimeoutException` / `WebSocketApp` exist and that every desk import
+  resolves.
+- `termux/start-desk.sh`: one-line preflight warning at boot instead of a
+  mystery in the log.
+
+The feed is optional: without it the desk falls back to the REST scanner.
+Verified after install: `pumpportal: connected, subscribed subscribeNewToken`,
+health `status: on`, `error: null`.

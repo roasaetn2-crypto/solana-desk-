@@ -170,9 +170,14 @@ def _run() -> None:
         try:
             websocket = _ws_mod()
         except Exception as e:
+            hint = ("pip install websocket-client  (the module is `websocket`, but the "
+                    "package is `websocket-client`; `pip install websocket` installs a "
+                    "different project)")
             with _lock:
                 _state["error"] = f"websocket-client missing ({type(e).__name__})"
+                _state["hint"] = hint
             _log(f"websocket-client missing ({type(e).__name__}); retry in {backoff}s")
+            _log(f"  fix: {hint}")
             _stop.wait(backoff)
             backoff = min(BACKOFF_MAX_S, backoff * 2)
             continue

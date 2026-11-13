@@ -27,6 +27,18 @@ if [ ! -s "$KEY_FILE" ]; then
 fi
 export DESK_TOKEN="$(cat "$KEY_FILE")"
 
+# ---- dependency preflight: warn once, never block the desk ----
+python - <<'PY' 2>/dev/null || true
+try:
+    import websocket
+    if not hasattr(websocket, "create_connection"):
+        raise ImportError("wrong package")
+except Exception:
+    print("WARNING: websocket-client is missing or wrong -> the PumpPortal feed "
+          "will be off (the REST scanner still works).")
+    print("         fix: bash termux/fix-deps.sh")
+PY
+
 # ---- keep the CPU awake ----
 command -v termux-wake-lock >/dev/null 2>&1 && termux-wake-lock
 
