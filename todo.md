@@ -23,4 +23,4 @@
 ## Verify
 - [x] Add tests for grid isolation, recommend(), performance completeness, offline fallback, endpoint wiring.
 - [x] Run full pytest suite (632 passed, 17 skipped).
-- [ ] Commit + push to GitHub main.
+- [x] Commit + push to GitHub main (7b2d9be).
