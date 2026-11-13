@@ -70,6 +70,10 @@ def report(path: Path, s: dict) -> int:
     if start:
         print(f"multiple       {equity / start:,.3f}x")
         print(f"return         {(equity / start - 1) * 100:,.2f}%")
+    day_start = s.get("day_start")
+    if day_start is not None:
+        print(f"day start      ${float(day_start):,.2f}   (equity when the day rolled)")
+        print(f"day P&L        ${equity - float(day_start):,.2f}")
     print(f"open / closed  {len(s.get('positions') or {})} / {len(s.get('closed') or [])}")
     print()
     if not rs:
