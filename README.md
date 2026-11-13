@@ -677,6 +677,24 @@ It prints one row per provider with cost, key count, calls used and left, and
 whether it is ready, cooling, or missing a key — then names the free providers
 you have not added yet. Exit code 0 means something can answer at no cost.
 
+`ai_status.py` is offline: it reads the key names and the day's counters and never
+touches the network, so it cannot tell you whether a key is *valid*. To prove a
+provider is genuinely wired in, use the per-provider check, which goes through the
+desk's own `Provider` class rather than the vendor SDK:
+
+```bash
+python scripts/check_groq.py            # key, wiring, then one real call
+python scripts/check_groq.py --offline  # skip the call
+```
+
+This matters because the desk does not import the `groq` package at all — it posts
+to `api.groq.com` with `requests`. A passing `from groq import Groq` snippet proves
+the SDK works and says nothing about the desk. `check_groq.py` verifies the env var
+name, that `groq` sits ahead of the paid provider in the chain, the model and daily
+budget, and then spends one call and parses the reply with the desk's own
+`parse_opinion()`. It distinguishes a wrong key (401) from a spent quota (429/402),
+so a red result tells you which of the two problems you have.
+
 The dashboard's **AI quota** panel draws one bar per provider with calls used
 today, key count and any cooldown, plus a single line for total free calls left.
 `keys_cooling` tells you when only *part* of a provider is spent — e.g. `1 of 2
