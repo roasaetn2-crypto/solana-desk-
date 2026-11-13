@@ -64,3 +64,7 @@ rate. If it does not, do NOT add it to the desk.
 - [x] Tests: known-value indicator math + harness wiring (17 tests)
 - [x] INDICATOR-EVALUATION.md with numbers + verdict
 - [x] verify-update.sh section 4d added
+- [x] 120-pool validation run (99 pools / 87,210 bars / 5,974 BUY entries)
+- [x] RSI<35 verdict: 43 trades, 20.9% win, +6.2pp, PF 0.737 -> FAILS PF>=1.2, not wired
+- [x] INDICATOR-EVALUATION.md updated with 120-pool table + closed decision
+- [x] WINDOW=200/_snap() perf optimization committed

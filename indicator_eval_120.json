@@ -1,0 +1,293 @@
+{
+  "baseline": {
+    "trades": 5974,
+    "win_rate": 0.1476,
+    "wins": 882,
+    "avg_ret_pct": -4.693,
+    "total_ret_pct": -28033.04,
+    "profit_factor": 0.492
+  },
+  "entry_filters": {
+    "RSI < 35 (oversold)": {
+      "trades": 43,
+      "win_rate": 0.2093,
+      "wins": 9,
+      "avg_ret_pct": -1.057,
+      "total_ret_pct": -45.46,
+      "profit_factor": 0.737,
+      "kept_pct": 0.0072,
+      "win_lift": 0.0617,
+      "verdict": "DO-NOT-ADD (PF 0.737 < 1.2)"
+    },
+    "RSI < 70 (not overbought)": {
+      "trades": 5202,
+      "win_rate": 0.143,
+      "wins": 744,
+      "avg_ret_pct": -4.456,
+      "total_ret_pct": -23179.07,
+      "profit_factor": 0.492,
+      "kept_pct": 0.8708,
+      "win_lift": -0.0046,
+      "verdict": "DO-NOT-ADD (win lift -0.5pp < 5pp)"
+    },
+    "RSI 35-60 (reclaim)": {
+      "trades": 3522,
+      "win_rate": 0.1332,
+      "wins": 469,
+      "avg_ret_pct": -4.128,
+      "total_ret_pct": -14540.43,
+      "profit_factor": 0.501,
+      "kept_pct": 0.5896,
+      "win_lift": -0.0144,
+      "verdict": "DO-NOT-ADD (win lift -1.4pp < 5pp)"
+    },
+    "MACD hist>0 & above signal": {
+      "trades": 4760,
+      "win_rate": 0.1458,
+      "wins": 694,
+      "avg_ret_pct": -4.865,
+      "total_ret_pct": -23157.63,
+      "profit_factor": 0.48,
+      "kept_pct": 0.7968,
+      "win_lift": -0.0018,
+      "verdict": "DO-NOT-ADD (win lift -0.2pp < 5pp)"
+    },
+    "MACD hist>0": {
+      "trades": 4760,
+      "win_rate": 0.1458,
+      "wins": 694,
+      "avg_ret_pct": -4.865,
+      "total_ret_pct": -23157.63,
+      "profit_factor": 0.48,
+      "kept_pct": 0.7968,
+      "win_lift": -0.0018,
+      "verdict": "DO-NOT-ADD (win lift -0.2pp < 5pp)"
+    },
+    "ATR 0.4%-20% of price": {
+      "trades": 5674,
+      "win_rate": 0.1523,
+      "wins": 864,
+      "avg_ret_pct": -5.04,
+      "total_ret_pct": -28598.43,
+      "profit_factor": 0.456,
+      "kept_pct": 0.9498,
+      "win_lift": 0.0047,
+      "verdict": "DO-NOT-ADD (win lift +0.5pp < 5pp)"
+    },
+    "Bollinger pct_b < 0.25": {
+      "trades": 285,
+      "win_rate": 0.1333,
+      "wins": 38,
+      "avg_ret_pct": -3.855,
+      "total_ret_pct": -1098.58,
+      "profit_factor": 0.489,
+      "kept_pct": 0.0477,
+      "win_lift": -0.0143,
+      "verdict": "DO-NOT-ADD (win lift -1.4pp < 5pp)"
+    },
+    "Bollinger pct_b >= 0.5": {
+      "trades": 4965,
+      "win_rate": 0.1482,
+      "wins": 736,
+      "avg_ret_pct": -4.97,
+      "total_ret_pct": -24676.54,
+      "profit_factor": 0.478,
+      "kept_pct": 0.8311,
+      "win_lift": 0.0006,
+      "verdict": "DO-NOT-ADD (win lift +0.1pp < 5pp)"
+    },
+    "EMA 9>21>50 stack": {
+      "trades": 3003,
+      "win_rate": 0.1548,
+      "wins": 465,
+      "avg_ret_pct": -5.674,
+      "total_ret_pct": -17039.05,
+      "profit_factor": 0.434,
+      "kept_pct": 0.5027,
+      "win_lift": 0.0072,
+      "verdict": "DO-NOT-ADD (win lift +0.7pp < 5pp)"
+    },
+    "Fib position 0.382-0.786": {
+      "trades": 2457,
+      "win_rate": 0.1465,
+      "wins": 360,
+      "avg_ret_pct": -3.969,
+      "total_ret_pct": -9752.29,
+      "profit_factor": 0.554,
+      "kept_pct": 0.4113,
+      "win_lift": -0.0011,
+      "verdict": "DO-NOT-ADD (win lift -0.1pp < 5pp)"
+    },
+    "Stoch %K < 25": {
+      "trades": 263,
+      "win_rate": 0.1445,
+      "wins": 38,
+      "avg_ret_pct": -4.525,
+      "total_ret_pct": -1190.15,
+      "profit_factor": 0.497,
+      "kept_pct": 0.044,
+      "win_lift": -0.0031,
+      "verdict": "DO-NOT-ADD (win lift -0.3pp < 5pp)"
+    },
+    "Stoch %K>%D & %K<80": {
+      "trades": 2155,
+      "win_rate": 0.1476,
+      "wins": 318,
+      "avg_ret_pct": -4.603,
+      "total_ret_pct": -9919.44,
+      "profit_factor": 0.492,
+      "kept_pct": 0.3607,
+      "win_lift": 0.0,
+      "verdict": "DO-NOT-ADD (win lift +0.0pp < 5pp)"
+    },
+    "ADX>=20 & +DI>-DI": {
+      "trades": 3137,
+      "win_rate": 0.1536,
+      "wins": 482,
+      "avg_ret_pct": -5.1,
+      "total_ret_pct": -16000.16,
+      "profit_factor": 0.502,
+      "kept_pct": 0.5251,
+      "win_lift": 0.006,
+      "verdict": "DO-NOT-ADD (win lift +0.6pp < 5pp)"
+    },
+    "EMA stack + MACD bull": {
+      "trades": 2441,
+      "win_rate": 0.1549,
+      "wins": 378,
+      "avg_ret_pct": -5.77,
+      "total_ret_pct": -14083.41,
+      "profit_factor": 0.438,
+      "kept_pct": 0.4086,
+      "win_lift": 0.0073,
+      "verdict": "DO-NOT-ADD (win lift +0.7pp < 5pp)"
+    },
+    "EMA stack + ADX trend": {
+      "trades": 2182,
+      "win_rate": 0.1567,
+      "wins": 342,
+      "avg_ret_pct": -5.834,
+      "total_ret_pct": -12728.95,
+      "profit_factor": 0.453,
+      "kept_pct": 0.3652,
+      "win_lift": 0.0091,
+      "verdict": "DO-NOT-ADD (win lift +0.9pp < 5pp)"
+    },
+    "RSI<70 + MACD bull": {
+      "trades": 4005,
+      "win_rate": 0.1393,
+      "wins": 558,
+      "avg_ret_pct": -4.601,
+      "total_ret_pct": -18426.01,
+      "profit_factor": 0.475,
+      "kept_pct": 0.6704,
+      "win_lift": -0.0083,
+      "verdict": "DO-NOT-ADD (win lift -0.8pp < 5pp)"
+    },
+    "Fib pocket + RSI<70": {
+      "trades": 2359,
+      "win_rate": 0.1424,
+      "wins": 336,
+      "avg_ret_pct": -4.112,
+      "total_ret_pct": -9699.41,
+      "profit_factor": 0.533,
+      "kept_pct": 0.3949,
+      "win_lift": -0.0052,
+      "verdict": "DO-NOT-ADD (win lift -0.5pp < 5pp)"
+    }
+  },
+  "exit_rules": {
+    "exit RSI >= 75": {
+      "trades": 5974,
+      "win_rate": 0.1888,
+      "wins": 1128,
+      "avg_ret_pct": -4.167,
+      "total_ret_pct": -24891.79,
+      "profit_factor": 0.508,
+      "win_lift": 0.0412,
+      "verdict": "DO-NOT-ADD (win lift +4.1pp < 5pp)"
+    },
+    "exit MACD hist < 0": {
+      "trades": 5974,
+      "win_rate": 0.0941,
+      "wins": 562,
+      "avg_ret_pct": -5.486,
+      "total_ret_pct": -32772.3,
+      "profit_factor": 0.293,
+      "win_lift": -0.0535,
+      "verdict": "DO-NOT-ADD (win lift -5.4pp < 5pp)"
+    },
+    "exit Stoch %K > 85": {
+      "trades": 5974,
+      "win_rate": 0.1436,
+      "wins": 858,
+      "avg_ret_pct": -4.473,
+      "total_ret_pct": -26720.14,
+      "profit_factor": 0.368,
+      "win_lift": -0.004,
+      "verdict": "DO-NOT-ADD (win lift -0.4pp < 5pp)"
+    }
+  },
+  "tp_sweep": {
+    "profile (default)": {
+      "trades": 5974,
+      "win_rate": 0.1476,
+      "wins": 882,
+      "avg_ret_pct": -4.693,
+      "total_ret_pct": -28033.04,
+      "profit_factor": 0.492
+    },
+    "global 1.5x/2x": {
+      "trades": 5974,
+      "win_rate": 0.1476,
+      "wins": 882,
+      "avg_ret_pct": -4.693,
+      "total_ret_pct": -28033.04,
+      "profit_factor": 0.492
+    },
+    "single 1.35x": {
+      "trades": 5974,
+      "win_rate": 0.159,
+      "wins": 950,
+      "avg_ret_pct": -4.669,
+      "total_ret_pct": -27892.78,
+      "profit_factor": 0.487
+    },
+    "quick 1.25x half": {
+      "trades": 5974,
+      "win_rate": 0.1803,
+      "wins": 1077,
+      "avg_ret_pct": -4.712,
+      "total_ret_pct": -28149.0,
+      "profit_factor": 0.47
+    },
+    "patient 2x/3x": {
+      "trades": 5974,
+      "win_rate": 0.1376,
+      "wins": 822,
+      "avg_ret_pct": -4.787,
+      "total_ret_pct": -28600.31,
+      "profit_factor": 0.488
+    },
+    "tight trail 1.4x": {
+      "trades": 5974,
+      "win_rate": 0.1548,
+      "wins": 925,
+      "avg_ret_pct": -4.768,
+      "total_ret_pct": -28486.68,
+      "profit_factor": 0.479
+    }
+  },
+  "add_entry": [],
+  "add_exit": [],
+  "source": "real GeckoTerminal OHLCV",
+  "config": {
+    "pools": 99,
+    "bars": 87210,
+    "bar_minutes": 5,
+    "step": 2,
+    "min_trades": 30,
+    "min_win_lift": 0.05,
+    "min_pf": 1.2
+  }
+}

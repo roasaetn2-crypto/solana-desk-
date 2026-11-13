@@ -44,6 +44,19 @@ MIN_TRADES = 30
 MIN_WIN_LIFT = 0.05
 MIN_PF = 1.2
 
+# Indicators only look back a bounded number of bars (the longest are EMA-50 and
+# the 50-bar Fibonacci swing). Computing them on the last WINDOW bars instead of
+# the whole path keeps the harness fast on 1,000-bar histories without changing
+# the values: EMA-50 has ~150 smoothing iterations by then, so the seed is
+# long forgotten. Widen it if a longer-lookback indicator is ever added.
+WINDOW = 200
+
+
+def _snap(candles: list[dict], i: int) -> dict:
+    """Indicator snapshot at bar ``i``, using only bars up to and including it."""
+    lo = max(0, i + 1 - WINDOW)
+    return ind.snapshot(candles[lo:i + 1])
+
 
 # --------------------------------------------------------------------------- #
 # Candidate entry filters (each: snapshot -> bool)
@@ -203,7 +216,7 @@ def simulate_with_exit(candles: list[dict], entry_idx: int, horizon: str,
             if remaining <= 1e-15:
                 break
         if extra_exit is not None and remaining > 1e-15:
-            snap = ind.snapshot(candles[:j + 1])
+            snap = _snap(candles, j)
             if extra_exit(snap):
                 cash += remaining * price * (1 - fee - slip)
                 remaining = 0.0
@@ -253,7 +266,7 @@ def _baseline_entries(paths, bar_minutes, min_history, step) -> list[dict]:
                 continue
             rows.append({"candles": candles, "idx": i, "horizon": horizon,
                          "ret_pct": trade["ret_pct"], "pnl": trade["pnl"],
-                         "snap": ind.snapshot(candles[:i + 1])})
+                         "snap": _snap(candles, i)})
     return rows
 
 
