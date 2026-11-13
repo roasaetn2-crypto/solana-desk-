@@ -209,6 +209,7 @@ tbody tr:hover { background: rgba(255,255,255,0.015); }
 .tag.buy { color: var(--green); background: var(--green-dim); }
 .tag.skip { color: var(--muted); background: var(--panel-2); }
 .tag.watch { color: var(--amber); background: var(--amber-dim); }
+.tag.sell { color: var(--red); background: var(--red-dim); }
 .tag.demo { color: var(--purple); background: var(--purple-dim); }
 .tag.live { color: var(--blue); background: var(--blue-dim); }
 .empty { padding: 26px 10px; text-align: center; color: var(--muted-2); font-size: 12.5px; }

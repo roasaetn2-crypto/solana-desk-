@@ -1044,7 +1044,7 @@ function render(s) {
   $("decBadge").textContent = dec.length;
   const db = $("decBody");
   if (!dec.length) {
-    db.innerHTML = '<tr><td colspan="7" class="empty">No decisions yet.</td></tr>';
+    db.innerHTML = '<tr><td colspan="8" class="empty">No decisions yet.</td></tr>';
   } else {
     db.innerHTML = dec.slice(0, 18).map((d) => {
       const v = d.thesis ? d.thesis.verdict : "—";
@@ -1056,8 +1056,16 @@ function render(s) {
         : `<span class="num ${meme >= 70 ? "good" : meme >= 50 ? "warn" : "bad"}">${meme}</span>`;
       const devCell = dev === null ? "—"
         : `<span class="num ${dev >= 70 ? "good" : dev >= 45 ? "warn" : "bad"}">${dev}</span>`;
+      const sg = d.signal || null;
+      const sgAct = sg ? String(sg.action || "").toUpperCase() : "";
+      const sgCls = sgAct === "BUY" ? "buy" : sgAct === "SELL" ? "sell" : sgAct === "AVOID" ? "skip" : "watch";
+      const sgTxt = sg
+        ? `${esc(sgAct || "\u2014")}${sg.confidence != null ? " " + Math.round(sg.confidence) + "%" : ""}${sg.win_probability != null ? " \u00b7 win " + Math.round(sg.win_probability * 100) + "%" : ""}`
+        : "\u2014";
+      const sgTitle = sg && sg.prompt ? esc(sg.prompt) : "";
       return `<tr>
         <td><span class="sym">${esc(d.symbol)}</span>${tokenMetaHtml(d)}</td>
+        <td><span class="tag ${sgCls}" title="${sgTitle}">${sgTxt}</span></td>
         <td><span class="tag ${tag}">${esc(label)}</span></td>
         <td>${d.thesis ? d.thesis.score : "—"}</td>
         <td>${memeCell}</td>
