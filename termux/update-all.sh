@@ -23,6 +23,12 @@ say() { printf '%s\n' "$*"; }
 hr()  { say "------------------------------------------------------------"; }
 
 hr; say "1/5  pulling the latest code"; hr
+# A detached HEAD makes `git pull --ff-only` fail with "You are not currently on
+# a branch", which reads like a network problem and is not. Attach to main first.
+if ! git symbolic-ref -q HEAD >/dev/null 2>&1; then
+  say "  HEAD is detached; attaching to main"
+  git checkout main 2>/dev/null || git checkout -b main origin/main 2>/dev/null || true
+fi
 git pull --ff-only || { say "FAIL: git pull failed. Fix local changes or network first."; exit 1; }
 HEAD="$(git rev-parse --short HEAD)"
 say "  HEAD: $HEAD"
