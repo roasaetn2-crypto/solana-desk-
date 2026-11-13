@@ -100,6 +100,14 @@ EXITS = {
     # what is left at tp2_at, and the remainder trails trail_pct below its peak.
     "style": "both",               # PAPER trading style: both | scalp (young coins only) | swing (older only)
     "scalp_max_age_hours": 6.0,
+    # ---------- take-profit mode (operator-selectable) ----------
+    # "profile" = use the scalp/swing ladder below (default, unchanged behaviour).
+    # "global"  = override both profiles with EXITS["global"] (one ladder for every trade).
+    # "single"  = one take-profit: sell EXITS["single"]["tp_frac"] at tp_at, let the rest
+    #             trail at trail_pct. Simplest "sell take profit" for a high-win-rate scalp.
+    "take_profit_mode": "profile",
+    "global": {"tp1_at": 1.5, "tp1_frac": 0.33, "tp2_at": 2.0, "tp2_frac": 0.5, "trail_pct": 0.20},
+    "single": {"tp_at": 1.35, "tp_frac": 0.5, "trail_pct": 0.18},
     "missing_quote_closes": 3,     # close only after N quote misses in a row (one API blip is not an exit)
     # PAPER runner rules (after TP1 sells part): the rest must not squat on a slot for days.
     "breakeven_after_half": True,  # after TP1 the stop moves up to entry (never down)
@@ -121,6 +129,48 @@ ENTRY = {
     "max_price_gap_pct": 25.0,     # old desk research.max_price_gap_pct_paper (LIVE was 10)
     "min_confirm_liq_ratio": 0.5,  # old desk research.confirm_liq_ratio_min: 2nd source must show >= 50% of the liquidity
     "require_confirm_quote": True, # no confirming quote -> no trade
+}
+
+# ---------- Trade signal engine (buy / sell recommendation) ----------
+# Turns the recorded fields into a clear, auditable call:
+#   action      BUY | SELL | HOLD | AVOID
+#   direction   bullish | bearish | neutral
+#   confidence  0-100 conviction
+#   win_prob    calibrated probability the trade reaches TP1 before the stop
+#   entry / stop / TP1 / TP2 price plan + a one-line signal string
+# It is deterministic (no model, no I/O) so the same inputs always produce the
+# same call, and the backtest can measure it honestly.
+SIGNAL = {
+    "enabled": True,
+    # Only a BUY at or above this conviction may open a paper/live position.
+    # Lower = more trades and more noise; raise it when the journal shows the
+    # low-confidence bucket losing.
+    "min_confidence": 60,
+    "min_win_probability": 0.52,
+    # A bearish read must never be bought. When True, a bearish direction blocks
+    # entry even if the raw score is high (e.g. a pump that is already fading).
+    "require_bullish": True,
+    # Exit a held position when the signal flips bearish at/above this conviction.
+    # This is the "sell take profit" safety valve: it banks a winner that has
+    # stopped going up instead of waiting for the trailing stop.
+    "sell_on_bearish": True,
+    "sell_confidence": 68,
+    # Component weights (sum to 1.0). Each component is scored -1..+1, so the
+    # composite is also -1..+1 before it is mapped to 0-100 confidence.
+    "weights": {
+        "momentum": 0.24,       # change_m5 / change_h1, volume still arriving
+        "flow": 0.22,           # buys vs sells, buyer diversity
+        "liquidity": 0.16,      # liquidity depth + volume/mcap
+        "holders": 0.14,        # top wallet / top 10 concentration
+        "narrative": 0.12,      # meme scorecard total
+        "safety": 0.12,         # security flags (block/halve) and regime
+    },
+    # Calibration: the logistic slope that maps composite score -> win probability.
+    # A score of 0 maps to 0.50; +0.5 maps to ~0.62 with slope 0.55. Capped so the
+    # desk never claims certainty.
+    "win_prob_slope": 0.55,
+    "win_prob_floor": 0.30,
+    "win_prob_cap": 0.85,
 }
 
 PAPER = {

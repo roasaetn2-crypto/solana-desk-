@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 import config
-from config import AGENT, ENTRY, EXITS, MEME, PAPER, RISK, SCAN
+from config import AGENT, ENTRY, EXITS, MEME, PAPER, RISK, SCAN, SIGNAL
 from desk.ops import data_file
 
 PROPOSAL_TTL_S = 24 * 3600
@@ -228,6 +228,53 @@ _R += [
     _num("meme.min_community_score", "Min community score", "Analyst", "int", _d(MEME, "min_community_score", int), 0, 90, "/100"),
     # loop
     _num("agent.cycle_seconds", "Scan cycle", "Loop", "int", _d(AGENT, "cycle_seconds", int), 20, 300, "s"),
+]
+_R += [
+    # ---------- take-profit mode (operator-selectable) ----------
+    Setting("exits.tp_plan", "Take-profit plan", "Exits", "choice",
+            lambda: str(EXITS.get("take_profit_mode") or "profile"),
+            lambda v: EXITS.__setitem__("take_profit_mode", str(v)),
+            choices=("profile", "global", "single"),
+            help="profile = per scalp/swing ladder (default); global = one ladder for every trade; "
+                 "single = one take-profit + trail for every trade"),
+    _num("exits.global.tp1_at", "Global take profit 1", "Exits", "float",
+         _d(EXITS.setdefault("global", {}), "tp1_at"), 1.05, 5.0, "x"),
+    _num("exits.global.tp1_frac", "Global TP1 sell share", "Exits", "pct",
+         _d(EXITS.setdefault("global", {}), "tp1_frac"), 0.10, 0.90),
+    _num("exits.global.tp2_at", "Global take profit 2", "Exits", "float",
+         _d(EXITS.setdefault("global", {}), "tp2_at"), 1.10, 10.0, "x"),
+    _num("exits.global.tp2_frac", "Global TP2 sell share", "Exits", "pct",
+         _d(EXITS.setdefault("global", {}), "tp2_frac"), 0.10, 1.0),
+    _num("exits.global.trail_pct", "Global trailing stop", "Exits", "pct",
+         _d(EXITS.setdefault("global", {}), "trail_pct"), 0.05, 0.60),
+    _num("exits.single.tp_at", "Single take profit", "Exits", "float",
+         _d(EXITS.setdefault("single", {}), "tp_at"), 1.05, 5.0, "x"),
+    _num("exits.single.tp_frac", "Single sell share", "Exits", "pct",
+         _d(EXITS.setdefault("single", {}), "tp_frac"), 0.10, 1.0),
+    _num("exits.single.trail_pct", "Single trailing stop", "Exits", "pct",
+         _d(EXITS.setdefault("single", {}), "trail_pct"), 0.05, 0.60),
+    # ---------- signal engine (buy/sell recommendation gate) ----------
+    Setting("signal.enabled", "Signal gate on", "Signal", "bool",
+            lambda: bool(SIGNAL.get("enabled", True)),
+            lambda v: SIGNAL.__setitem__("enabled", bool(v)),
+            help="when on, entries must pass the BUY/SELL signal (bullish + confidence + win-prob)"),
+    _num("signal.min_confidence", "Signal min confidence", "Signal", "int",
+         _d(SIGNAL, "min_confidence", int), 30, 95, "%",
+         "how sure the bullish read must be before an entry is allowed"),
+    _num("signal.min_win_probability", "Signal min win probability", "Signal", "pct",
+         _d(SIGNAL, "min_win_probability"), 0.30, 0.90, "",
+         "calibrated win-probability floor for a BUY"),
+    Setting("signal.require_bullish", "Require bullish entry", "Signal", "bool",
+            lambda: bool(SIGNAL.get("require_bullish", True)),
+            lambda v: SIGNAL.__setitem__("require_bullish", bool(v)),
+            help="only take entries whose signal direction is bullish"),
+    Setting("signal.sell_on_bearish", "Sell on bearish flip", "Signal", "bool",
+            lambda: bool(SIGNAL.get("sell_on_bearish", True)),
+            lambda v: SIGNAL.__setitem__("sell_on_bearish", bool(v)),
+            help="exit a held position when its signal flips bearish above the sell confidence"),
+    _num("signal.sell_confidence", "Bearish sell confidence", "Signal", "int",
+         _d(SIGNAL, "sell_confidence", int), 50, 95, "%",
+         "how sure a bearish read must be before a held position is sold"),
 ]
 REGISTRY: dict[str, Setting] = {s.key: s for s in _R}
 for _k in REGISTRY:  # belt and braces: nothing excluded may sneak into the registry

@@ -1,0 +1,202 @@
+{
+  "overall": {
+    "trades": 4595,
+    "win_rate": 0.1774,
+    "wins": 815,
+    "losses": 3780,
+    "avg_ret_pct": -2.65,
+    "total_ret_pct": -12178.15,
+    "profit_factor": 0.741,
+    "direction_accuracy": 0.4589,
+    "direction_n": 2386
+  },
+  "by_confidence": {
+    "50-59": {
+      "trades": 3834,
+      "win_rate": 0.1758,
+      "wins": 674,
+      "losses": 3160,
+      "avg_ret_pct": -3.119,
+      "total_ret_pct": -11959.92,
+      "profit_factor": 0.689,
+      "direction_accuracy": 0.4745,
+      "direction_n": 1625
+    },
+    "60-69": {
+      "trades": 761,
+      "win_rate": 0.1853,
+      "wins": 141,
+      "losses": 620,
+      "avg_ret_pct": -0.287,
+      "total_ret_pct": -218.23,
+      "profit_factor": 0.975,
+      "direction_accuracy": 0.4258,
+      "direction_n": 761
+    }
+  },
+  "by_direction": {
+    "bullish": {
+      "trades": 1913,
+      "win_rate": 0.1751,
+      "wins": 335,
+      "losses": 1578,
+      "avg_ret_pct": -2.716,
+      "total_ret_pct": -5194.76,
+      "profit_factor": 0.747,
+      "direction_accuracy": 0.436,
+      "direction_n": 1913
+    },
+    "bearish": {
+      "trades": 473,
+      "win_rate": 0.1712,
+      "wins": 81,
+      "losses": 392,
+      "avg_ret_pct": -0.874,
+      "total_ret_pct": -413.51,
+      "profit_factor": 0.917,
+      "direction_accuracy": 0.5518,
+      "direction_n": 473
+    },
+    "neutral": {
+      "trades": 2209,
+      "win_rate": 0.1806,
+      "wins": 399,
+      "losses": 1810,
+      "avg_ret_pct": -2.974,
+      "total_ret_pct": -6569.89,
+      "profit_factor": 0.694,
+      "direction_accuracy": null,
+      "direction_n": 0
+    }
+  },
+  "by_action": {
+    "BUY": {
+      "trades": 760,
+      "win_rate": 0.1855,
+      "wins": 141,
+      "losses": 619,
+      "avg_ret_pct": -0.28,
+      "total_ret_pct": -213.05,
+      "profit_factor": 0.975,
+      "direction_accuracy": 0.4263,
+      "direction_n": 760
+    },
+    "HOLD": {
+      "trades": 3835,
+      "win_rate": 0.1757,
+      "wins": 674,
+      "losses": 3161,
+      "avg_ret_pct": -3.12,
+      "total_ret_pct": -11965.1,
+      "profit_factor": 0.689,
+      "direction_accuracy": 0.4742,
+      "direction_n": 1626
+    }
+  },
+  "gate": {
+    "all_entries": {
+      "trades": 4595,
+      "win_rate": 0.1774,
+      "wins": 815,
+      "losses": 3780,
+      "avg_ret_pct": -2.65,
+      "total_ret_pct": -12178.15,
+      "profit_factor": 0.741,
+      "direction_accuracy": 0.4589,
+      "direction_n": 2386
+    },
+    "signal_buys_only": {
+      "trades": 760,
+      "win_rate": 0.1855,
+      "wins": 141,
+      "losses": 619,
+      "avg_ret_pct": -0.28,
+      "total_ret_pct": -213.05,
+      "profit_factor": 0.975,
+      "direction_accuracy": 0.4263,
+      "direction_n": 760
+    },
+    "kept_pct": 0.1654
+  },
+  "tp_sweep": {
+    "profile (default)": {
+      "trades": 760,
+      "win_rate": 0.1855,
+      "wins": 141,
+      "losses": 619,
+      "avg_ret_pct": -0.28,
+      "total_ret_pct": -213.06,
+      "profit_factor": 0.975,
+      "direction_accuracy": null,
+      "direction_n": 0
+    },
+    "global 1.5x/2x": {
+      "trades": 760,
+      "win_rate": 0.1855,
+      "wins": 141,
+      "losses": 619,
+      "avg_ret_pct": -0.28,
+      "total_ret_pct": -213.06,
+      "profit_factor": 0.975,
+      "direction_accuracy": null,
+      "direction_n": 0
+    },
+    "single 1.35x": {
+      "trades": 760,
+      "win_rate": 0.2053,
+      "wins": 156,
+      "losses": 604,
+      "avg_ret_pct": -2.026,
+      "total_ret_pct": -1539.42,
+      "profit_factor": 0.815,
+      "direction_accuracy": null,
+      "direction_n": 0
+    },
+    "quick 1.25x half": {
+      "trades": 760,
+      "win_rate": 0.2408,
+      "wins": 183,
+      "losses": 577,
+      "avg_ret_pct": -2.688,
+      "total_ret_pct": -2043.22,
+      "profit_factor": 0.742,
+      "direction_accuracy": null,
+      "direction_n": 0
+    },
+    "patient 2x/3x": {
+      "trades": 760,
+      "win_rate": 0.175,
+      "wins": 133,
+      "losses": 627,
+      "avg_ret_pct": 0.86,
+      "total_ret_pct": 653.41,
+      "profit_factor": 1.075,
+      "direction_accuracy": null,
+      "direction_n": 0
+    },
+    "tight trail 1.4x": {
+      "trades": 760,
+      "win_rate": 0.1987,
+      "wins": 151,
+      "losses": 609,
+      "avg_ret_pct": -2.289,
+      "total_ret_pct": -1739.37,
+      "profit_factor": 0.794,
+      "direction_accuracy": null,
+      "direction_n": 0
+    }
+  },
+  "paths": 18,
+  "entries": 4595,
+  "source": "real GeckoTerminal OHLCV",
+  "config": {
+    "signal": {
+      "enabled": true,
+      "min_confidence": 60,
+      "min_win_probability": 0.52,
+      "require_bullish": true,
+      "sell_on_bearish": true,
+      "sell_confidence": 68
+    }
+  }
+}

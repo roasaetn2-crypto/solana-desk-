@@ -16,7 +16,28 @@ def horizon_for(age_minutes: float) -> str:
 
 
 def profile(name: str | None, overrides: dict | None = None) -> dict:
+    """The exit profile for a horizon, after the operator's take-profit mode.
+
+    mode "profile" (default) keeps the per-horizon ladder exactly as written.
+    mode "global"  replaces the take-profit rungs with EXITS["global"].
+    mode "single"  collapses to one take-profit + a trail; TP2 is disabled.
+    """
     base = dict(EXITS["profiles"].get(name or "swing", EXITS["profiles"]["swing"]))
+    mode = str(EXITS.get("take_profit_mode") or "profile").lower()
+    if mode == "global":
+        g = EXITS.get("global") or {}
+        for k in ("tp1_at", "tp1_frac", "tp2_at", "tp2_frac", "trail_pct"):
+            if g.get(k) is not None:
+                base[k] = g[k]
+    elif mode == "single":
+        s = EXITS.get("single") or {}
+        base.update({
+            "tp1_at": float(s.get("tp_at", 1.35)),
+            "tp1_frac": float(s.get("tp_frac", 0.5)),
+            "tp2_at": 1e9,          # never reached: one rung only
+            "tp2_frac": 0.0,
+            "trail_pct": float(s.get("trail_pct", 0.18)),
+        })
     if overrides:
         base.update(overrides)
     return base

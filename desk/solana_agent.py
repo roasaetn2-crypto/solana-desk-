@@ -30,7 +30,7 @@ from config import AGENT, ENTRY, EXECUTION, EXITS, FOMO, PAPER, RISK
 from desk.brain_advisor import ADVISOR, should_advise
 from desk import (analyst, brain, chain, dexscreener, devcheck, dialogue, exits, fomo, goplus, gmgn,
                   guard, heartbeat, helius, meme, pumpportal, regime, risk, scanner,
-                  signals)
+                  signal_engine, signals)
 from desk import chart as candle_chart
 from desk import links as fomo_links
 from desk.age import created_at_of
@@ -119,6 +119,7 @@ class SolanaAgent:
         self.stats = {"cycles": 0, "seen": 0, "free_rejects": 0, "chain_rejects": 0,
                       "dev_rejects": 0, "meme_rejects": 0, "analyst_calls": 0,
                       "risk_rejects": 0, "sec_rejects": 0, "guard_rejects": 0, "floor_rejects": 0,
+                      "signal_rejects": 0,
                       "entries": 0, "exits": 0, "dialogues": 0,
                       "errors": 0}
         self.equity_curve: deque = deque(maxlen=equity_curve.MAX_POINTS)
@@ -640,6 +641,14 @@ class SolanaAgent:
                 analyst_left -= 1
                 self.stats["analyst_calls"] += 1
 
+                # seat 3b: the signal engine turns every seat's read into ONE
+                # deterministic BUY / SELL / HOLD / AVOID recommendation, with a
+                # direction (bullish/bearish), a confidence, a calibrated win
+                # probability and an entry/stop/take-profit plan. Pure function:
+                # it never sizes, never fills, and a hard security block always wins.
+                sig = signal_engine.evaluate(t, f, links, thesis=th, scorecard=sc,
+                                             security=sec, regime=self.regime, dev=dev)
+
                 chips = list(sec["chips"])
                 # seat 4: risk engine. Live money gets live caps, not paper percentages.
                 if self.mode == "live":
@@ -688,6 +697,7 @@ class SolanaAgent:
                     "sizes": sizes, "time": _now(), "source": t.get("source"),
                     "flags": chips, "regime": self.regime.get("tag"),
                     "checklist": sizes.get("guard", {}).get("checklist"),
+                    "signal": sig,
                 }
                 self._advise(t, f, dev, sc, sec, links, decision, th)   # advisory only, never blocks
                 with self.lock:
@@ -703,6 +713,12 @@ class SolanaAgent:
                           symbol=t["symbol"], mint=t["mint"], verdict=th.verdict,
                           score=th.score, shape=th.shape, red_flags=th.red_flags[:3])
 
+                # the one-line buy/sell call, always shown, even when the desk passes
+                self.emit("signal", sig["signal"], symbol=t["symbol"], mint=t["mint"],
+                          action=sig["action"], direction=sig["direction"],
+                          confidence=sig["confidence"], win_probability=sig["win_probability"],
+                          prompt=sig["prompt"])
+
                 if not ok:
                     self.stats["risk_rejects"] += 1
                     self.bench.sit(t["mint"], th.verdict if th.verdict != "valid_setup" else "score")
@@ -713,6 +729,19 @@ class SolanaAgent:
                 # MERGE: demo pools are analysis-only, they never touch paper P&L
                 if t["mint"].startswith("DEMO"):
                     self.emit("info", f"{t['symbol']}: demo pool, analysed but not filled")
+                    continue
+
+                # seat 3c: signal gate. The BUY read must clear the configured bar
+                # (bullish + confidence + win-prob). Off with signal.enabled = false.
+                allow, why = signal_engine.allows_entry(sig)
+                if not allow:
+                    self.stats["signal_rejects"] += 1
+                    self.bench.sit(t["mint"], "signal")
+                    self.emit("reject", f"{t['symbol']}: signal gate said no ({why})",
+                              stage="signal", reason=why, symbol=t["symbol"], mint=t["mint"],
+                              action=sig["action"], confidence=sig["confidence"])
+                    journal("reject", stage="signal", mint=t["mint"], symbol=t["symbol"],
+                            reason=why, signal=sig)
                     continue
 
                 # seat 4b: FOMO thesis, bought only for finalists. Credits are real
@@ -978,6 +1007,37 @@ class SolanaAgent:
                         price_usd=q.get("price_usd"), volume_h6=q.get("volume_h6"),
                         volume_h24=q.get("volume_h24"), liquidity_usd=q.get("liquidity_usd"))
             sig = self.broker.exit_signal(mint, q)
+            # Signal-driven exit: a strong bearish flip cuts a held position even when
+            # no rule-based exit (TP / stop / trail / timeout) has fired yet. Rule-based
+            # exits always take priority; this is the extra safety net. Configurable
+            # off with signal.sell_on_bearish = false.
+            if not sig and not mint.startswith("DEMO"):
+                try:
+                    pos0 = self.broker.s["positions"][mint]
+                    tok = dict(self.tokens_seen.get(mint) or {})
+                    if q:
+                        for _k in ("price_usd", "liquidity_usd", "volume_h6", "volume_h24"):
+                            if q.get(_k) is not None:
+                                tok[_k] = q.get(_k)
+                    # fresh trajectory read: P&L vs entry, drawdown vs peak
+                    _px = (q or {}).get("price_usd") or pos0.get("last")
+                    if _px and pos0.get("entry"):
+                        tok["change_h1"] = (_px / pos0["entry"] - 1.0) * 100.0
+                    if _px and pos0.get("peak"):
+                        tok["change_m5"] = (_px / pos0["peak"] - 1.0) * 100.0
+                    if tok.get("age_minutes") is None and pos0.get("opened"):
+                        tok["age_minutes"] = (time.time() - pos0["opened"]) / 60.0
+                    hold_sig = signal_engine.evaluate(tok, holding=True)
+                    _sell, _sreason = signal_engine.should_sell(hold_sig)
+                    if _sell:
+                        sig = (1.0, _sreason)
+                        self.emit("signal", f"SELL ${pos0.get('symbol') or mint[:6]}: "
+                                            f"{_sreason}", symbol=pos0.get("symbol"), mint=mint,
+                                  action="SELL", direction=hold_sig["direction"],
+                                  confidence=hold_sig["confidence"],
+                                  win_probability=hold_sig["win_probability"])
+                except Exception:
+                    pass
             if sig:
                 fraction, reason = sig
                 pos = self.broker.s["positions"][mint]

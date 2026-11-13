@@ -28,6 +28,7 @@ Seven seats. Each has one job, one file, and a hard boundary. Evidence seats (2b
 | **2b** | **Dev investigation** | `desk/devcheck.py` | RugCheck report + RPC fallback: creator bag, creator's prior rugs, sniper/bundle share, LP lock, mint authority. Produces a 0–100 `dev_score` and a hard-no list | Forgive a rug history |
 | **2c** | **Meme value** | `desk/meme.py` | Answers *what gives this coin value*: community, dev legitimacy, narrative, distribution, utility — weighted to 0–100, plus the hold horizon | Score a coin it has no data for |
 | 3 | **Analyst** | `desk/analyst.py` | Produces a typed `TokenThesis` (verdict, score, flags, shape, invalidation, sources). Any configured brain (Ollama, Groq, Gemini, OpenRouter, Claude), otherwise a deterministic heuristic | Choose size, place orders, invent facts |
+| **3b** | **Signal engine** | `desk/signal_engine.py` | Turns every seat's read into **one deterministic BUY / SELL / HOLD / AVOID call**, with a bullish/bearish direction, a confidence, a calibrated win probability, and an entry / stop / take-profit plan. Optional entry gate and bearish-flip exit | Size, place orders, or override a security block |
 | 4 | **Risk engine** | `desk/risk.py` | Pure code. Three-cap sizing: `min(risk cap, position-size cap, 2% of pool liquidity)`, fee floor, quiet hours, daily loss stop, max positions | Be overridden by the model |
 | 5 | **Paper broker** | `desk/broker.py` | Simulated fills and rule-based exits: stop −35%, take half at 2× once, volume decay, max hold 24h, no quote = close | Sign anything |
 
@@ -143,6 +144,74 @@ Two backends:
 - **model-backed** (when any brain is configured — see [The brain](#the-brain-use-a-free-ai)): the seats are given personas and the same facts, and are asked to argue in `seat>seat:` lines. If the model output cannot be parsed into at least four lines, the desk silently falls back to the template.
 
 The dashboard renders the live transcript in the **Seat dialogue** panel, with the backend labelled.
+
+---
+
+## The BUY / SELL signal (one call, every coin)
+
+`desk/signal_engine.py` is a **pure, deterministic** function — no clock, no model, no I/O. Given the same facts the seats already collected, it produces one recommendation per coin:
+
+```python
+signal_engine.evaluate(token, facts, links, thesis=..., scorecard=...,
+                       security=..., regime=..., dev=..., holding=False)
+```
+
+It returns:
+
+| field | meaning |
+|-------|---------|
+| `action` | `BUY` · `SELL` · `HOLD` · `AVOID` |
+| `direction` | `bullish` · `bearish` · `neutral` |
+| `confidence` | 0–100, conviction **in the direction** (a strong bearish read is high-confidence, not low) |
+| `win_probability` | 0–1, calibrated from the composite edge (logistic, bounded by `SIGNAL["win_prob_floor"/"win_prob_cap"]`) |
+| `plan` | `entry`, `stop`, `tp1`, `tp2`, `risk_reward` |
+| `signal` | one-line emoji string for the dashboard, e.g. `🟢 BUY $WIF · bullish 78% · win 61% · entry … · TP1 1.5x …` |
+| `prompt` | the same call in a sentence: *"BUY $WIF: bullish with 78% confidence … take profit 1.5x …"* |
+
+The composite is a weighted blend of six components, each scored `-1..+1`:
+
+```
+momentum 0.24 · flow 0.22 · liquidity 0.16 · holders 0.14 · narrative 0.12 · safety 0.12
+```
+
+**Safety always wins.** Any hard security flag or dev hard-no forces `AVOID` regardless of how bullish the rest looks. The signal never sizes a trade and never places an order — the risk engine and broker still own that.
+
+### How it plugs into the desk
+
+- **Advisory:** every decision record carries the full `signal`, it is journaled, and it is emitted as a `signal` event so the dashboard shows the BUY/SELL call next to the thesis.
+- **Entry gate:** after the risk engine approves, `signal_engine.allows_entry(sig)` can refuse an entry unless the read is bullish, above `signal.min_confidence`, and above `signal.min_win_probability`. Turn it off with `signal.enabled = false`.
+- **Bearish-flip exit:** in `_manage_positions`, if no rule-based exit has fired and a held position's read flips bearish above `signal.sell_confidence`, the desk cuts it (`signal.sell_on_bearish`).
+
+### Take-profit plans
+
+The exit ladder is operator-selectable via `exits.tp_plan` (config key `EXITS["take_profit_mode"]`):
+
+- **`profile`** (default): the per-horizon scalp/swing ladder, exactly as written.
+- **`global`**: one ladder for every trade — `EXITS["global"]` (`tp1_at`, `tp1_frac`, `tp2_at`, `tp2_frac`, `trail_pct`).
+- **`single`**: one take-profit + a trail for every trade — `EXITS["single"]` (`tp_at`, `tp_frac`, `trail_pct`), TP2 disabled.
+
+All of these are editable from the operator settings panel (Confirm required) under the **Exits** and **Signal** groups.
+
+### Backtesting the signal
+
+`desk/signal_backtest.py` + `scripts/backtest_signals.py` answer two questions honestly:
+
+```bash
+# real Solana pool OHLCV from GeckoTerminal (same source as backtest_100)
+python scripts/backtest_signals.py --trades 40 --out backtest_signals.json --chart backtest_signals.svg
+
+# no network? labelled synthetic plumbing run (not a performance claim)
+python scripts/backtest_signals.py --offline --trades 60
+```
+
+It reconstructs the point-in-time features the signal can see from **price + volume alone** (momentum, flow), asks the engine for a call at each entry, then measures:
+
+1. **Direction accuracy** — did the bullish/bearish call match the forward move?
+2. **Win rate by confidence bucket** — do higher-confidence reads actually win more?
+3. **Gate lift** — win rate / P&L of *every* entry vs *signal BUYs only*.
+4. **Take-profit sweep** — replays the same BUYs under six TP plans (profile, global, single, quick, patient, tight-trail) and reports win rate, avg return and profit factor, so you can see which plan extracts the most P&L.
+
+Holders, narrative and safety are neutral in the backtest (OHLCV history has no such facts), so the result speaks only to the momentum+flow edge — not the full live signal. Every price is real; nothing is invented.
 
 ---
 
