@@ -114,8 +114,15 @@ def main() -> int:
         from desk.ops import data_file
         path = data_file("paper_ledger.json")
     if not path.exists():
-        print(f"no ledger at {path}")
-        return 2
+        # A fresh install has no ledger yet: that is not an error, and with
+        # --fix the right move is to create one at the configured bankroll.
+        if a.fix:
+            from desk.broker import PaperBroker
+            b = PaperBroker(path)
+            print(f"no ledger at {path} -- created a fresh book at ${b.equity():,.2f}")
+            return 0
+        print(f"no ledger at {path} (nothing to check yet)")
+        return 0
 
     s = load(path)
     code = report(path, s)
