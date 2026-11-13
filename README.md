@@ -713,6 +713,35 @@ so a red result tells you which of the two problems you have.
 
 The dashboard's **AI quota** panel draws one bar per provider with calls used
 today, key count and any cooldown, plus a single line for total free calls left.
+
+### Does the AI opinion actually improve results?
+
+Not by default, and it is worth being precise about why. The second opinion is
+**advisory only**: `risk.py`, `broker.py`, `exits.py`, `guard.py` and `signals.py`
+contain no reference to it at all. It is written onto the decision record and shown
+on the dashboard; nothing reads it back. So on its own it cannot change a win rate,
+a position size or a P&L — it changes what you *see*, not what the desk *does*.
+
+The **Analyst** seat is different: its score gates entries via `MIN_SCORE`, so
+pointing `DESK_BRAIN` at a model genuinely can change which coins you buy. Whether
+that is better or worse is an empirical question nobody has answered for your data.
+
+To answer it, join the journal:
+
+```bash
+python scripts/brain_scorecard.py
+```
+
+It pairs each `brain_exit` row (verdict, confidence, provider) with the `exit` row
+for the same mint (realised `pnl_usd`) and reports win rate and average P&L per
+verdict, plus the split between trades where the model agreed with the exit rule
+and trades where it argued against it. Entry opinions cannot be scored: the
+`decision` row is journaled before the async verdict arrives, so it records
+`{"status":"pending"}` and the answer is never persisted.
+
+Treat any result under ~30 trades per bucket as noise. A 45%-vs-55% win-rate
+difference needs roughly 390 trades per arm to detect at 80% power, which is weeks
+of real fills, not hours.
 `keys_cooling` tells you when only *part* of a provider is spent — e.g. `1 of 2
 keys cooling` means the second key is still serving, so nothing is lost yet.
 
