@@ -155,6 +155,18 @@ else
 fi
 
 say ""
+say "=== 4d. technical indicators (tested offline, not auto-added) ==="
+[ -f desk/indicators.py ] && ok "desk/indicators.py present (pure-Python RSI/MACD/ATR/BB/EMA/Stoch/ADX/Fib)" || bad "desk/indicators.py missing"
+[ -f desk/indicator_backtest.py ] && ok "desk/indicator_backtest.py present (baseline vs +indicator)"      || bad "desk/indicator_backtest.py missing"
+[ -f scripts/indicator_eval.py ] && ok "scripts/indicator_eval.py present (run the evaluation)"             || bad "scripts/indicator_eval.py missing"
+[ -f tests/test_indicators.py ] && ok "tests/test_indicators.py present (known-value maths)"                || bad "tests/test_indicators.py missing"
+if python -c "from desk import indicators as i; assert i.rsi([float(x) for x in range(1,40)],14)==100.0" 2>/dev/null; then
+  ok "indicator maths import and compute"
+else
+  bad "indicator maths failed -> python -c 'from desk import indicators'"
+fi
+
+say ""
 say "=== 5. does the code import cleanly? ==="
 if python -c "from desk import signal_engine, signal_backtest; from desk import settings; print('   ', len(settings.REGISTRY), 'settings')" 2>/dev/null; then
   ok "signal_engine + signal_backtest import, settings registry loads"

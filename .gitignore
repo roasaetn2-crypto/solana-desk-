@@ -38,3 +38,4 @@ ohlcv_cache.json
 *.log
 backtest_cache.json
 fomo_usage.json
+data/

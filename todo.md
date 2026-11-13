@@ -44,3 +44,23 @@
 - [x] Add section 4c to `termux/verify-update.sh`.
 - [x] Docs: `WHY-NO-ENTRY.md`.
 - [x] Commit + push to GitHub main (4b16fc3).
+
+# Indicator evaluation — test first, add only if win rate is high
+
+User request: try adding technical indicators (RSI, MACD, ATR, Bollinger, EMA,
+Fibonacci, Stochastic, ADX — the "whole picture / multi-timeframe" set from the
+screenshot) to improve entry timing and take-profit exits. HARD CONSTRAINT:
+test the indicator first; only add it to the trading desk if it gives a high win
+rate. If it does not, do NOT add it to the desk.
+
+- [x] Find GitHub reference implementations (Bitvested/ta.py, MIT, zero-dependency)
+- [x] Confirm no numpy/pandas in repo; pure-Python implementation required
+- [x] Create desk/indicators.py (pure functions, None on insufficient history)
+- [x] Create desk/indicator_backtest.py (baseline vs baseline+indicator)
+- [x] Generate/collect candle paths (synthetic + real OHLCV if network)
+- [x] Run evaluation and record measured numbers (50 real pools, 3013 BUY entries)
+- [x] Decide add / do-not-add per indicator: none cleared the bar -> do not add
+- [x] Wire only passing indicators into desk/signal_engine.py: none passed, nothing wired
+- [x] Tests: known-value indicator math + harness wiring (17 tests)
+- [x] INDICATOR-EVALUATION.md with numbers + verdict
+- [x] verify-update.sh section 4d added
