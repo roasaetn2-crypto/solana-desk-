@@ -124,18 +124,30 @@ ENTRY = {
 }
 
 PAPER = {
-    # Paper bankroll. This number is NOT cosmetic: it sets the largest ticket the
-    # risk cap can produce, and the ticket has to clear min_ticket_usd AFTER the
-    # caution layer halves it.
-    #   ticket = max_risk_per_trade * equity / stop_pct
-    #   swing (stop 30%): 0.015 * 100 / 0.30 = $5.00 -> halved by one caution cut = $2.50  OK
-    #   scalp (stop 20%): 0.015 * 100 / 0.20 = $7.50 -> halved by one caution cut = $3.75  OK
-    # At $50 the same maths gives $2.50 / $3.75, and a single 0.5x cut (risk-off
-    # regime, security flag, breaker, Jupiter impact) drops every ticket to
-    # $1.07-$1.88 -- under the $2 floor. The desk then rejects 100% of setups
-    # while looking perfectly healthy. Do not lower this below
-    # risk.min_viable_equity() unless you also lower min_ticket_usd.
-    "starting_equity_usd": 100,
+    # Paper bankroll. NOT cosmetic: it sets the largest ticket the risk cap can
+    # produce, and the ticket must clear min_ticket_usd AFTER the caution layer
+    # multiplies it down.
+    #
+    #   ticket = max_risk_per_trade * equity / stop_pct * caution_mult
+    #
+    # The caution cuts multiply (regime halve, security halve, breaker, Jupiter
+    # impact), so the realistic worst case is 0.5 * 0.5 = 0.25x -- risk-off
+    # regime PLUS one security flag. At $100 that is $1.25-$1.88, under the $2
+    # floor, so the desk silently skipped every setup in that state:
+    #
+    #   cuts  mult   scalp(20%)   swing(30%)
+    #     0   1.000   $7.50 OK     $5.00 OK
+    #     1   0.500   $3.75 OK     $2.50 OK
+    #     2   0.250   $1.88 SKIP   $1.25 SKIP      <- the deadlock
+    #
+    # $160 makes the two-cut case land exactly on the floor for swing, so the
+    # desk keeps trading through risk-off + a security flag instead of going
+    # quiet. Three simultaneous cuts (0.125x) still skip by design -- that is
+    # the desk being genuinely cautious, and it is now visible in
+    # stats["floor_rejects"] instead of looking like a normal reject.
+    # Never lower this below risk.min_viable_equity(stop, 0.25) without also
+    # lowering min_ticket_usd.
+    "starting_equity_usd": 160,
     "min_ticket_usd": 2,           # paper fee floor; live still uses RISK["min_ticket_usd"]
     "fee_pct": 0.01,               # pump.fun charges ~1% per swap on the curve
     "slippage_pct": 0.02,          # assume 2% worse than the quoted price

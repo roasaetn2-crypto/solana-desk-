@@ -39,14 +39,19 @@ def test_min_viable_equity_matches_the_sizing_formula():
             assert abs(ticket - PAPER["min_ticket_usd"]) < 1e-6, (stop, mult, ticket)
 
 
-def test_configured_bankroll_survives_one_caution_cut():
-    """The actual bug. Fails on a $50 book, passes on $100."""
+def test_configured_bankroll_survives_two_caution_cuts():
+    """The actual bug, at the worst case the desk is meant to trade through.
+
+    Two cuts multiply: risk-off regime (0.5) x a security halve-flag (0.5) = 0.25x.
+    That is the realistic worst case, so the bankroll must clear the floor there.
+    Fails on a $50 book ($0.94-$1.25) and on a $100 book ($1.25-$1.88).
+    """
     equity = PAPER["starting_equity_usd"]
     for name, stop in _profiles().items():
-        need = risk.min_viable_equity(stop, 0.5)
+        need = risk.min_viable_equity(stop, 0.25)
         assert equity >= need, (
-            f"profile {name}: a ${equity:.2f} book needs ${need:.2f} to survive a "
-            f"0.5x caution cut above the ${PAPER['min_ticket_usd']} floor"
+            f"profile {name}: a ${equity:.2f} book needs ${need:.2f} to survive two "
+            f"0.25x caution cuts above the ${PAPER['min_ticket_usd']} floor"
         )
 
 
@@ -57,10 +62,11 @@ def test_risk_engine_approves_and_the_halved_ticket_still_clears_the_floor():
         ok, ticket, reason = risk.check_token_trade(_thesis(), acct, 10_517, stop_pct=stop)
         assert ok, f"{name}: risk engine rejected a clean setup: {reason}"
         assert ticket >= PAPER["min_ticket_usd"]
-        halved = round(ticket * 0.5, 2)
-        assert halved >= PAPER["min_ticket_usd"], (
-            f"{name}: ${ticket} halved to ${halved}, under the ${PAPER['min_ticket_usd']} floor"
-        )
+        for mult in (0.5, 0.25):
+            cut = round(ticket * mult, 2)
+            assert cut >= PAPER["min_ticket_usd"], (
+                f"{name}: ${ticket} at x{mult} is ${cut}, under the ${PAPER['min_ticket_usd']} floor"
+            )
 
 
 # ---------- paper cash cap: the book must never spend money it does not have ----------
