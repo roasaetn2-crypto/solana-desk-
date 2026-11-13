@@ -250,6 +250,10 @@ class PaperBroker:
             "cash": round(self.s["cash"], 2),
             "equity": self.equity(),
             "day_pnl": self.day_pnl(),
+            # Equity when the day rolled. The day P&L percentage must divide by
+            # this, not by the bankroll: after a day of trading the two differ,
+            # and dividing by the start bankroll overstated the daily move.
+            "day_start": round(self.s.get("day_start", self.s.get("start_equity", 0.0)), 2),
             "open_count": self.open_count(),
             "clamped_marks": self.clamped(),
             "positions": [

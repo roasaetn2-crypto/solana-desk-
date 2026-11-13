@@ -1227,7 +1227,13 @@ class SolanaAgent:
                 "stats": dict(self.stats),
                 "broker": broker,
                 "latest_buy": latest_buy,
-                "starting_equity": PAPER["starting_equity_usd"],
+                # The book's own basis, not config.PAPER. On Termux the ledger
+                # persists across restarts and config changes, so a $50 book must
+                # keep reporting $50 as its start even after the bankroll default
+                # was raised to $160 -- otherwise the dashboard shows the right
+                # equity next to a wrong multiple (e.g. 0.31x on a flat book).
+                "starting_equity": (self.paper.s.get("start_equity")
+                                    or PAPER["starting_equity_usd"]),
                 "equity_curve": list(self.equity_curve),
                 "curve_marks": list(self.curve_marks),
                 "latest_realized": self._latest_realized(broker),

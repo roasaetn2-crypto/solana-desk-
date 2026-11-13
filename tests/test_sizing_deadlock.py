@@ -126,3 +126,35 @@ def test_ledger_keeps_its_own_basis_when_config_changes():
     book = PaperBroker(path)
     assert book.s["start_equity"] == 40.0, book.s["start_equity"]
     assert book.realized_equity() == 40.0
+
+
+def test_snapshot_reports_ledger_basis_not_config_basis():
+    """Termux: a persisted $50 book must report $50 to the dashboard, not config's $160.
+
+    The broker already keeps its own `start_equity`, but the agent snapshot used
+    to send config.PAPER["starting_equity_usd"] to the UI. On a flat $50 book that
+    made the dashboard show the right equity next to a 0.31x multiple and a wrong
+    day P&L percentage. The snapshot must carry the ledger's basis, and the broker
+    snapshot must expose `day_start` so the daily % divides by the right number.
+    """
+    import json, os, tempfile
+    from pathlib import Path
+    from unittest import mock
+
+    tmp = tempfile.TemporaryDirectory()
+    d = Path(tmp.name)
+    ledger = d / "paper_ledger.json"
+    ledger.write_text(json.dumps({"cash": 50.0, "positions": {}, "day": "2026-01-01",
+                                  "day_start": 50.0, "closed": []}))
+    with mock.patch.dict(os.environ, {"DESK_DATA_DIR": str(d)}):
+        from desk.solana_agent import SolanaAgent
+        agent = SolanaAgent(ledger=ledger, bench_path=d / "b.db",
+                            live_ledger=d / "l.json")
+        snap = agent.status()
+    try:
+        assert snap["starting_equity"] == 50.0, snap["starting_equity"]
+        assert snap["broker"]["day_start"] == 50.0, snap["broker"].get("day_start")
+        # the multiple the dashboard draws is equity / starting_equity -> 1.00x, not 0.31x
+        assert round(snap["broker"]["equity"] / snap["starting_equity"], 2) == 1.0
+    finally:
+        tmp.cleanup()

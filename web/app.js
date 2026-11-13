@@ -564,7 +564,11 @@ function renderHero(s) {
   const eq = b.equity != null ? Number(b.equity) : start;
   if ($("heroEquity")) $("heroEquity").textContent = fmtMoney(eq);
   const pnl = Number(b.day_pnl || 0);
-  const pct = start ? (pnl / start) * 100 : 0;
+  // Day P&L % is measured against the equity when the day rolled, not the
+  // original bankroll. Using starting_equity overstated/understated the daily
+  // move once the book had grown or shrunk.
+  const dayStart = Number(b.day_start != null ? b.day_start : start);
+  const pct = dayStart ? (pnl / dayStart) * 100 : 0;
   const cls = pnl > 0 ? "pos" : pnl < 0 ? "neg" : "";
   const usd = $("heroPnlUsd");
   if (usd) { usd.textContent = (pnl > 0 ? "+" : "") + fmtMoney(pnl); usd.className = "pnl-usd " + cls; }
@@ -897,7 +901,8 @@ function render(s) {
   kp.textContent = fmtMoney(pnl);
   kp.className = "v " + (pnl > 0 ? "pos" : pnl < 0 ? "neg" : "");
   const startEq = Number((s.starting_equity != null) ? s.starting_equity : 20);
-  $("kPnlPct").textContent = fmtPct((pnl / startEq) * 100);
+  const kDayStart = Number(b.day_start != null ? b.day_start : startEq);
+  $("kPnlPct").textContent = fmtPct((pnl / kDayStart) * 100);
   $("kOpen").textContent = b.open_count || 0;
   $("kOpenMax").textContent = "max " + (cfg.max_positions || 3);
   const closed = b.closed || [];
