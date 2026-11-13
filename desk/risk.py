@@ -53,6 +53,25 @@ def sizing_base(account: Account) -> float:
 DAILY_LOSS_REASON = "daily loss limit hit, desk halted until tomorrow"
 
 
+def min_viable_equity(stop_pct: float | None = None, cut_mult: float = 0.5) -> float:
+    """Smallest paper book that can still produce a ticket above the fee floor.
+
+    The risk cap sizes a ticket as ``max_risk_per_trade * equity / stop_pct``.
+    The caution layer may then multiply it by ``cut_mult`` (0.5 for a single
+    halve, 0.25 for two). If that product lands under ``min_ticket_usd`` the
+    desk rejects every setup while still looking alive -- the "sizing deadlock".
+
+    Use this at startup (or in a test) to assert the configured bankroll can
+    actually trade. Returns dollars.
+    """
+    stop = stop_pct or EXITS["stop_pct"]
+    floor = PAPER.get("min_ticket_usd", RISK["min_ticket_usd"])
+    per_dollar = (RISK["max_risk_per_trade"] / stop) * max(cut_mult, 0.01)
+    if per_dollar <= 0:
+        return float("inf")
+    return floor / per_dollar
+
+
 def daily_loss_limit_usd(account: Account) -> float:
     """The daily stop in dollars.
 

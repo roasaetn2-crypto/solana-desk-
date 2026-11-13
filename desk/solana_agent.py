@@ -29,7 +29,7 @@ import requests
 from config import AGENT, ENTRY, EXECUTION, EXITS, PAPER, RISK
 from desk.brain_advisor import ADVISOR, should_advise
 from desk import (analyst, brain, chain, dexscreener, devcheck, dialogue, exits, goplus, gmgn,
-                  guard, heartbeat, helius, meme, pumpportal, regime, scanner,
+                  guard, heartbeat, helius, meme, pumpportal, regime, risk, scanner,
                   signals)
 from desk import chart as candle_chart
 from desk import links as fomo_links
@@ -109,6 +109,7 @@ class SolanaAgent:
 
         self.running = False
         self.cycle_no = 0
+        self._floor_warn_cycle = -1
         self.last_cycle_at: str | None = None
         self.data_source = "idle"
         self.events: deque = deque(maxlen=AGENT["max_events"])
@@ -117,7 +118,8 @@ class SolanaAgent:
         self.tokens_seen: dict[str, dict] = {}
         self.stats = {"cycles": 0, "seen": 0, "free_rejects": 0, "chain_rejects": 0,
                       "dev_rejects": 0, "meme_rejects": 0, "analyst_calls": 0,
-                      "risk_rejects": 0, "sec_rejects": 0, "guard_rejects": 0, "entries": 0, "exits": 0, "dialogues": 0,
+                      "risk_rejects": 0, "sec_rejects": 0, "guard_rejects": 0, "floor_rejects": 0,
+                      "entries": 0, "exits": 0, "dialogues": 0,
                       "errors": 0}
         self.equity_curve: deque = deque(maxlen=equity_curve.MAX_POINTS)
         self.curve_marks: deque = deque(maxlen=equity_curve.MAX_MARKS)
@@ -867,6 +869,22 @@ class SolanaAgent:
             return False, 0.0, "pre-trade checklist failed: " + "; ".join(checklist["failed"]), info, chips
         if new_ticket < floor:
             self.stats["guard_rejects"] += 1
+            self.stats["floor_rejects"] += 1
+            # A floor reject is a *configuration* problem, not a market signal:
+            # the book is too small for the risk cap to survive a size cut. Say
+            # so out loud (once per cycle) instead of silently skipping setups.
+            need = risk.min_viable_equity(stop, mult)
+            info["min_viable_equity"] = round(need, 2)
+            if self._floor_warn_cycle != self.cycle_no:
+                self._floor_warn_cycle = self.cycle_no
+                self.emit(
+                    "warn",
+                    f"every ticket is under the ${floor} fee floor after a x{mult:g} cut "
+                    f"({', '.join(names)}); a ${sizing_base(acct):.2f} book needs "
+                    f"${need:.2f} to trade this profile. Raise PAPER['starting_equity_usd'] "
+                    f"or lower PAPER['min_ticket_usd'].",
+                    mint=t.get("mint"),
+                )
             return (False, 0.0, f"ticket ${new_ticket} below fee floor ${floor} after caution cuts "
                                 f"({', '.join(names)})", info, chips)
         reason = "approved" if not names else f"approved, size x{mult:g} ({', '.join(names)})"

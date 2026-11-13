@@ -34,12 +34,6 @@ Seven seats. Each has one job, one file, and a hard boundary. Evidence seats (2b
 **DexScreener** (`desk/dexscreener.py`) is a second, independent market view used by seats 2b and 2c: price, liquidity, FDV/mcap, 5m/1h/6h/24h volume, buy/sell counts per window, pair age, active boosts, socials. If GeckoTerminal and DexScreener disagree, the desk sees both.
 
 **Dialogue** (`desk/dialogue.py`) is the speech layer: scanner → chain → dev → analyst → risk → analyst → risk → broker, in that order, with risk always having the last word on size.
-|---|------|------|--------------|------------------------|
-| 1 | **Scanner** | `desk/scanner.py` | Pulls new Solana pools from GeckoTerminal, applies free cuts (age, liquidity, volume, trades, sell ratio, mcap), extracts socials, quotes price | Touch a wallet |
-| 2 | **Chain facts** | `desk/chain.py` | Solana JSON-RPC: mint/freeze authority, supply, real top-wallet concentration — excluding program-owned accounts (bonding curve / pool) so the curve is never counted as a whale | Interpret narrative |
-| 3 | **Analyst** | `desk/analyst.py` | Produces a typed `TokenThesis` (verdict, score, flags, shape, invalidation, sources). Any configured brain (Ollama, Groq, Gemini, OpenRouter, Claude), otherwise a deterministic heuristic | Choose size, place orders, invent facts |
-| 4 | **Risk engine** | `desk/risk.py` | Pure code. Three-cap sizing: `min(risk cap, position-size cap, 2% of pool liquidity)`, fee floor, quiet hours, daily loss stop, max positions | Be overridden by the model |
-| 5 | **Paper broker** | `desk/broker.py` | Simulated fills and rule-based exits: stop −35%, take half at 2× once, volume decay, max hold 24h, no quote = close | Sign anything |
 
 **Ops** (`desk/ops.py`) wraps the desk: append-only `journal.jsonl`, a SQLite `desk.db` bench, alerts, and a `KILL` file kill switch.
 A read-only backtest (`desk/backtest.py`, also a Backtest card on the dashboard) replays that journal against other gate settings and never changes the live desk.

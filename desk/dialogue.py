@@ -22,12 +22,9 @@ seat only fills what Risk allowed.
 """
 from __future__ import annotations
 
-import os
 
 from config import ANALYST_MAX_TOKENS
 from desk import brain
-
-from config import ANALYST_MODEL
 
 SEATS = {
     "scanner": "Seat 1 · Scanner",

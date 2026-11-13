@@ -124,7 +124,18 @@ ENTRY = {
 }
 
 PAPER = {
-    "starting_equity_usd": 50,     # paper bankroll (was 20: at $20 the risk cap produced $1.50 tickets, under the $2 floor)
+    # Paper bankroll. This number is NOT cosmetic: it sets the largest ticket the
+    # risk cap can produce, and the ticket has to clear min_ticket_usd AFTER the
+    # caution layer halves it.
+    #   ticket = max_risk_per_trade * equity / stop_pct
+    #   swing (stop 30%): 0.015 * 100 / 0.30 = $5.00 -> halved by one caution cut = $2.50  OK
+    #   scalp (stop 20%): 0.015 * 100 / 0.20 = $7.50 -> halved by one caution cut = $3.75  OK
+    # At $50 the same maths gives $2.50 / $3.75, and a single 0.5x cut (risk-off
+    # regime, security flag, breaker, Jupiter impact) drops every ticket to
+    # $1.07-$1.88 -- under the $2 floor. The desk then rejects 100% of setups
+    # while looking perfectly healthy. Do not lower this below
+    # risk.min_viable_equity() unless you also lower min_ticket_usd.
+    "starting_equity_usd": 100,
     "min_ticket_usd": 2,           # paper fee floor; live still uses RISK["min_ticket_usd"]
     "fee_pct": 0.01,               # pump.fun charges ~1% per swap on the curve
     "slippage_pct": 0.02,          # assume 2% worse than the quoted price
