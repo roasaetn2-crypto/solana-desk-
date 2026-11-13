@@ -41,6 +41,10 @@ GROQ_MODEL = os.getenv("BRAIN_GROQ_MODEL", "openai/gpt-oss-120b")
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+# Cerebras free tier: OpenAI-compatible, very fast, separate quota from the rest.
+CEREBRAS_URL = "https://api.cerebras.ai/v1/chat/completions"
+CEREBRAS_MODEL = os.getenv("BRAIN_CEREBRAS_MODEL", "llama-3.3-70b")
+CEREBRAS_FALLBACKS = ["llama-3.3-70b", "llama3.1-8b", "gpt-oss-120b"]
 # Free (":free", pricing 0) models checked on openrouter.ai/api/v1/models, strongest first.
 OPENROUTER_FALLBACKS = ["nvidia/nemotron-3-ultra-550b-a55b:free",
                         "nvidia/nemotron-3.5-super-vl:free",
@@ -54,6 +58,12 @@ def openrouter_models(primary: str | None = None) -> list[str]:
 
 
 OPENROUTER_MODELS = openrouter_models()
+
+
+def cerebras_models(primary: str | None = None) -> list[str]:
+    """BRAIN_CEREBRAS_MODEL first, then the fallbacks."""
+    primary = (primary if primary is not None else os.getenv("BRAIN_CEREBRAS_MODEL", "")).strip()
+    return ([primary] if primary else []) + [m for m in CEREBRAS_FALLBACKS if m != primary]
 
 
 def gemini_models(primary: str | None = None) -> list[str]:
@@ -99,7 +109,7 @@ LOW_BUDGET_LEFT = 0.10          # skip the debate when under 10% of a budget rem
 # Gemini: 8/min stays under the free RPM and still fits one opinion + a short debate.
 # OpenRouter: 3/min is tighter because the free ":free" budget is ~45 calls/day
 # (enough for one debate: 1 opinion + 2 debate turns). 0 disables pacing.
-RPM = {"gemini": 8, "groq": 8, "openrouter": 3}
+RPM = {"gemini": 8, "groq": 8, "openrouter": 3, "cerebras": 8}
 
 # Free-tier limits: Groq openai/gpt-oss-120b is 30 RPM, 1K RPD, 8K TPM, 200K TPD, so about
 # 400 calls a day of ~500 tokens is the conservative ceiling. Gemini free Flash models allow
@@ -109,7 +119,8 @@ RPM = {"gemini": 8, "groq": 8, "openrouter": 3}
 # stops on its own terms instead of eating 429s all day.
 BUDGETS = {"gemini": int(os.getenv("BRAIN_BUDGET_GEMINI", "200")),
            "groq": int(os.getenv("BRAIN_BUDGET_GROQ", "400")),
-           "openrouter": int(os.getenv("BRAIN_BUDGET_OPENROUTER", "45"))}
+           "openrouter": int(os.getenv("BRAIN_BUDGET_OPENROUTER", "45")),
+           "cerebras": int(os.getenv("BRAIN_BUDGET_CEREBRAS", "200"))}
 OPENROUTER_DEBATE_MIN_LEFT = 10   # no debate when OpenRouter has fewer calls than this left
 VERDICTS = ("buy", "watch", "skip")
 _CAUTION = {"skip": 0, "watch": 1, "buy": 2}
@@ -510,8 +521,11 @@ class Provider:
             now = time.time()
             self._trim_hits(now)
             cd = max(0, int(self.cooldown_until - now))
+            ks = self.keys()
+            cooling = sum(1 for k in ks if now < self._cooldowns.get(k, 0.0))
             return {"enabled": bool(self.key()), "used_today": self.used, "budget": self.budget,
-                    "keys": len(self.keys()), "cooldown_s": cd, "errors": self.errors, "rpm": self.rpm,
+                    "keys": len(ks), "keys_cooling": cooling, "cooldown_s": cd,
+                    "errors": self.errors, "rpm": self.rpm,
                     "used_last_min": len(self._hits)}
 
 
@@ -579,6 +593,51 @@ class Groq(Provider):
         return data["choices"][0]["message"]["content"] or ""
 
 
+class Cerebras(Provider):
+    """Cerebras free tier: OpenAI-compatible, very fast, its own daily quota.
+
+    A fourth independent bucket of free calls, so when Gemini/Groq/OpenRouter are
+    all cooling the desk can still ask a model instead of going quiet.
+    """
+
+    @property
+    def models(self) -> list[str]:
+        return cerebras_models()
+
+    @property
+    def model(self):
+        return self.models[0]
+
+    def call(self, system: str, user: str, max_tokens: int = 700) -> str:
+        last = None
+        for m in self.models:
+            self._try_model = m
+            try:
+                out = super().call(system, user, max_tokens)
+                self.last_model = m
+                return out
+            except ProviderError as e:
+                last = e
+                # a gone model: try the next; a 429 means the key is done, stop
+                if e.status not in (400, 404, 422, 500, 502, 503) or not self.available():
+                    raise
+        raise last or ProviderError("cerebras: no model available")
+
+    def _post(self, system, user, max_tokens):
+        return requests.post(
+            CEREBRAS_URL,
+            headers={"Authorization": f"Bearer {self.key()}", "Content-Type": "application/json"},
+            json={"model": getattr(self, "_try_model", self.models[0]), "temperature": 0.2,
+                  "max_completion_tokens": max(max_tokens, 800),
+                  "response_format": {"type": "json_object"},
+                  "messages": [{"role": "system", "content": system},
+                               {"role": "user", "content": user}]},
+            timeout=TIMEOUT_S)
+
+    def _extract(self, data) -> str:
+        return data["choices"][0]["message"]["content"] or ""
+
+
 class OpenRouter(Provider):
     """Free ":free" models. Tries the next model in the list if one is unavailable."""
 
@@ -632,6 +691,7 @@ class Advisor:
         self.gemini = Gemini("gemini", "GEMINI_API_KEY", BUDGETS["gemini"])
         self.groq = Groq("groq", "GROQ_API_KEY", BUDGETS["groq"])
         self.openrouter = OpenRouter("openrouter", "OPENROUTER_API_KEY", BUDGETS["openrouter"])
+        self.cerebras = Cerebras("cerebras", "CEREBRAS_API_KEY", BUDGETS["cerebras"])
         self._cache: OrderedDict[str, tuple[float, dict, dict]] = OrderedDict()
         self._inflight: set[str] = set()
         self._lock = threading.Lock()
@@ -642,10 +702,10 @@ class Advisor:
 
     # -- state --
     def providers(self) -> list[Provider]:
-        return [self.gemini, self.groq, self.openrouter]
+        return [self.gemini, self.groq, self.cerebras, self.openrouter]
 
     def pair(self) -> list[Provider]:
-        """The first usable providers, in the order Gemini, Groq, OpenRouter.
+        """The first usable providers, in the order Gemini, Groq, Cerebras, OpenRouter.
 
         Capped at OPINIONS (default 1) because each provider in the pair costs one
         call per review. Two voices are nicer to read and twice the quota.
@@ -669,13 +729,30 @@ class Advisor:
         """Public /api/health block. Presence flags and error classes only, no secrets."""
         return {p.name: p.health() for p in self.providers()}
 
+    def quota(self) -> dict:
+        """Per-provider quota, for the dashboard. No key values, lengths or prefixes."""
+        rows = {}
+        total_left = total_budget = 0
+        for p in self.providers():
+            s = p.snapshot()
+            left = max(0, s["budget"] - s["used_today"])
+            total_left += left
+            total_budget += s["budget"]
+            rows[p.name] = {"keys": s["keys"], "keys_cooling": s["keys_cooling"],
+                            "used": s["used_today"], "budget": s["budget"],
+                            "left": left, "cooling_s": s["cooldown_s"],
+                            "pct_used": round(100.0 * s["used_today"] / s["budget"], 1) if s["budget"] else 0.0,
+                            "enabled": bool(s["keys"])}
+        return {"providers": rows, "total_left": total_left, "total_budget": total_budget,
+                "resting": self.resting()}
+
     def status(self) -> dict:
         return {"enabled": self.enabled(), "resting": self.resting(), "per_cycle": PER_CYCLE,
                 "opinions": OPINIONS, "debates_per_cycle": DEBATES_PER_CYCLE,
                 "min_interval_s": MIN_INTERVAL_S,
                 "opinion_ttl_s": CACHE_TTL_S, "material_move": MATERIAL_MOVE,
                 "models": {"gemini": gemini_models(), "groq": GROQ_MODEL,
-                           "openrouter": openrouter_models()},
+                           "cerebras": cerebras_models(), "openrouter": openrouter_models()},
                 "providers": {p.name: p.snapshot() for p in self.providers()},
                 "cached": len(self._cache)}
 

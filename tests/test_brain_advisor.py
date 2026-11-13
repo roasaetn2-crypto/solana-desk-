@@ -696,10 +696,6 @@ class Advisory(unittest.TestCase):
         self.assertFalse(a.status()["advisor"]["enabled"])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class KeyRotation(unittest.TestCase):
     """Extra free-tier keys are extra quota: rotate on a 429 instead of resting."""
 
@@ -743,3 +739,157 @@ class KeyRotation(unittest.TestCase):
         os.environ["GROQ_API_KEY_3"] = "  "
         os.environ["GROQ_API_KEY_4"] = "short"
         self.assertEqual(len(self.p.keys()), 2)
+
+
+class CerebrasProvider(unittest.TestCase):
+    """Cerebras is a fourth independent free bucket, so the desk never goes quiet."""
+
+    def setUp(self):
+        self.env = mock.patch.dict(os.environ, {"CEREBRAS_API_KEY": "csk_FAKECEREBRASKEY1234"})
+        self.env.start()
+        self.addCleanup(self.env.stop)
+        self.p = ba.Cerebras("cerebras", "CEREBRAS_API_KEY", 200)
+        self.p.rpm = 1000
+
+    def test_registered_in_advisor_and_budgets(self):
+        adv = ba.Advisor()
+        self.addCleanup(adv._pool.shutdown, wait=True, cancel_futures=True)
+        names = [p.name for p in adv.providers()]
+        self.assertIn("cerebras", names)
+        self.assertIn("cerebras", ba.BUDGETS)
+        self.assertIn("cerebras", ba.RPM)
+        self.assertEqual(names[:3], ["gemini", "groq", "cerebras"])
+
+    def test_models_start_with_primary_then_fallbacks(self):
+        self.assertEqual(ba.cerebras_models()[0], ba.CEREBRAS_MODEL)
+        self.assertIn("llama3.1-8b", ba.cerebras_models())
+
+    def test_model_override_env(self):
+        with mock.patch.dict(os.environ, {"BRAIN_CEREBRAS_MODEL": "custom-model"}):
+            self.assertEqual(ba.cerebras_models()[0], "custom-model")
+            self.assertEqual(len(ba.cerebras_models()), len(set(ba.cerebras_models())))
+
+    def test_call_parses_choices_and_sends_bearer_key(self):
+        seen = {}
+
+        def post(url, headers=None, json=None, timeout=None):
+            seen.update(url=url, headers=headers, json=json)
+            return Resp(200, {"choices": [{"message": {"content": opinion("buy", 71)}}]})
+
+        with mock.patch.object(ba.requests, "post", post):
+            out = self.p.call("sys", "user", 700)
+        self.assertEqual(json.loads(out)["verdict"], "buy")
+        self.assertEqual(seen["url"], ba.CEREBRAS_URL)
+        self.assertTrue(seen["headers"]["Authorization"].startswith("Bearer csk_"))
+        self.assertEqual(seen["json"]["response_format"], {"type": "json_object"})
+
+    def test_dead_model_falls_through_to_the_next(self):
+        replies = [Resp(404, text="no such model"), Resp(200, {"choices": [{"message": {"content": opinion()}}]})]
+        with mock.patch.object(ba.requests, "post", lambda *a, **k: replies.pop(0)):
+            out = self.p.call("sys", "user", 700)
+        self.assertEqual(json.loads(out)["verdict"], "watch")
+        self.assertEqual(self.p.last_model, self.p.models[1])
+
+    def test_429_raises_so_the_advisor_cools_the_key(self):
+        with mock.patch.object(ba.requests, "post", lambda *a, **k: Resp(429, text="rate limited")):
+            with self.assertRaises(ba.ProviderError):
+                self.p.call("sys", "user", 700)
+
+    def test_no_key_means_disabled(self):
+        os.environ.pop("CEREBRAS_API_KEY", None)
+        p = ba.Cerebras("cerebras", "CEREBRAS_API_KEY", 200)
+        self.assertFalse(p.key())
+        self.assertFalse(p.available())
+
+
+class QuotaPayload(unittest.TestCase):
+    """The dashboard reads this: per-provider burn, keys, cooldown, calls left."""
+
+    FIELDS = {"keys", "keys_cooling", "used", "budget", "left", "cooling_s", "pct_used", "enabled"}
+
+    def setUp(self):
+        self.env = mock.patch.dict(os.environ, {
+            "GEMINI_API_KEY": GKEY, "GROQ_API_KEY": QKEY,
+            "GROQ_API_KEY_2": "gsk_secondkey00000",
+        })
+        self.env.start()
+        self.addCleanup(self.env.stop)
+        os.environ.pop("OPENROUTER_API_KEY", None)
+        os.environ.pop("CEREBRAS_API_KEY", None)
+        self.adv = ba.Advisor()
+        self.addCleanup(self.adv._pool.shutdown, wait=True, cancel_futures=True)
+
+    def test_shape_and_all_four_providers(self):
+        q = self.adv.quota()
+        self.assertEqual(set(q["providers"]), {"gemini", "groq", "cerebras", "openrouter"})
+        for row in q["providers"].values():
+            self.assertEqual(set(row), self.FIELDS)
+        self.assertIn("total_left", q)
+        self.assertIn("total_budget", q)
+        self.assertIn("resting", q)
+
+    def test_totals_are_the_sum_of_the_parts(self):
+        q = self.adv.quota()
+        self.assertEqual(q["total_budget"], sum(r["budget"] for r in q["providers"].values()))
+        self.assertEqual(q["total_left"], sum(r["left"] for r in q["providers"].values()))
+
+    def test_second_groq_key_doubles_the_groq_budget(self):
+        q = self.adv.quota()["providers"]["groq"]
+        self.assertEqual(q["keys"], 2)
+        self.assertEqual(q["budget"], 2 * ba.BUDGETS["groq"])
+        self.assertTrue(q["enabled"])
+
+    def test_missing_keys_show_disabled_not_negative(self):
+        for name in ("cerebras", "openrouter"):
+            row = self.adv.quota()["providers"][name]
+            self.assertEqual(row["keys"], 0)
+            self.assertFalse(row["enabled"])
+            self.assertEqual(row["left"], row["budget"])
+
+    def test_used_and_pct_used_track_a_reservation(self):
+        p = self.adv.gemini
+        p.rpm = 1000
+        self.assertTrue(p.reserve())
+        row = self.adv.quota()["providers"]["gemini"]
+        self.assertEqual(row["used"], 1)
+        self.assertGreater(row["pct_used"], 0)
+        self.assertEqual(row["left"], row["budget"] - 1)
+
+    def test_one_cooling_key_is_visible_while_the_other_still_works(self):
+        p = self.adv.groq
+        p.rpm = 1000
+        self.assertTrue(p.reserve())
+        p.cool(60)
+        row = self.adv.quota()["providers"]["groq"]
+        self.assertEqual(row["keys"], 2)
+        self.assertEqual(row["keys_cooling"], 1)   # half the provider is burning
+        self.assertEqual(row["cooling_s"], 0)      # but the provider is not resting
+        self.assertTrue(p.available())             # the second key still serves
+
+    def test_provider_cools_only_when_every_key_is_cooling(self):
+        p = self.adv.groq
+        p.rpm = 1000
+        p.reserve(); p.cool(60)
+        p.reserve(); p.cool(60)
+        row = self.adv.quota()["providers"]["groq"]
+        self.assertEqual(row["keys_cooling"], 2)
+        self.assertGreater(row["cooling_s"], 0)
+        self.assertLessEqual(row["cooling_s"], 60)
+        self.assertFalse(p.available())            # every groq key is spent
+        self.assertFalse(self.adv.quota()["resting"])  # gemini is still up, desk not silent
+
+    def test_quota_never_leaks_a_key(self):
+        blob = json.dumps(self.adv.quota())
+        self.assertNotIn(GKEY, blob)
+        self.assertNotIn(QKEY, blob)
+        self.assertNotIn("gsk_secondkey00000", blob)
+
+    def test_desk_chat_status_carries_the_quota(self):
+        from desk import desk_chat
+        st = desk_chat.status()
+        self.assertIn("quota", st)
+        self.assertIn("providers", st["quota"])
+
+
+if __name__ == "__main__":
+    unittest.main()

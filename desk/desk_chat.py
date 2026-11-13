@@ -901,6 +901,7 @@ def status() -> dict:
     return {"enabled": keyed, "keys_present": keyed, "available": ready,
             "state": "online" if ready else ("busy" if keyed else "no_keys"),
             "errors": _error_classes(), "limits": LIMITER.snapshot(),
+            "quota": ADVISOR.quota(),
             "providers": [p.name for p in ADVISOR.providers() if p.key()]}
 
 

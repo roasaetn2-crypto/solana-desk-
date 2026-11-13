@@ -6,7 +6,10 @@
 # running garbage. One short command line is atomic and always survives.
 #
 # Usage:
-#   bash termux/set-ai-keys.sh <GEMINI_KEY> <OPENROUTER_KEY> [GEMINI_MODEL]
+#   bash termux/set-ai-keys.sh <GEMINI_KEY> <OPENROUTER_KEY> [GEMINI_MODEL] [CEREBRAS_KEY]
+#
+# A fourth free provider (Cerebras) is optional and goes last:
+#   bash termux/set-ai-keys.sh - - - csk-xxxxxxxx
 #
 # Both keys are optional in the sense that you can pass "-" to leave one alone:
 #   bash termux/set-ai-keys.sh - sk-or-v1-xxxx
@@ -22,12 +25,13 @@ MODEL="${3:-gemini-3.5-flash-lite}"
 
 GEMINI="${1:-}"
 OPENROUTER="${2:-}"
+CEREBRAS="${4:-}"
 
 cd "$DESK_DIR" || { echo "No desk dir at $DESK_DIR"; exit 1; }
 
 # ---------- validate before touching anything ----------
-if [ -z "$GEMINI" ] && [ -z "$OPENROUTER" ]; then
-  echo "Usage: bash termux/set-ai-keys.sh <GEMINI_KEY> <OPENROUTER_KEY> [MODEL]"
+if [ -z "$GEMINI" ] && [ -z "$OPENROUTER" ] && [ -z "$CEREBRAS" ]; then
+  echo "Usage: bash termux/set-ai-keys.sh <GEMINI_KEY> <OPENROUTER_KEY> [MODEL] [CEREBRAS_KEY]"
   echo "       pass - to leave a key unchanged"
   exit 2
 fi
@@ -40,11 +44,17 @@ if [ "$OPENROUTER" != "-" ] && [ "$OPENROUTER" != "" ] && [ "${#OPENROUTER}" -lt
   echo "That OpenRouter key looks too short (${#OPENROUTER} chars). Nothing changed."
   exit 2
 fi
+if [ "$CEREBRAS" != "-" ] && [ "$CEREBRAS" != "" ] && [ "${#CEREBRAS}" -lt 20 ]; then
+  echo "That Cerebras key looks too short (${#CEREBRAS} chars). Nothing changed."
+  exit 2
+fi
 
 # ---------- remember what is already there ----------
 touch "$ENV_FILE"
 OLD_GEMINI="$(grep '^GEMINI_API_KEY=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)"
 OLD_OPENROUTER="$(grep '^OPENROUTER_API_KEY=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)"
+OLD_CEREBRAS="$(grep '^CEREBRAS_API_KEY=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)"
+OLD_MODEL="$(grep '^BRAIN_GEMINI_MODEL=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)"
 
 # ---------- back up, then rewrite only our three lines ----------
 cp "$ENV_FILE" "$ENV_FILE.bak" 2>/dev/null
@@ -52,13 +62,14 @@ chmod 600 "$ENV_FILE" "$ENV_FILE.bak" 2>/dev/null
 
 # grep -v keeps every other line, including DESK_TOKEN. Overwriting the file
 # would wipe the login key and lock the owner out of their own desk.
-grep -v -e '^GEMINI_API_KEY=' -e '^OPENROUTER_API_KEY=' -e '^BRAIN_GEMINI_MODEL=' \
+grep -v -e '^GEMINI_API_KEY=' -e '^OPENROUTER_API_KEY=' -e '^CEREBRAS_API_KEY=' -e '^BRAIN_GEMINI_MODEL=' \
   "$ENV_FILE" > "$ENV_FILE.new" 2>/dev/null
 mv "$ENV_FILE.new" "$ENV_FILE"
 
 # Keep a key that was already there when the caller passes "-".
 if [ "$GEMINI" = "-" ] && [ -n "${OLD_GEMINI:-}" ]; then GEMINI="$OLD_GEMINI"; fi
 if [ "$OPENROUTER" = "-" ] && [ -n "${OLD_OPENROUTER:-}" ]; then OPENROUTER="$OLD_OPENROUTER"; fi
+if [ "$CEREBRAS" = "-" ] && [ -n "${OLD_CEREBRAS:-}" ]; then CEREBRAS="$OLD_CEREBRAS"; fi
 
 if [ -n "$GEMINI" ] && [ "$GEMINI" != "-" ]; then
   echo "GEMINI_API_KEY=$GEMINI" >> "$ENV_FILE"
@@ -66,7 +77,14 @@ fi
 if [ -n "$OPENROUTER" ] && [ "$OPENROUTER" != "-" ]; then
   echo "OPENROUTER_API_KEY=$OPENROUTER" >> "$ENV_FILE"
 fi
-echo "BRAIN_GEMINI_MODEL=$MODEL" >> "$ENV_FILE"
+if [ -n "$CEREBRAS" ] && [ "$CEREBRAS" != "-" ]; then
+  echo "CEREBRAS_API_KEY=$CEREBRAS" >> "$ENV_FILE"
+fi
+# "-" (or nothing) means keep whatever model was already configured.
+if [ "$MODEL" = "-" ] || [ -z "$MODEL" ]; then MODEL="${OLD_MODEL:-}"; fi
+if [ -n "$MODEL" ] && [ "$MODEL" != "-" ]; then
+  echo "BRAIN_GEMINI_MODEL=$MODEL" >> "$ENV_FILE"
+fi
 
 # ---------- quota saver ----------
 # The trading loop ticks every 30s. Unpaced, the advisor asks for an opinion
@@ -125,6 +143,7 @@ curl -s --max-time 8 "http://127.0.0.1:$PORT/api/health" | head -c 700
 echo
 echo
 echo "Look for \"keys_present\":true. Then reload http://127.0.0.1:$PORT/?v=2#ai"
+echo "The AI quota panel on the dashboard shows calls left per provider."
 echo
 echo "Quota profile: 1 coin, 1 opinion, no debate, 1 review / 4 min (~180 calls/day)."
 echo "Want the two-bot debate back?  KEEP_QUOTA=0 bash termux/set-ai-keys.sh - -"

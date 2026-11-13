@@ -1261,11 +1261,66 @@ async function refreshBacktest(force) {
   }
 }
 
+// ---------- AI quota ----------
+let lastQuota = null;
+let quotaAt = 0;
+
+function renderQuota(q) {
+  const box = $("quotaBars");
+  if (!box) return;
+  const provs = (q && q.providers) || {};
+  const names = Object.keys(provs).filter((n) => provs[n] && provs[n].enabled);
+  const badge = $("quotaBadge");
+  if (badge) {
+    const resting = q && q.resting;
+    badge.textContent = resting ? "resting" : (names.length ? names.length + " live" : "off");
+    badge.style.color = resting ? "var(--amber)" : (names.length ? "var(--green)" : "var(--muted)");
+  }
+  if (!names.length) {
+    box.innerHTML = '<div class="tiny muted">No AI keys set. Add GEMINI_API_KEY, GROQ_API_KEY, CEREBRAS_API_KEY or OPENROUTER_API_KEY.</div>';
+    if ($("quotaLine")) $("quotaLine").textContent = "Free-tier calls left today: —";
+    return;
+  }
+  box.innerHTML = names.map((n) => {
+    const p = provs[n] || {};
+    const used = Number(p.used || 0), budget = Number(p.budget || 0);
+    const pct = budget ? Math.min(100, Math.round((used / budget) * 100)) : 0;
+    const cooling = Number(p.cooling_s || 0);
+    const color = cooling ? "var(--amber)" : pct >= 90 ? "var(--red)" : pct >= 70 ? "var(--amber)" : "var(--green)";
+    const keys = Number(p.keys || 0), kc = Number(p.keys_cooling || 0);
+    const note = cooling ? "cooling " + cooling + "s"
+      : kc ? kc + " of " + keys + " keys cooling"
+      : keys > 1 ? keys + " keys" : "";
+    return `<div class="bar-row" title="${esc(n)}: ${used}/${budget} calls today${cooling ? ", cooling " + cooling + "s" : ""}">
+      <span class="lab">${esc(n)}</span>
+      <span class="track"><i style="width:${pct}%;background:${color}"></i></span>
+      <span class="num">${budget ? used + "/" + budget : "—"}</span>
+    </div>${note ? `<div class="tiny muted" style="margin:-4px 0 2px 82px">${esc(note)}</div>` : ""}`;
+  }).join("");
+  if ($("quotaLine")) {
+    const left = Number(q.total_left || 0), total = Number(q.total_budget || 0);
+    $("quotaLine").textContent = "Free-tier calls left today: " + left + " of " + total
+      + (q.resting ? " · all providers cooling, desk keeps trading on rules" : "");
+  }
+}
+
+async function refreshQuota(force) {
+  const now = Date.now();
+  if (!force && lastQuota && now - quotaAt < 30000) { renderQuota(lastQuota); return; }
+  try {
+    const q = await api("/api/ai/status");
+    lastQuota = q && q.quota ? q.quota : null;
+    quotaAt = now;
+    if (lastQuota) renderQuota(lastQuota);
+  } catch (e) { /* quota is cosmetic; never break the dashboard */ }
+}
+
 async function refresh() {
   try {
     const s = await api("/api/state");
     render(s);
     refreshBacktest(false);
+    refreshQuota(false);
   } catch (e) {
     console.error(e);
   }

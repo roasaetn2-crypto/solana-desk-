@@ -444,6 +444,7 @@ need a paid key and you do not need a model SDK. Cheapest first:
 | **Ollama** | free, local | none | install [ollama](https://ollama.com), then `ollama pull llama3.2` |
 | **Groq** | free tier | free key | [console.groq.com](https://console.groq.com) → API keys |
 | **Google Gemini** | free tier | free key | [aistudio.google.com](https://aistudio.google.com/apikey) |
+| **Cerebras** | free tier | free key | [cloud.cerebras.ai](https://cloud.cerebras.ai) → API keys |
 | **OpenRouter** | `:free` models | free key | [openrouter.ai/keys](https://openrouter.ai/keys) |
 | **Claude** | paid | paid key | `ANTHROPIC_API_KEY` |
 | **heuristic** | free, no model | none | always available, pure rules |
@@ -487,6 +488,19 @@ export BRAIN_MIN_INTERVAL_S=240   # at most 15 reviews/hour (default 0 = unpaced
 export BRAIN_CACHE_TTL_S=1500     # reuse an opinion for 25 min unless price moves
 export BRAIN_DEBATES_PER_CYCLE=0  # a debate is 3 extra calls; opinions still work
 ```
+
+The advisor ships with **four** independent free buckets — Gemini, Groq,
+Cerebras and OpenRouter — tried in that order. They meter separately, so when
+three of them are cooling the fourth still answers. Cerebras is OpenAI-compatible
+and very fast; set `CEREBRAS_API_KEY` (free at
+[cloud.cerebras.ai](https://cloud.cerebras.ai)) and it is picked up with no other
+change. Its models fall back `llama-3.3-70b` → `llama3.1-8b` → `gpt-oss-120b`,
+and `BRAIN_CEREBRAS_MODEL` overrides the first one.
+
+The dashboard's **AI quota** panel draws one bar per provider with calls used
+today, key count and any cooldown, plus a single line for total free calls left.
+`keys_cooling` tells you when only *part* of a provider is spent — e.g. `1 of 2
+keys cooling` means the second key is still serving, so nothing is lost yet.
 
 Desk AI chat has its own per-minute window, separate from the trading loop, so a
 long conversation can no longer starve the review path (or vice versa).
