@@ -1,5 +1,21 @@
 # 100-Trade Backtest — Win Rate Report
 
+> ## ⚠️ SUPERSEDED — this report's numbers are wrong
+>
+> `scripts/backtest_100.py` compared the raw token **price in dollars** against a
+> **$1.03 cost basis** instead of computing a return. A coin that went from
+> $0.000498 to $0.000509 (+2.1%) was recorded as **−100.0%**. Only tokens priced
+> above ~$1 could ever register a win, which is where "13% win rate" and "81% rug
+> rate" came from.
+>
+> Re-scoring the **same 100 trades** from the same entry and exit prices as
+> returns gives **53 wins (53.0%)**, mean **+10.0%**, median **+0.34%**.
+>
+> The corrected analysis, with entry gating and a settings sweep on 101 real
+> pools, is in **[`BACKTEST_GATES_REPORT.md`](BACKTEST_GATES_REPORT.md)** and
+> [`backtest_gates.png`](backtest_gates.png). Read that instead. Everything below
+> is kept only so the error is on the record.
+
 **Repo:** `roasaetn2-crypto/solana-desk-` · **Data:** real GeckoTerminal Solana pool OHLCV (5-min candles) · **Rules:** your own `desk/exits.py` + PAPER fees (1%) & slippage (2%)
 
 ## Headline

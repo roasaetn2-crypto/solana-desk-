@@ -1,0 +1,1594 @@
+{
+  "generated_at": 1794559081,
+  "cache": "backtest_cache.json",
+  "pools_in_cache": 101,
+  "pools_tradeable": 101,
+  "pools_fully_gated": 5,
+  "entry_minutes": 120,
+  "ladder": {
+    "0. no gates (old baseline)": {
+      "dev unknown": {
+        "trades": 101,
+        "wins": 17,
+        "losses": 84,
+        "win_rate": 0.1683,
+        "mean_ret": -0.51,
+        "median_ret": -5.98,
+        "profit_factor": 0.941,
+        "rug_rate": 0.0,
+        "best": 163.0,
+        "worst": -34.1,
+        "rejected": {}
+      },
+      "dev passes": {
+        "trades": 101,
+        "wins": 17,
+        "losses": 84,
+        "win_rate": 0.1683,
+        "mean_ret": -0.51,
+        "median_ret": -5.98,
+        "profit_factor": 0.941,
+        "rug_rate": 0.0,
+        "best": 163.0,
+        "worst": -34.1,
+        "rejected": {}
+      }
+    },
+    "1. + SCAN floors": {
+      "dev unknown": {
+        "trades": 14,
+        "wins": 5,
+        "losses": 9,
+        "win_rate": 0.3571,
+        "mean_ret": 9.65,
+        "median_ret": -25.27,
+        "profit_factor": 1.563,
+        "rug_rate": 0.0,
+        "best": 122.7,
+        "worst": -34.1,
+        "rejected": {
+          "too_old": 43,
+          "mcap_high": 26,
+          "vol": 14,
+          "chasing": 2,
+          "mcap_low": 2
+        }
+      },
+      "dev passes": {
+        "trades": 14,
+        "wins": 5,
+        "losses": 9,
+        "win_rate": 0.3571,
+        "mean_ret": 9.65,
+        "median_ret": -25.27,
+        "profit_factor": 1.563,
+        "rug_rate": 0.0,
+        "best": 122.7,
+        "worst": -34.1,
+        "rejected": {
+          "too_old": 43,
+          "mcap_high": 26,
+          "vol": 14,
+          "chasing": 2,
+          "mcap_low": 2
+        }
+      }
+    },
+    "2. + trades & sell ratio": {
+      "dev unknown": {
+        "trades": 12,
+        "wins": 5,
+        "losses": 7,
+        "win_rate": 0.4167,
+        "mean_ret": 16.0,
+        "median_ret": -15.57,
+        "profit_factor": 2.05,
+        "rug_rate": 0.0,
+        "best": 122.7,
+        "worst": -34.1,
+        "rejected": {
+          "too_old": 43,
+          "mcap_high": 26,
+          "vol": 14,
+          "chasing": 2,
+          "mcap_low": 2,
+          "few_trades": 2
+        }
+      },
+      "dev passes": {
+        "trades": 12,
+        "wins": 5,
+        "losses": 7,
+        "win_rate": 0.4167,
+        "mean_ret": 16.0,
+        "median_ret": -15.57,
+        "profit_factor": 2.05,
+        "rug_rate": 0.0,
+        "best": 122.7,
+        "worst": -34.1,
+        "rejected": {
+          "too_old": 43,
+          "mcap_high": 26,
+          "vol": 14,
+          "chasing": 2,
+          "mcap_low": 2,
+          "few_trades": 2
+        }
+      }
+    },
+    "3. + organic buyers": {
+      "dev unknown": {
+        "trades": 12,
+        "wins": 5,
+        "losses": 7,
+        "win_rate": 0.4167,
+        "mean_ret": 16.0,
+        "median_ret": -15.57,
+        "profit_factor": 2.05,
+        "rug_rate": 0.0,
+        "best": 122.7,
+        "worst": -34.1,
+        "rejected": {
+          "too_old": 43,
+          "mcap_high": 26,
+          "vol": 14,
+          "chasing": 2,
+          "mcap_low": 2,
+          "few_trades": 2
+        }
+      },
+      "dev passes": {
+        "trades": 12,
+        "wins": 5,
+        "losses": 7,
+        "win_rate": 0.4167,
+        "mean_ret": 16.0,
+        "median_ret": -15.57,
+        "profit_factor": 2.05,
+        "rug_rate": 0.0,
+        "best": 122.7,
+        "worst": -34.1,
+        "rejected": {
+          "too_old": 43,
+          "mcap_high": 26,
+          "vol": 14,
+          "chasing": 2,
+          "mcap_low": 2,
+          "few_trades": 2
+        }
+      }
+    },
+    "4. + meme not-bad (>=50)": {
+      "dev unknown": {
+        "trades": 0,
+        "win_rate": null,
+        "mean_ret": null,
+        "median_ret": null,
+        "profit_factor": null,
+        "rug_rate": null,
+        "rejected": {
+          "too_old": 43,
+          "mcap_high": 26,
+          "vol": 14,
+          "meme_score": 12,
+          "chasing": 2,
+          "mcap_low": 2,
+          "few_trades": 2
+        }
+      },
+      "dev passes": {
+        "trades": 8,
+        "wins": 3,
+        "losses": 5,
+        "win_rate": 0.375,
+        "mean_ret": 12.75,
+        "median_ret": -15.57,
+        "profit_factor": 1.858,
+        "rug_rate": 0.0,
+        "best": 112.6,
+        "worst": -33.1,
+        "rejected": {
+          "too_old": 43,
+          "mcap_high": 26,
+          "vol": 14,
+          "meme_score": 4,
+          "chasing": 2,
+          "mcap_low": 2,
+          "few_trades": 2
+        }
+      }
+    },
+    "5. + community >= 35": {
+      "dev unknown": {
+        "trades": 0,
+        "win_rate": null,
+        "mean_ret": null,
+        "median_ret": null,
+        "profit_factor": null,
+        "rug_rate": null,
+        "rejected": {
+          "too_old": 43,
+          "mcap_high": 26,
+          "vol": 14,
+          "meme_score": 12,
+          "chasing": 2,
+          "mcap_low": 2,
+          "few_trades": 2
+        }
+      },
+      "dev passes": {
+        "trades": 8,
+        "wins": 3,
+        "losses": 5,
+        "win_rate": 0.375,
+        "mean_ret": 12.75,
+        "median_ret": -15.57,
+        "profit_factor": 1.858,
+        "rug_rate": 0.0,
+        "best": 112.6,
+        "worst": -33.1,
+        "rejected": {
+          "too_old": 43,
+          "mcap_high": 26,
+          "vol": 14,
+          "meme_score": 4,
+          "chasing": 2,
+          "mcap_low": 2,
+          "few_trades": 2
+        }
+      }
+    },
+    "6. + volume still arriving": {
+      "dev unknown": {
+        "trades": 0,
+        "win_rate": null,
+        "mean_ret": null,
+        "median_ret": null,
+        "profit_factor": null,
+        "rug_rate": null,
+        "rejected": {
+          "too_old": 43,
+          "mcap_high": 26,
+          "vol": 14,
+          "meme_score": 12,
+          "chasing": 2,
+          "mcap_low": 2,
+          "few_trades": 2
+        }
+      },
+      "dev passes": {
+        "trades": 5,
+        "wins": 2,
+        "losses": 3,
+        "win_rate": 0.4,
+        "mean_ret": 20.34,
+        "median_ret": -24.7,
+        "profit_factor": 2.176,
+        "rug_rate": 0.0,
+        "best": 112.6,
+        "worst": -33.1,
+        "rejected": {
+          "too_old": 43,
+          "mcap_high": 26,
+          "vol": 14,
+          "meme_score": 4,
+          "vol_fade": 3,
+          "chasing": 2,
+          "mcap_low": 2,
+          "few_trades": 2
+        }
+      }
+    }
+  },
+  "score_bands": {
+    "dev unknown": {
+      "0-29": {
+        "trades": 0,
+        "win_rate": null,
+        "mean_ret": null,
+        "median_ret": null,
+        "profit_factor": null,
+        "rug_rate": null
+      },
+      "30-39": {
+        "trades": 9,
+        "wins": 3,
+        "losses": 6,
+        "win_rate": 0.3333,
+        "mean_ret": 12.99,
+        "median_ret": -24.7,
+        "profit_factor": 1.781,
+        "rug_rate": 0.0,
+        "best": 122.7,
+        "worst": -34.1
+      },
+      "40-49": {
+        "trades": 3,
+        "wins": 2,
+        "losses": 1,
+        "win_rate": 0.6667,
+        "mean_ret": 25.03,
+        "median_ret": 32.58,
+        "profit_factor": 3.27,
+        "rug_rate": 0.0,
+        "best": 75.6,
+        "worst": -33.1
+      },
+      "50-59": {
+        "trades": 0,
+        "win_rate": null,
+        "mean_ret": null,
+        "median_ret": null,
+        "profit_factor": null,
+        "rug_rate": null
+      },
+      "60-69": {
+        "trades": 0,
+        "win_rate": null,
+        "mean_ret": null,
+        "median_ret": null,
+        "profit_factor": null,
+        "rug_rate": null
+      },
+      "70-79": {
+        "trades": 0,
+        "win_rate": null,
+        "mean_ret": null,
+        "median_ret": null,
+        "profit_factor": null,
+        "rug_rate": null
+      },
+      "80-100": {
+        "trades": 0,
+        "win_rate": null,
+        "mean_ret": null,
+        "median_ret": null,
+        "profit_factor": null,
+        "rug_rate": null
+      }
+    },
+    "dev passes": {
+      "0-29": {
+        "trades": 0,
+        "win_rate": null,
+        "mean_ret": null,
+        "median_ret": null,
+        "profit_factor": null,
+        "rug_rate": null
+      },
+      "30-39": {
+        "trades": 0,
+        "win_rate": null,
+        "mean_ret": null,
+        "median_ret": null,
+        "profit_factor": null,
+        "rug_rate": null
+      },
+      "40-49": {
+        "trades": 4,
+        "wins": 2,
+        "losses": 2,
+        "win_rate": 0.5,
+        "mean_ret": 22.52,
+        "median_ret": 0.76,
+        "profit_factor": 2.406,
+        "rug_rate": 0.0,
+        "best": 122.7,
+        "worst": -34.1
+      },
+      "50-59": {
+        "trades": 8,
+        "wins": 3,
+        "losses": 5,
+        "win_rate": 0.375,
+        "mean_ret": 12.75,
+        "median_ret": -15.57,
+        "profit_factor": 1.858,
+        "rug_rate": 0.0,
+        "best": 112.6,
+        "worst": -33.1
+      },
+      "60-69": {
+        "trades": 0,
+        "win_rate": null,
+        "mean_ret": null,
+        "median_ret": null,
+        "profit_factor": null,
+        "rug_rate": null
+      },
+      "70-79": {
+        "trades": 0,
+        "win_rate": null,
+        "mean_ret": null,
+        "median_ret": null,
+        "profit_factor": null,
+        "rug_rate": null
+      },
+      "80-100": {
+        "trades": 0,
+        "win_rate": null,
+        "mean_ret": null,
+        "median_ret": null,
+        "profit_factor": null,
+        "rug_rate": null
+      }
+    }
+  },
+  "settings": {
+    "all": {
+      "stop_pct": [
+        {
+          "value": 0.15,
+          "trades": 101,
+          "wins": 16,
+          "losses": 85,
+          "win_rate": 0.1584,
+          "mean_ret": -0.71,
+          "median_ret": -6.1,
+          "profit_factor": 0.917,
+          "rug_rate": 0.0,
+          "best": 163.0,
+          "worst": -34.1
+        },
+        {
+          "value": 0.2,
+          "trades": 101,
+          "wins": 17,
+          "losses": 84,
+          "win_rate": 0.1683,
+          "mean_ret": -0.51,
+          "median_ret": -5.98,
+          "profit_factor": 0.941,
+          "rug_rate": 0.0,
+          "best": 163.0,
+          "worst": -34.1
+        },
+        {
+          "value": 0.25,
+          "trades": 101,
+          "wins": 17,
+          "losses": 84,
+          "win_rate": 0.1683,
+          "mean_ret": -0.83,
+          "median_ret": -5.98,
+          "profit_factor": 0.908,
+          "rug_rate": 0.0,
+          "best": 163.0,
+          "worst": -46.1
+        },
+        {
+          "value": 0.3,
+          "trades": 101,
+          "wins": 18,
+          "losses": 83,
+          "win_rate": 0.1782,
+          "mean_ret": -0.5,
+          "median_ret": -5.97,
+          "profit_factor": 0.944,
+          "rug_rate": 0.0,
+          "best": 163.0,
+          "worst": -59.9
+        },
+        {
+          "value": 0.4,
+          "trades": 101,
+          "wins": 19,
+          "losses": 82,
+          "win_rate": 0.1881,
+          "mean_ret": 0.15,
+          "median_ret": -5.96,
+          "profit_factor": 1.018,
+          "rug_rate": 0.0,
+          "best": 163.0,
+          "worst": -59.9
+        },
+        {
+          "value": 0.6,
+          "trades": 101,
+          "wins": 19,
+          "losses": 82,
+          "win_rate": 0.1881,
+          "mean_ret": 0.2,
+          "median_ret": -5.96,
+          "profit_factor": 1.024,
+          "rug_rate": 0.0,
+          "best": 163.0,
+          "worst": -76.9
+        },
+        {
+          "value": 0.99,
+          "trades": 101,
+          "wins": 19,
+          "losses": 82,
+          "win_rate": 0.1881,
+          "mean_ret": -0.01,
+          "median_ret": -5.96,
+          "profit_factor": 0.999,
+          "rug_rate": 0.0,
+          "best": 163.0,
+          "worst": -89.9
+        }
+      ],
+      "tp1_at": [
+        {
+          "value": 1.2,
+          "trades": 101,
+          "wins": 19,
+          "losses": 82,
+          "win_rate": 0.1881,
+          "mean_ret": -1.33,
+          "median_ret": -5.97,
+          "profit_factor": 0.842,
+          "rug_rate": 0.0,
+          "best": 113.5,
+          "worst": -34.1
+        },
+        {
+          "value": 1.3,
+          "trades": 101,
+          "wins": 19,
+          "losses": 82,
+          "win_rate": 0.1881,
+          "mean_ret": -1.33,
+          "median_ret": -5.98,
+          "profit_factor": 0.846,
+          "rug_rate": 0.0,
+          "best": 122.7,
+          "worst": -34.1
+        },
+        {
+          "value": 1.5,
+          "trades": 101,
+          "wins": 17,
+          "losses": 84,
+          "win_rate": 0.1683,
+          "mean_ret": -0.51,
+          "median_ret": -5.98,
+          "profit_factor": 0.941,
+          "rug_rate": 0.0,
+          "best": 163.0,
+          "worst": -34.1
+        },
+        {
+          "value": 2.0,
+          "trades": 101,
+          "wins": 16,
+          "losses": 85,
+          "win_rate": 0.1584,
+          "mean_ret": -0.82,
+          "median_ret": -5.98,
+          "profit_factor": 0.906,
+          "rug_rate": 0.0,
+          "best": 163.0,
+          "worst": -34.1
+        },
+        {
+          "value": 3.0,
+          "trades": 101,
+          "wins": 15,
+          "losses": 86,
+          "win_rate": 0.1485,
+          "mean_ret": -1.1,
+          "median_ret": -6.02,
+          "profit_factor": 0.875,
+          "rug_rate": 0.0,
+          "best": 211.7,
+          "worst": -34.1
+        }
+      ],
+      "tp2_at": [
+        {
+          "value": 1.5,
+          "trades": 101,
+          "wins": 17,
+          "losses": 84,
+          "win_rate": 0.1683,
+          "mean_ret": -0.67,
+          "median_ret": -5.98,
+          "profit_factor": 0.923,
+          "rug_rate": 0.0,
+          "best": 163.0,
+          "worst": -34.1
+        },
+        {
+          "value": 2.0,
+          "trades": 101,
+          "wins": 17,
+          "losses": 84,
+          "win_rate": 0.1683,
+          "mean_ret": -0.51,
+          "median_ret": -5.98,
+          "profit_factor": 0.941,
+          "rug_rate": 0.0,
+          "best": 163.0,
+          "worst": -34.1
+        },
+        {
+          "value": 3.0,
+          "trades": 101,
+          "wins": 17,
+          "losses": 84,
+          "win_rate": 0.1683,
+          "mean_ret": -0.51,
+          "median_ret": -5.98,
+          "profit_factor": 0.942,
+          "rug_rate": 0.0,
+          "best": 156.2,
+          "worst": -34.1
+        },
+        {
+          "value": 5.0,
+          "trades": 101,
+          "wins": 17,
+          "losses": 84,
+          "win_rate": 0.1683,
+          "mean_ret": -0.44,
+          "median_ret": -5.98,
+          "profit_factor": 0.95,
+          "rug_rate": 0.0,
+          "best": 160.9,
+          "worst": -34.1
+        }
+      ],
+      "trail_pct": [
+        {
+          "value": 0.1,
+          "trades": 101,
+          "wins": 17,
+          "losses": 84,
+          "win_rate": 0.1683,
+          "mean_ret": -0.49,
+          "median_ret": -5.98,
+          "profit_factor": 0.944,
+          "rug_rate": 0.0,
+          "best": 163.0,
+          "worst": -34.1
+        },
+        {
+          "value": 0.15,
+          "trades": 101,
+          "wins": 17,
+          "losses": 84,
+          "win_rate": 0.1683,
+          "mean_ret": -0.42,
+          "median_ret": -5.98,
+          "profit_factor": 0.952,
+          "rug_rate": 0.0,
+          "best": 163.0,
+          "worst": -34.1
+        },
+        {
+          "value": 0.2,
+          "trades": 101,
+          "wins": 17,
+          "losses": 84,
+          "win_rate": 0.1683,
+          "mean_ret": -0.51,
+          "median_ret": -5.98,
+          "profit_factor": 0.941,
+          "rug_rate": 0.0,
+          "best": 163.0,
+          "worst": -34.1
+        },
+        {
+          "value": 0.3,
+          "trades": 101,
+          "wins": 17,
+          "losses": 84,
+          "win_rate": 0.1683,
+          "mean_ret": -0.51,
+          "median_ret": -5.98,
+          "profit_factor": 0.941,
+          "rug_rate": 0.0,
+          "best": 163.0,
+          "worst": -34.1
+        },
+        {
+          "value": 0.5,
+          "trades": 101,
+          "wins": 17,
+          "losses": 84,
+          "win_rate": 0.1683,
+          "mean_ret": -0.51,
+          "median_ret": -5.98,
+          "profit_factor": 0.941,
+          "rug_rate": 0.0,
+          "best": 163.0,
+          "worst": -34.1
+        }
+      ],
+      "timeout_hours": [
+        {
+          "value": 1.0,
+          "trades": 101,
+          "wins": 13,
+          "losses": 88,
+          "win_rate": 0.1287,
+          "mean_ret": -0.98,
+          "median_ret": -5.94,
+          "profit_factor": 0.875,
+          "rug_rate": 0.0,
+          "best": 163.0,
+          "worst": -34.1
+        },
+        {
+          "value": 2.0,
+          "trades": 101,
+          "wins": 14,
+          "losses": 87,
+          "win_rate": 0.1386,
+          "mean_ret": -0.9,
+          "median_ret": -6.01,
+          "profit_factor": 0.895,
+          "rug_rate": 0.0,
+          "best": 163.0,
+          "worst": -34.1
+        },
+        {
+          "value": 3.0,
+          "trades": 101,
+          "wins": 17,
+          "losses": 84,
+          "win_rate": 0.1683,
+          "mean_ret": -0.51,
+          "median_ret": -5.98,
+          "profit_factor": 0.941,
+          "rug_rate": 0.0,
+          "best": 163.0,
+          "worst": -34.1
+        },
+        {
+          "value": 6.0,
+          "trades": 101,
+          "wins": 20,
+          "losses": 81,
+          "win_rate": 0.198,
+          "mean_ret": -0.36,
+          "median_ret": -6.17,
+          "profit_factor": 0.96,
+          "rug_rate": 0.0,
+          "best": 163.0,
+          "worst": -36.1
+        },
+        {
+          "value": 12.0,
+          "trades": 101,
+          "wins": 20,
+          "losses": 81,
+          "win_rate": 0.198,
+          "mean_ret": -0.36,
+          "median_ret": -6.17,
+          "profit_factor": 0.96,
+          "rug_rate": 0.0,
+          "best": 163.0,
+          "worst": -36.1
+        }
+      ],
+      "max_hold_hours": [
+        {
+          "value": 4.0,
+          "trades": 101,
+          "wins": 17,
+          "losses": 84,
+          "win_rate": 0.1683,
+          "mean_ret": -0.51,
+          "median_ret": -5.98,
+          "profit_factor": 0.941,
+          "rug_rate": 0.0,
+          "best": 163.0,
+          "worst": -34.1
+        },
+        {
+          "value": 8.0,
+          "trades": 101,
+          "wins": 13,
+          "losses": 88,
+          "win_rate": 0.1287,
+          "mean_ret": -0.97,
+          "median_ret": -5.98,
+          "profit_factor": 0.89,
+          "rug_rate": 0.0,
+          "best": 163.0,
+          "worst": -34.1
+        },
+        {
+          "value": 24.0,
+          "trades": 101,
+          "wins": 13,
+          "losses": 88,
+          "win_rate": 0.1287,
+          "mean_ret": -0.57,
+          "median_ret": -5.98,
+          "profit_factor": 0.935,
+          "rug_rate": 0.0,
+          "best": 163.0,
+          "worst": -34.1
+        },
+        {
+          "value": 48.0,
+          "trades": 101,
+          "wins": 12,
+          "losses": 89,
+          "win_rate": 0.1188,
+          "mean_ret": -0.64,
+          "median_ret": -5.98,
+          "profit_factor": 0.927,
+          "rug_rate": 0.0,
+          "best": 163.0,
+          "worst": -34.1
+        }
+      ],
+      "tp1_frac": [
+        {
+          "value": 0.0,
+          "trades": 101,
+          "wins": 17,
+          "losses": 84,
+          "win_rate": 0.1683,
+          "mean_ret": -0.59,
+          "median_ret": -5.98,
+          "profit_factor": 0.932,
+          "rug_rate": 0.0,
+          "best": 152.3,
+          "worst": -34.1
+        },
+        {
+          "value": 0.33,
+          "trades": 101,
+          "wins": 17,
+          "losses": 84,
+          "win_rate": 0.1683,
+          "mean_ret": -0.51,
+          "median_ret": -5.98,
+          "profit_factor": 0.941,
+          "rug_rate": 0.0,
+          "best": 163.0,
+          "worst": -34.1
+        },
+        {
+          "value": 0.5,
+          "trades": 101,
+          "wins": 17,
+          "losses": 84,
+          "win_rate": 0.1683,
+          "mean_ret": -0.47,
+          "median_ret": -5.98,
+          "profit_factor": 0.946,
+          "rug_rate": 0.0,
+          "best": 170.9,
+          "worst": -34.1
+        },
+        {
+          "value": 0.75,
+          "trades": 101,
+          "wins": 17,
+          "losses": 84,
+          "win_rate": 0.1683,
+          "mean_ret": -0.41,
+          "median_ret": -5.98,
+          "profit_factor": 0.953,
+          "rug_rate": 0.0,
+          "best": 182.5,
+          "worst": -34.1
+        }
+      ]
+    },
+    "gated": {
+      "stop_pct": [
+        {
+          "value": 0.15,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 24.31,
+          "median_ret": -20.08,
+          "profit_factor": 2.825,
+          "rug_rate": 0.0,
+          "best": 112.6,
+          "worst": -23.6
+        },
+        {
+          "value": 0.2,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 20.34,
+          "median_ret": -24.7,
+          "profit_factor": 2.176,
+          "rug_rate": 0.0,
+          "best": 112.6,
+          "worst": -33.1
+        },
+        {
+          "value": 0.25,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 20.6,
+          "median_ret": -19.66,
+          "profit_factor": 2.209,
+          "rug_rate": 0.0,
+          "best": 112.6,
+          "worst": -33.1
+        },
+        {
+          "value": 0.3,
+          "trades": 5,
+          "wins": 3,
+          "losses": 2,
+          "win_rate": 0.6,
+          "mean_ret": 28.35,
+          "median_ret": 10.87,
+          "profit_factor": 3.473,
+          "rug_rate": 0.0,
+          "best": 112.6,
+          "worst": -37.6
+        },
+        {
+          "value": 0.4,
+          "trades": 5,
+          "wins": 4,
+          "losses": 1,
+          "win_rate": 0.8,
+          "mean_ret": 40.61,
+          "median_ret": 23.68,
+          "profit_factor": 11.328,
+          "rug_rate": 0.0,
+          "best": 112.6,
+          "worst": -19.7
+        },
+        {
+          "value": 0.6,
+          "trades": 5,
+          "wins": 4,
+          "losses": 1,
+          "win_rate": 0.8,
+          "mean_ret": 40.61,
+          "median_ret": 23.68,
+          "profit_factor": 11.328,
+          "rug_rate": 0.0,
+          "best": 112.6,
+          "worst": -19.7
+        },
+        {
+          "value": 0.99,
+          "trades": 5,
+          "wins": 4,
+          "losses": 1,
+          "win_rate": 0.8,
+          "mean_ret": 40.61,
+          "median_ret": 23.68,
+          "profit_factor": 11.328,
+          "rug_rate": 0.0,
+          "best": 112.6,
+          "worst": -19.7
+        }
+      ],
+      "tp1_at": [
+        {
+          "value": 1.2,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 16.74,
+          "median_ret": -24.7,
+          "profit_factor": 1.968,
+          "rug_rate": 0.0,
+          "best": 112.6,
+          "worst": -33.1
+        },
+        {
+          "value": 1.3,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 16.74,
+          "median_ret": -24.7,
+          "profit_factor": 1.968,
+          "rug_rate": 0.0,
+          "best": 112.6,
+          "worst": -33.1
+        },
+        {
+          "value": 1.5,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 20.34,
+          "median_ret": -24.7,
+          "profit_factor": 2.176,
+          "rug_rate": 0.0,
+          "best": 112.6,
+          "worst": -33.1
+        },
+        {
+          "value": 2.0,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 25.56,
+          "median_ret": -24.7,
+          "profit_factor": 2.478,
+          "rug_rate": 0.0,
+          "best": 138.7,
+          "worst": -33.1
+        },
+        {
+          "value": 3.0,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 33.69,
+          "median_ret": -24.7,
+          "profit_factor": 2.948,
+          "rug_rate": 0.0,
+          "best": 211.7,
+          "worst": -33.1
+        }
+      ],
+      "tp2_at": [
+        {
+          "value": 1.5,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 18.54,
+          "median_ret": -24.7,
+          "profit_factor": 2.072,
+          "rug_rate": 0.0,
+          "best": 103.6,
+          "worst": -33.1
+        },
+        {
+          "value": 2.0,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 20.34,
+          "median_ret": -24.7,
+          "profit_factor": 2.176,
+          "rug_rate": 0.0,
+          "best": 112.6,
+          "worst": -33.1
+        },
+        {
+          "value": 3.0,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 22.89,
+          "median_ret": -24.7,
+          "profit_factor": 2.323,
+          "rug_rate": 0.0,
+          "best": 142.0,
+          "worst": -33.1
+        },
+        {
+          "value": 5.0,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 23.34,
+          "median_ret": -24.7,
+          "profit_factor": 2.35,
+          "rug_rate": 0.0,
+          "best": 144.3,
+          "worst": -33.1
+        }
+      ],
+      "trail_pct": [
+        {
+          "value": 0.1,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 22.44,
+          "median_ret": -24.7,
+          "profit_factor": 2.297,
+          "rug_rate": 0.0,
+          "best": 123.1,
+          "worst": -33.1
+        },
+        {
+          "value": 0.15,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 20.34,
+          "median_ret": -24.7,
+          "profit_factor": 2.176,
+          "rug_rate": 0.0,
+          "best": 112.6,
+          "worst": -33.1
+        },
+        {
+          "value": 0.2,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 20.34,
+          "median_ret": -24.7,
+          "profit_factor": 2.176,
+          "rug_rate": 0.0,
+          "best": 112.6,
+          "worst": -33.1
+        },
+        {
+          "value": 0.3,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 20.34,
+          "median_ret": -24.7,
+          "profit_factor": 2.176,
+          "rug_rate": 0.0,
+          "best": 112.6,
+          "worst": -33.1
+        },
+        {
+          "value": 0.5,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 20.34,
+          "median_ret": -24.7,
+          "profit_factor": 2.176,
+          "rug_rate": 0.0,
+          "best": 112.6,
+          "worst": -33.1
+        }
+      ],
+      "timeout_hours": [
+        {
+          "value": 1.0,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 23.26,
+          "median_ret": -10.08,
+          "profit_factor": 2.618,
+          "rug_rate": 0.0,
+          "best": 112.6,
+          "worst": -33.1
+        },
+        {
+          "value": 2.0,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 20.7,
+          "median_ret": -22.86,
+          "profit_factor": 2.223,
+          "rug_rate": 0.0,
+          "best": 112.6,
+          "worst": -33.1
+        },
+        {
+          "value": 3.0,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 20.34,
+          "median_ret": -24.7,
+          "profit_factor": 2.176,
+          "rug_rate": 0.0,
+          "best": 112.6,
+          "worst": -33.1
+        },
+        {
+          "value": 6.0,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 20.34,
+          "median_ret": -24.7,
+          "profit_factor": 2.176,
+          "rug_rate": 0.0,
+          "best": 112.6,
+          "worst": -33.1
+        },
+        {
+          "value": 12.0,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 20.34,
+          "median_ret": -24.7,
+          "profit_factor": 2.176,
+          "rug_rate": 0.0,
+          "best": 112.6,
+          "worst": -33.1
+        }
+      ],
+      "max_hold_hours": [
+        {
+          "value": 4.0,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 20.34,
+          "median_ret": -24.7,
+          "profit_factor": 2.176,
+          "rug_rate": 0.0,
+          "best": 112.6,
+          "worst": -33.1
+        },
+        {
+          "value": 8.0,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 20.34,
+          "median_ret": -24.7,
+          "profit_factor": 2.176,
+          "rug_rate": 0.0,
+          "best": 112.6,
+          "worst": -33.1
+        },
+        {
+          "value": 24.0,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 20.34,
+          "median_ret": -24.7,
+          "profit_factor": 2.176,
+          "rug_rate": 0.0,
+          "best": 112.6,
+          "worst": -33.1
+        },
+        {
+          "value": 48.0,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 20.34,
+          "median_ret": -24.7,
+          "profit_factor": 2.176,
+          "rug_rate": 0.0,
+          "best": 112.6,
+          "worst": -33.1
+        }
+      ],
+      "tp1_frac": [
+        {
+          "value": 0.0,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 24.24,
+          "median_ret": -24.7,
+          "profit_factor": 2.401,
+          "rug_rate": 0.0,
+          "best": 142.1,
+          "worst": -33.1
+        },
+        {
+          "value": 0.33,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 20.34,
+          "median_ret": -24.7,
+          "profit_factor": 2.176,
+          "rug_rate": 0.0,
+          "best": 112.6,
+          "worst": -33.1
+        },
+        {
+          "value": 0.5,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 18.33,
+          "median_ret": -24.7,
+          "profit_factor": 2.059,
+          "rug_rate": 0.0,
+          "best": 97.4,
+          "worst": -33.1
+        },
+        {
+          "value": 0.75,
+          "trades": 5,
+          "wins": 2,
+          "losses": 3,
+          "win_rate": 0.4,
+          "mean_ret": 15.37,
+          "median_ret": -24.7,
+          "profit_factor": 1.888,
+          "rug_rate": 0.0,
+          "best": 88.3,
+          "worst": -33.1
+        }
+      ]
+    }
+  },
+  "combos": {
+    "all": [
+      {
+        "label": "current (stop 20%, hold 4h)",
+        "overrides": {},
+        "trades": 101,
+        "wins": 17,
+        "losses": 84,
+        "win_rate": 0.1683,
+        "mean_ret": -0.51,
+        "median_ret": -5.98,
+        "profit_factor": 0.941,
+        "rug_rate": 0.0,
+        "best": 163.0,
+        "worst": -34.1
+      },
+      {
+        "label": "no stop, hold 4h",
+        "overrides": {
+          "stop_pct": 0.99
+        },
+        "trades": 101,
+        "wins": 19,
+        "losses": 82,
+        "win_rate": 0.1881,
+        "mean_ret": -0.01,
+        "median_ret": -5.96,
+        "profit_factor": 0.999,
+        "rug_rate": 0.0,
+        "best": 163.0,
+        "worst": -89.9
+      },
+      {
+        "label": "no stop, hold 12h",
+        "overrides": {
+          "stop_pct": 0.99,
+          "max_hold_hours": 12,
+          "timeout_hours": 12
+        },
+        "trades": 101,
+        "wins": 34,
+        "losses": 67,
+        "win_rate": 0.3366,
+        "mean_ret": 0.57,
+        "median_ret": -6.09,
+        "profit_factor": 1.051,
+        "rug_rate": 0.0099,
+        "best": 163.0,
+        "worst": -96.4
+      },
+      {
+        "label": "no stop, hold 48h",
+        "overrides": {
+          "stop_pct": 0.99,
+          "max_hold_hours": 48,
+          "timeout_hours": 48
+        },
+        "trades": 101,
+        "wins": 35,
+        "losses": 66,
+        "win_rate": 0.3465,
+        "mean_ret": 0.69,
+        "median_ret": -6.88,
+        "profit_factor": 1.043,
+        "rug_rate": 0.0099,
+        "best": 163.0,
+        "worst": -96.4
+      },
+      {
+        "label": "stop 40%, hold 48h",
+        "overrides": {
+          "stop_pct": 0.4,
+          "max_hold_hours": 48,
+          "timeout_hours": 48
+        },
+        "trades": 101,
+        "wins": 35,
+        "losses": 66,
+        "win_rate": 0.3465,
+        "mean_ret": 2.21,
+        "median_ret": -6.91,
+        "profit_factor": 1.153,
+        "rug_rate": 0.0,
+        "best": 163.0,
+        "worst": -59.9
+      },
+      {
+        "label": "stop 40%, hold to data end",
+        "overrides": {
+          "stop_pct": 0.4,
+          "max_hold_hours": 10000,
+          "timeout_hours": 10000
+        },
+        "trades": 101,
+        "wins": 37,
+        "losses": 64,
+        "win_rate": 0.3663,
+        "mean_ret": 3.12,
+        "median_ret": -8.67,
+        "profit_factor": 1.177,
+        "rug_rate": 0.0,
+        "best": 181.9,
+        "worst": -59.9
+      },
+      {
+        "label": "stop 25%, tp1 1.3x, hold 12h",
+        "overrides": {
+          "stop_pct": 0.25,
+          "tp1_at": 1.3,
+          "max_hold_hours": 12,
+          "timeout_hours": 12
+        },
+        "trades": 101,
+        "wins": 32,
+        "losses": 69,
+        "win_rate": 0.3168,
+        "mean_ret": -0.95,
+        "median_ret": -6.59,
+        "profit_factor": 0.905,
+        "rug_rate": 0.0,
+        "best": 122.7,
+        "worst": -46.1
+      }
+    ],
+    "gated": [
+      {
+        "label": "current (stop 20%, hold 4h)",
+        "overrides": {},
+        "trades": 5,
+        "wins": 2,
+        "losses": 3,
+        "win_rate": 0.4,
+        "mean_ret": 20.34,
+        "median_ret": -24.7,
+        "profit_factor": 2.176,
+        "rug_rate": 0.0,
+        "best": 112.6,
+        "worst": -33.1
+      },
+      {
+        "label": "no stop, hold 4h",
+        "overrides": {
+          "stop_pct": 0.99
+        },
+        "trades": 5,
+        "wins": 4,
+        "losses": 1,
+        "win_rate": 0.8,
+        "mean_ret": 40.61,
+        "median_ret": 23.68,
+        "profit_factor": 11.328,
+        "rug_rate": 0.0,
+        "best": 112.6,
+        "worst": -19.7
+      },
+      {
+        "label": "no stop, hold 12h",
+        "overrides": {
+          "stop_pct": 0.99,
+          "max_hold_hours": 12,
+          "timeout_hours": 12
+        },
+        "trades": 5,
+        "wins": 5,
+        "losses": 0,
+        "win_rate": 1.0,
+        "mean_ret": 64.89,
+        "median_ret": 75.42,
+        "profit_factor": null,
+        "rug_rate": 0.0,
+        "best": 112.6,
+        "worst": 23.7
+      },
+      {
+        "label": "no stop, hold 48h",
+        "overrides": {
+          "stop_pct": 0.99,
+          "max_hold_hours": 48,
+          "timeout_hours": 48
+        },
+        "trades": 5,
+        "wins": 5,
+        "losses": 0,
+        "win_rate": 1.0,
+        "mean_ret": 64.57,
+        "median_ret": 75.42,
+        "profit_factor": null,
+        "rug_rate": 0.0,
+        "best": 112.6,
+        "worst": 23.7
+      },
+      {
+        "label": "stop 40%, hold 48h",
+        "overrides": {
+          "stop_pct": 0.4,
+          "max_hold_hours": 48,
+          "timeout_hours": 48
+        },
+        "trades": 5,
+        "wins": 5,
+        "losses": 0,
+        "win_rate": 1.0,
+        "mean_ret": 64.57,
+        "median_ret": 75.42,
+        "profit_factor": null,
+        "rug_rate": 0.0,
+        "best": 112.6,
+        "worst": 23.7
+      },
+      {
+        "label": "stop 40%, hold to data end",
+        "overrides": {
+          "stop_pct": 0.4,
+          "max_hold_hours": 10000,
+          "timeout_hours": 10000
+        },
+        "trades": 5,
+        "wins": 5,
+        "losses": 0,
+        "win_rate": 1.0,
+        "mean_ret": 64.57,
+        "median_ret": 75.42,
+        "profit_factor": null,
+        "rug_rate": 0.0,
+        "best": 112.6,
+        "worst": 23.7
+      },
+      {
+        "label": "stop 25%, tp1 1.3x, hold 12h",
+        "overrides": {
+          "stop_pct": 0.25,
+          "tp1_at": 1.3,
+          "max_hold_hours": 12,
+          "timeout_hours": 12
+        },
+        "trades": 5,
+        "wins": 3,
+        "losses": 2,
+        "win_rate": 0.6,
+        "mean_ret": 27.5,
+        "median_ret": 32.83,
+        "profit_factor": 3.098,
+        "rug_rate": 0.0,
+        "best": 112.6,
+        "worst": -33.1
+      }
+    ]
+  },
+  "baseline_profile": {
+    "stop_pct": 0.2,
+    "tp1_at": 1.5,
+    "tp1_frac": 0.33,
+    "tp2_at": 2.0,
+    "tp2_frac": 0.5,
+    "trail_pct": 0.2,
+    "timeout_hours": 3.0,
+    "timeout_min_gain": 0.05,
+    "max_hold_hours": 4.0
+  }
+}

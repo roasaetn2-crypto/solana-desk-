@@ -36,3 +36,5 @@ keys.txt
 # --- research caches / scratch logs (large, regenerable) ---
 ohlcv_cache.json
 *.log
+backtest_cache.json
+fomo_usage.json
