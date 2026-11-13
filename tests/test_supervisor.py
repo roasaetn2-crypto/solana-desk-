@@ -75,3 +75,19 @@ def test_scripts_parse():
     for f in (START, STOP):
         out = subprocess.run(["bash", "-n", str(f)], capture_output=True, text=True)
         assert out.returncode == 0, out.stderr
+
+
+def test_verify_update_can_fix_itself():
+    """It only reported 'MISS ... run: git pull', so re-running changed nothing."""
+    t = _text(ROOT / "termux" / "verify-update.sh")
+    assert "--fix)" in t
+    assert "git pull --ff-only" in t
+    assert "stop-desk.sh" in t
+    assert 'exec bash "$0" --start' in t
+
+
+def test_update_all_attaches_a_detached_head():
+    """A detached HEAD made `git pull` fail as if it were a network problem."""
+    t = _text(ROOT / "termux" / "update-all.sh")
+    assert "symbolic-ref -q HEAD" in t
+    assert "git checkout main" in t
