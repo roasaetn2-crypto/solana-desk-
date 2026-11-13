@@ -15,7 +15,7 @@ import time
 from datetime import date
 from pathlib import Path
 
-from config import EXITS, PAPER  # noqa: F401
+from config import EXITS, PAPER, RISK  # noqa: F401
 from desk import exits
 from desk.ops import data_file
 
@@ -45,9 +45,86 @@ class PaperBroker:
             eq = PAPER["starting_equity_usd"]
             self.s = {"cash": eq, "positions": {}, "day": str(date.today()), "day_start": eq,
                       "start_equity": eq, "closed": []}
+        self._repair()
         self._roll_day()
 
     # ---------- state ----------
+    def _repair(self) -> list[dict]:
+        """Heal a ledger a bad quote already corrupted, and say what was fixed.
+
+        Two invariants are exact in this broker, so a breach is corruption and
+        not a trading result:
+
+          cash = start + sum(closed pnl) + sum(open proceeds - open cost)
+          cost * min_mark_mult <= qty * last <= cost * max_mark_mult
+
+        The first one is just double-entry: every buy takes `cost` out of cash and
+        every sell puts `proceeds` back. The second one is the band a real
+        memecoin cannot leave. Repairing here (rather than only guarding new
+        writes) means a book that is already broken comes back sane on the next
+        boot instead of needing a Reset that throws away the trade history.
+        """
+        fixes: list[dict] = []
+        start = self.s.get("start_equity", PAPER["starting_equity_usd"])
+        hi = float(PAPER.get("max_mark_mult", 1000.0))
+        lo = float(PAPER.get("min_mark_mult", 0.001))
+
+        # 1. a mark that cannot be a price goes back to the entry price
+        for mint, p in list(self.s["positions"].items()):
+            entry = p.get("entry") or 0.0
+            qty = p.get("qty") or 0.0
+            cost = p.get("cost") or 0.0
+            last = p.get("last") or 0.0
+            bad = (not entry or not qty or last <= 0
+                   or not (entry * lo <= last <= entry * hi)
+                   or not (cost * lo <= qty * last <= cost * hi))
+            if bad:
+                p["last"] = entry
+                if p.get("peak") and not (entry * lo <= p["peak"] <= entry * hi):
+                    p["peak"] = entry
+                if p.get("stop_price") and not (0 < p["stop_price"] <= entry):
+                    p["stop_price"] = entry * (1 - (p.get("stop_pct") or 0.3))
+                fixes.append({"kind": "mark", "mint": mint, "symbol": p.get("symbol"),
+                              "was": last, "now": entry})
+
+        # 2. a closed trade cannot have made more than the whole book could hold.
+        #    The largest honest single trade is max_position_pct of the book, up
+        #    max_mark_mult times. Anything past that is a bad fill, not a win, so
+        #    the row is dropped instead of being clamped to a fake profit.
+        cap = abs(start) * hi * float(RISK.get("max_position_pct", 0.25))
+        if cap > 0 and self.s.get("closed"):
+            keep = []
+            for c in self.s["closed"]:
+                pnl = c.get("pnl_usd")
+                if pnl is not None and abs(pnl) > cap:
+                    fixes.append({"kind": "closed_drop", "mint": c.get("mint"),
+                                  "symbol": c.get("symbol"), "was": pnl})
+                    continue
+                keep.append(c)
+            self.s["closed"] = keep
+
+        # 3. cash must equal the double-entry identity
+        realized = sum(c.get("pnl_usd", 0.0) for c in self.s.get("closed", []))
+        open_cost = sum(p.get("cost", 0.0) for p in self.s["positions"].values())
+        open_proceeds = sum(p.get("proceeds", 0.0) for p in self.s["positions"].values())
+        expected = start + realized + open_proceeds - open_cost
+        cash = self.s.get("cash", 0.0)
+        # closed P&L is rounded to cents, so allow a cent per closed trade
+        tol = 0.02 + 0.01 * len(self.s.get("closed", []))
+        if not (cash == cash) or abs(cash - expected) > tol:
+            fixes.append({"kind": "cash", "was": cash, "now": round(expected, 8)})
+            self.s["cash"] = expected
+
+        if fixes:
+            self._save()
+            try:
+                from desk.ops import journal
+                journal("ledger_repair", fixes=fixes, equity=self.equity())
+            except Exception:
+                pass
+            print(f"[desk] ledger repaired: {len(fixes)} corrupt value(s) reset "
+                  f"(equity now ${self.equity():,.2f})")
+        return fixes
     def _save(self):
         self.path.write_text(json.dumps(self.s, indent=1))
         # paper book only; the live ledger is never pushed here
@@ -63,9 +140,42 @@ class PaperBroker:
             self.s["day"], self.s["day_start"] = str(date.today()), self.equity()
             self._save()
 
+    def _value(self, p: dict, price: float | None = None) -> float:
+        """What one position is worth, clamped to a sane band around its cost.
+
+        `last` is written by the quote loop, so a single corrupt print (wrong
+        pool, decimals mismatch, hand-edited ledger) used to reprice the whole
+        book: on 2026-11-14 one bad mark showed $549,195,436 on a $160 bankroll
+        (3,432,471x). A mark outside [cost * min_mark_mult, cost * max_mark_mult]
+        is not a price, it is a bug, so the position is valued at what it cost
+        and `clamped()` reports it instead of letting it through silently.
+        """
+        qty = p.get("qty") or 0.0
+        cost = p.get("cost") or 0.0
+        px = p.get("last") if price is None else price
+        value = qty * (px or 0.0)
+        if not (value == value) or value in (float("inf"), float("-inf")):   # NaN / inf
+            return cost
+        hi = cost * float(PAPER.get("max_mark_mult", 1000.0))
+        lo = cost * float(PAPER.get("min_mark_mult", 0.001))
+        if cost and not (lo <= value <= hi):
+            return cost
+        return value
+
+    def clamped(self) -> list[dict]:
+        """Positions whose mark is outside the sane band (empty on a clean book)."""
+        out = []
+        for m, p in self.s["positions"].items():
+            raw = (p.get("qty") or 0.0) * (p.get("last") or 0.0)
+            if self._value(p) != raw:
+                out.append({"mint": m, "symbol": p.get("symbol"), "last": p.get("last"),
+                            "entry": p.get("entry"), "value": round(raw, 2),
+                            "cost": p.get("cost")})
+        return out
+
     def equity(self, marks: dict[str, float] | None = None) -> float:
         marks = marks or {}
-        held = sum(p["qty"] * marks.get(m, p["last"]) for m, p in self.s["positions"].items())
+        held = sum(self._value(p, marks.get(m, p["last"])) for m, p in self.s["positions"].items())
         return round(self.s["cash"] + held, 2)
 
     def realized_equity(self) -> float:
@@ -141,6 +251,7 @@ class PaperBroker:
             "equity": self.equity(),
             "day_pnl": self.day_pnl(),
             "open_count": self.open_count(),
+            "clamped_marks": self.clamped(),
             "positions": [
                 {"mint": m, "symbol": p["symbol"], "qty": p["qty"], "entry": p["entry"],
                  "last": p["last"], "cost": p["cost"],

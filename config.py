@@ -113,6 +113,17 @@ EXITS = {
     "breakeven_after_half": True,  # after TP1 the stop moves up to entry (never down)
     "runner_trail_pct": 0.20,      # runner trails at most 20% below its peak (tighter profile trail wins)
     "runner_max_minutes": 180,     # runner closes 3h after TP1, freeing the slot
+    # ---------- quote sanity: a bad print must never reprice the book ----------
+    # A position is marked from a quote that refreshes every ~15s. A single print
+    # that jumps 25x (or falls to 1/25th) in one tick is not a rally: it is a
+    # decimals mismatch, a different pool for the same mint, or a duplicated pair.
+    # The equity bug of 2026-11-14 was exactly this: one bad mark turned a $160
+    # book into $549,195,436 (3,432,471x) on the dashboard.
+    # A rejected print is ignored until `quote_confirm_reads` reads agree with each
+    # other, so a genuine gap-up still gets through on the second look.
+    "quote_max_jump_x": 25.0,      # up: price may at most 25x in one tick
+    "quote_max_drop_x": 25.0,      # down: at most 1/25th in one tick
+    "quote_confirm_reads": 2,      # agreeing reads needed to accept a new level
     "profiles": {
         "scalp": {"stop_pct": 0.20, "tp1_at": 1.5, "tp1_frac": 0.33, "tp2_at": 2.0, "tp2_frac": 0.5,
                   "trail_pct": 0.20, "timeout_hours": 3.0, "timeout_min_gain": 0.05,
@@ -201,6 +212,13 @@ PAPER = {
     "min_ticket_usd": 2,           # paper fee floor; live still uses RISK["min_ticket_usd"]
     "fee_pct": 0.01,               # pump.fun charges ~1% per swap on the curve
     "slippage_pct": 0.02,          # assume 2% worse than the quoted price
+    # A position is never marked above max_mark_mult times what it cost, nor
+    # below min_mark_mult of it. Outside that band the mark is corrupt (a wrong
+    # pool, a decimals mismatch, a hand-edited ledger) and the position is valued
+    # at cost instead, so one bad number cannot fake a $549M equity again.
+    # 1000x is far beyond any real memecoin outcome from a $2-$6 ticket.
+    "max_mark_mult": 1000.0,
+    "min_mark_mult": 0.001,
 }
 
 # ---------- Seat 5b: LIVE execution (real money, off by default) ----------

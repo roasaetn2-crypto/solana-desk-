@@ -416,6 +416,49 @@ This is the part that matters. A live fill is not a paper fill:
 If any of that is not acceptable, stay in paper. The desk is a research tool
 that can be switched into a small-money execution tool, not a money printer.
 
+### A bad quote must never reprice the book
+
+On 2026-11-14 the dashboard showed an equity of **$549,195,436.20** on a $160
+paper bankroll — a 3,432,471x multiple and a +343,247,105% day. That was not a
+trade result. One open position had been marked from a quote that was not a
+price for that token: a decimals mismatch, a different pool for the same mint,
+or a duplicated pair. The desk trusted the print, wrote it into `last`, and the
+whole book was repriced from it.
+
+Three independent guards now make that shape of bug impossible:
+
+1. **`desk/exits.py: plausible()`** — a quote is refused if it is outside
+   `[entry × min_mark_mult, entry × max_mark_mult]` (0.001x to 1000x the entry
+   price). No number of agreeing reads makes a 1e9x print real, so this band is
+   absolute. Inside the band, a single tick may still not jump more than
+   `quote_max_jump_x` (25x) or fall further than `quote_max_drop_x`; a rejected
+   print is remembered and accepted only once a second read lands within 25% of
+   it, so a genuine gap-up costs one extra tick instead of being blocked.
+   A refused print never touches `last`, `peak`, the equity or a sell fill, and
+   after `missing_quote_closes` refusals the position is closed at the last
+   **good** price.
+2. **`desk/broker.py: _value()`** — even if a corrupt mark is already on disk, a
+   position outside the same band is valued at what it cost. `clamped()` lists
+   what was overridden, so the clamp is visible instead of silent.
+3. **`desk/broker.py: _repair()`** — runs on every boot. It resets impossible
+   marks to entry, drops a closed trade whose P&L exceeds anything the book
+   could have produced, and restores `cash` from the double-entry identity
+
+   ```
+   cash = start + Σ closed P&L + Σ open proceeds − Σ open cost
+   ```
+
+   so a book that is already broken comes back sane on the next start, keeping
+   its positions and its honest history. The repair is journaled as
+   `ledger_repair`.
+
+To inspect a ledger by hand:
+
+```bash
+python scripts/check_ledger.py            # name the impossible mark
+python scripts/check_ledger.py --fix      # repair in place, keep history
+```
+
 ## Running it
 
 ```bash

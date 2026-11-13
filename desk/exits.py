@@ -8,7 +8,7 @@ The stop only ever moves up (to breakeven after TP1).
 """
 from __future__ import annotations
 
-from config import EXITS
+from config import EXITS, PAPER
 
 
 def horizon_for(age_minutes: float) -> str:
@@ -55,6 +55,53 @@ def init_state(pos: dict, horizon: str) -> None:
                 "stage": 0, "miss": 0, "stop_price": pos["entry"] * (1 - pr["stop_pct"])})
 
 
+def plausible(pos: dict, price: float) -> bool:
+    """Is this quote close enough to the last accepted one to be believed?
+
+    The desk marks a position from a ~15s quote. A print that jumps more than
+    `quote_max_jump_x` (or falls further than `quote_max_drop_x`) in one tick is
+    almost never a real move: it is a decimals mismatch, a different pool for the
+    same mint, or a duplicated pair. Trusting it is what turned a $160 paper book
+    into a $549,195,436 equity on 2026-11-14.
+
+    A rejected print is not thrown away: it is remembered in `pos["odd_px"]`, and
+    if the NEXT read lands within 25% of it, the new level is accepted. A real
+    gap-up therefore costs one extra tick, while a one-off bad print never
+    touches `last`, `peak`, the equity or a sell fill.
+    """
+    if price <= 0:
+        return False
+    entry = pos.get("entry") or 0.0
+    hi = float(PAPER.get("max_mark_mult", 1000.0))
+    lo = float(PAPER.get("min_mark_mult", 0.001))
+    # Hard band against the ENTRY price. No number of agreeing reads makes a
+    # 1e9x print real, so this one is absolute: a memecoin bought at 1e-4 can
+    # never trade at 1e5. This is what actually kills the $549M equity bug.
+    if entry and not (entry * lo <= price <= entry * hi):
+        return False
+    last = pos.get("last") or 0.0
+    if last <= 0 or (entry and not (entry * lo <= last <= entry * hi)):
+        pos["last"] = entry or price          # a corrupt last is not a baseline
+        last = pos["last"]
+    if last <= 0:
+        return True
+    up = float(EXITS.get("quote_max_jump_x") or 25.0)
+    down = float(EXITS.get("quote_max_drop_x") or 25.0)
+    if last / down <= price <= last * up:
+        pos["odd"] = 0
+        pos["odd_px"] = None
+        return True
+    prev = pos.get("odd_px")
+    pos["odd"] = int(pos.get("odd") or 0) + 1
+    need = int(EXITS.get("quote_confirm_reads") or 2)
+    if prev and 0.8 <= price / prev <= 1.25 and pos["odd"] >= need:
+        pos["odd"] = 0
+        pos["odd_px"] = None
+        return True
+    pos["odd_px"] = price
+    return False
+
+
 def evaluate(pos: dict, q: dict | None, now: float, prof: dict | None = None) -> tuple[float, str] | None:
     """Return (fraction of REMAINING qty to sell, reason) or None. Mutates pos state."""
     entry = pos["entry"]
@@ -70,8 +117,17 @@ def evaluate(pos: dict, q: dict | None, now: float, prof: dict | None = None) ->
         if pos["miss"] >= EXITS["missing_quote_closes"]:
             return (1.0, f"no quote x{pos['miss']}, cannot measure, close")
         return None
-    pos["miss"] = 0
     price = q["price_usd"]
+    if not plausible(pos, price):
+        # A print this far from the last accepted one is data, not a move. Treat
+        # it like a missing quote: never mark the book from it, never sell into
+        # it. After `missing_quote_closes` such reads the position is closed at
+        # the last GOOD price, which is the honest exit.
+        pos["miss"] = pos.get("miss", 0) + 1
+        if pos["miss"] >= EXITS["missing_quote_closes"]:
+            return (1.0, f"bad quote x{pos['miss']}, cannot measure, close")
+        return None
+    pos["miss"] = 0
     pos["last"] = price
     pos["peak"] = max(pos.get("peak", entry), price)
 
