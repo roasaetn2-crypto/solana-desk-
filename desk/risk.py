@@ -18,6 +18,10 @@ class Account:
     day_pnl: float
     open_positions: int
     realized_equity: float | None = None   # MERGE: compounding base (start + closed P&L)
+    # Uninvested paper cash. None = "not reported" (live path, backtests) and the
+    # cash cap is skipped. When set, no ticket may exceed it: without this the
+    # paper book could open 6 x 25% = 150% of equity and drive cash negative.
+    cash: float | None = None
 
 
 def in_quiet_hours(now: datetime | None = None) -> bool:
@@ -51,6 +55,25 @@ def sizing_base(account: Account) -> float:
 
 
 DAILY_LOSS_REASON = "daily loss limit hit, desk halted until tomorrow"
+
+
+def min_viable_equity(stop_pct: float | None = None, cut_mult: float = 0.5) -> float:
+    """Smallest paper book that can still produce a ticket above the fee floor.
+
+    The risk cap sizes a ticket as ``max_risk_per_trade * equity / stop_pct``.
+    The caution layer may then multiply it by ``cut_mult`` (0.5 for a single
+    halve, 0.25 for two). If that product lands under ``min_ticket_usd`` the
+    desk rejects every setup while still looking alive -- the "sizing deadlock".
+
+    Use this at startup (or in a test) to assert the configured bankroll can
+    actually trade. Returns dollars.
+    """
+    stop = stop_pct or EXITS["stop_pct"]
+    floor = PAPER.get("min_ticket_usd", RISK["min_ticket_usd"])
+    per_dollar = (RISK["max_risk_per_trade"] / stop) * max(cut_mult, 0.01)
+    if per_dollar <= 0:
+        return float("inf")
+    return floor / per_dollar
 
 
 def daily_loss_limit_usd(account: Account) -> float:
@@ -118,6 +141,13 @@ def check_token_trade(thesis, account: Account, liquidity_usd: float,
     by_size = RISK["max_position_pct"] * base
     by_pool = RISK["max_pool_share"] * liquidity_usd
     ticket = round(min(by_risk, by_size, by_pool), 2)
+    # Paper cash cap. max_position_pct is a per-position cap, not a total: six
+    # positions at 25% of equity is 150% of the book, which drove paper cash to
+    # -$50 and made the paper P&L meaningless. Cash is the fourth cap.
+    if account.cash is not None:
+        if account.cash < 0:
+            return False, 0.0, "paper cash is negative, reset the ledger"
+        ticket = round(min(ticket, account.cash), 2)
     floor = PAPER.get("min_ticket_usd", RISK["min_ticket_usd"])
     if ticket < floor:
         return False, 0.0, f"ticket ${ticket} below fee floor ${floor}"
@@ -125,17 +155,22 @@ def check_token_trade(thesis, account: Account, liquidity_usd: float,
 
 
 def sizing_breakdown(account: Account, liquidity_usd: float, stop_pct: float | None = None) -> dict:
-    """The three caps, for the dashboard. The smallest one wins."""
+    """The caps, for the dashboard. The smallest one wins."""
     base, stop = sizing_base(account), (stop_pct or EXITS["stop_pct"])
     by_risk = RISK["max_risk_per_trade"] * base / stop
     by_size = RISK["max_position_pct"] * base
     by_pool = RISK["max_pool_share"] * liquidity_usd
-    return {
+    caps = [by_risk, by_size, by_pool]
+    out = {
         "by_risk": round(by_risk, 2),
         "by_size": round(by_size, 2),
         "by_pool": round(by_pool, 2),
-        "ticket": round(min(by_risk, by_size, by_pool), 2),
     }
+    if account.cash is not None:
+        caps.append(max(0.0, account.cash))
+        out["by_cash"] = round(max(0.0, account.cash), 2)
+    out["ticket"] = round(min(caps), 2)
+    return out
 
 
 def check_live_trade(thesis, day_pnl: float, open_positions: int, liquidity_usd: float,
