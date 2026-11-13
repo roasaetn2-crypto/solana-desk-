@@ -109,6 +109,29 @@ def main() -> int:
 
     snap = g.snapshot()
     print(f"\n   used today: {snap['used_today']}/{snap['budget']}  errors: {snap['errors']}")
+
+    print("\n4. analyst seat")
+    from desk import brain
+    print(OK + f"describe(): {brain.describe()}")
+    if brain.active() == "heuristic":
+        print(WARN + "the Analyst panel will read 'heuristic (no model configured)'.")
+        print("       That is a DIFFERENT module from the one above (desk/brain.py),")
+        print("       and it ignores cloud keys unless DESK_BRAIN names a provider:")
+        print("       fix: echo 'DESK_BRAIN=groq' >> ~/solana-desk/.env")
+    else:
+        print(OK + f"active provider: {brain.active()}")
+        try:
+            raw2 = brain.chat(
+                'Reply with JSON only: {"score":0-100,"note":"short"}',
+                [{"role": "user", "content": "Token CHECK: 42 SOL liquidity, 3 min old."}],
+                300,
+            )
+            print(OK + f"analyst answered, parsed: {brain.extract_json(raw2)}")
+        except Exception as e:
+            print(BAD + f"analyst call failed: {type(e).__name__}: {e}")
+            print("       a 404 here usually means a retired model name")
+            fails += 1
+
     return 1 if fails else 0
 
 

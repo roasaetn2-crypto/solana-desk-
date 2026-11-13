@@ -47,7 +47,13 @@ PROVIDERS: dict[str, Provider] = {
         "runs on your machine, no key, no limits, nothing leaves your computer",
     ),
     "groq": Provider(
-        "groq", "Groq", os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
+        # The default used to be llama-3.3-70b-versatile, which Groq has since
+        # retired: a live call now answers 404 "model not found", so the analyst
+        # seat failed on every request even with a valid key. gpt-oss-120b is the
+        # same model the advisory layer uses (brain_advisor.GROQ_MODEL), so one
+        # BRAIN_GROQ_MODEL override now moves both seats together.
+        "groq", "Groq",
+        os.getenv("BRAIN_GROQ_MODEL", os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")),
         "GROQ_API_KEY", True,
         "free tier, extremely fast, generous rate limit",
     ),

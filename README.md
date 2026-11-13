@@ -507,6 +507,22 @@ OpenRouter, Claude), then the heuristic. That means **the desk always works**:
 a model outage, a rate limit or a bad response falls back to the deterministic
 analyst instead of stalling the pipeline.
 
+**Auto-detection from a cloud key is off by default**, and that surprises people.
+`desk/brain.py` is the *Analyst* seat — its score gates trades — so a key alone
+will not switch it on. Set `DESK_BRAIN=groq` (or `DESK_BRAIN_AUTODETECT=1`) to opt
+in. Without it the dashboard reads `heuristic (no model configured)` even though
+the advisory second opinion is happily calling Groq, because those are two
+different modules:
+
+| Seat | Module | What a key does | Panel |
+|---|---|---|---|
+| **Analyst** (gates trades) | `desk/brain.py` | nothing until `DESK_BRAIN` is set | Analyst |
+| **Second opinion** (advisory only) | `desk/brain_advisor.py` | switches on immediately | Brain / AI quota |
+
+`termux/set-ai-keys.sh` writes `DESK_BRAIN=groq` for you when a `gsk_` key is
+present, so the normal path needs no extra step. Both seats read
+`BRAIN_GROQ_MODEL` for the model name, so one override moves them together.
+
 #### Running out of free quota? Add more keys, not more providers
 
 Free tiers meter **per key**, so the cheapest way to get more calls is a second
@@ -703,8 +719,9 @@ keys cooling` means the second key is still serving, so nothing is lost yet.
 Desk AI chat has its own per-minute window, separate from the trading loop, so a
 long conversation can no longer starve the review path (or vice versa).
 
-The dashboard shows exactly what is thinking, e.g. `Brain: Groq · llama-3.3-70b-versatile · free`,
-or `Brain: heuristic (no model configured)` in amber when no provider is set.
+The dashboard shows exactly what is thinking, e.g. `Brain: Groq · openai/gpt-oss-120b · free`,
+or `Brain: heuristic (no model configured)` in amber when no provider is set — see
+the Analyst/Second-opinion table above for why a key alone does not clear that.
 
 ### Which free option should you use?
 

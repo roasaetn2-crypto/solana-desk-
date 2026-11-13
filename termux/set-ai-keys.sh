@@ -187,7 +187,7 @@ fi
 if [ "${KEEP_QUOTA:-1}" = "1" ]; then
   grep -v -e '^BRAIN_PER_CYCLE=' -e '^BRAIN_OPINIONS=' -e '^BRAIN_DEBATES_PER_CYCLE=' \
        -e '^BRAIN_MIN_INTERVAL_S=' -e '^BRAIN_CACHE_TTL_S=' -e '^BRAIN_ADVISE_ON=' \
-       -e '^BRAIN_SPREAD_DAY=' "$ENV_FILE" > "$ENV_FILE.new" 2>/dev/null
+       -e '^BRAIN_SPREAD_DAY=' -e '^DESK_BRAIN=' "$ENV_FILE" > "$ENV_FILE.new" 2>/dev/null
   mv "$ENV_FILE.new" "$ENV_FILE"
   {
     echo "BRAIN_PER_CYCLE=1"
@@ -202,6 +202,15 @@ if [ "${KEEP_QUOTA:-1}" = "1" ]; then
     # spreading runs dry at hour 6.7 and refuses 1040 calls; with spreading the
     # first refusal is at hour 23.98. Costs nothing when the desk is idle.
     echo "BRAIN_SPREAD_DAY=${BRAIN_SPREAD_DAY:-groq}"
+    # The Analyst seat (desk/brain.py) is a SEPARATE module from the advisory
+    # second opinion (desk/brain_advisor.py) and does not read a cloud key on its
+    # own: it stays on the deterministic heuristic unless DESK_BRAIN names a
+    # provider. That is deliberate, because the analyst's score gates trades and
+    # a model swap changes it. Set it only when a Groq key is actually present,
+    # otherwise the seat would point at a provider with no key and fall back.
+    if grep -q '^GROQ_API_KEY=gsk_' "$ENV_FILE" 2>/dev/null; then
+      echo "DESK_BRAIN=groq"
+    fi
   } >> "$ENV_FILE"
 fi
 chmod 600 "$ENV_FILE"
