@@ -119,6 +119,7 @@ grep -q "signal_engine" desk/solana_agent.py && ok "agent imports the signal eng
 grep -q "take_profit_mode" config.py      && ok "config has take_profit_mode"          || bad "config.py missing take_profit_mode"
 grep -q "exits.tp_plan" desk/settings.py  && ok "settings expose exits.tp_plan"        || bad "desk/settings.py missing exits.tp_plan"
 grep -q "CEREBRAS_URL"   desk/brain_advisor.py && ok "Cerebras is a free provider"        || bad "desk/brain_advisor.py missing Cerebras"
+grep -q "OLLAMA_URL"     desk/brain_advisor.py && ok "Ollama Cloud is the paid last resort" || bad "desk/brain_advisor.py missing Ollama"
 grep -q "cloudflare_url"  desk/brain_advisor.py && ok "Cloudflare is a free provider"      || bad "desk/brain_advisor.py missing Cloudflare"
 grep -q "def plausible"   desk/exits.py        && ok "bad quotes cannot reprice the book"   || bad "desk/exits.py missing plausible()"
 grep -q "def _repair"     desk/broker.py       && ok "ledger self-heals on boot"            || bad "desk/broker.py missing _repair()"

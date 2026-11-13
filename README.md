@@ -479,7 +479,7 @@ gotcha, and a troubleshooting table in **[ANDROID.md](ANDROID.md)**.
 ## The brain: use a free AI
 
 The analyst seat and the seat-to-seat dialogue both run through one provider
-layer (`desk/brain.py`). It speaks plain HTTP to five providers, so you do not
+layer (`desk/brain_advisor.py`). It speaks plain HTTP to six providers, so you do not
 need a paid key and you do not need a model SDK. Cheapest first:
 
 | Provider | Cost | Key needed | How to start |
@@ -490,6 +490,7 @@ need a paid key and you do not need a model SDK. Cheapest first:
 | **Cerebras** | free tier | free key | [cloud.cerebras.ai](https://cloud.cerebras.ai) → API keys |
 | **Cloudflare Workers AI** | 10,000 Neurons/day | account id + token | [dash.cloudflare.com](https://dash.cloudflare.com) → Workers AI |
 | **OpenRouter** | `:free` models | free key | [openrouter.ai/keys](https://openrouter.ai/keys) |
+| **Ollama Cloud** | paid (credits/plan) | paid key | [ollama.com/plans](https://ollama.com/plans) |
 | **Claude** | paid | paid key | `ANTHROPIC_API_KEY` |
 | **heuristic** | free, no model | none | always available, pure rules |
 
@@ -591,6 +592,37 @@ Models fall back `@cf/openai/gpt-oss-120b` →
 first. `BRAIN_BUDGET_CLOUDFLARE` (default 300) caps calls per day, well inside the
 Neuron allowance.
 
+#### Ollama Cloud is the sixth bucket, and the only one you pay for
+
+Everything above is free. **Ollama Cloud** is not: it is the same OpenAI-compatible
+`/v1` shape as Groq and Cerebras, but it draws on a credit balance or a paid plan,
+so it is deliberately placed **last** in the provider order. A paid bucket should
+never be able to displace a free one, and here it cannot — the advisor only
+reaches Ollama after Gemini, Groq, Cerebras, Cloudflare and OpenRouter have all
+declined or gone quiet.
+
+```bash
+bash termux/set-ai-keys.sh - - - - - - <OLLAMA_API_KEY> [OLLAMA_MODEL]
+```
+
+The key comes from [ollama.com](https://ollama.com) → Settings → API keys. If the
+account has **no credits**, the endpoint answers **HTTP 402** with *"Add usage
+credits or subscribe"*. That is not a bug and not a bad key: the key
+authenticates fine (the model list returns 200), it simply has nothing to spend.
+The advisor maps 402 to the same "out of quota" path as a 429 — it cools that key
+for half an hour, marks the provider `limited`, and moves on without counting an
+error or hammering the endpoint. You will see `ollama out of quota (HTTP 402)` in
+the AI quota panel until you top up at
+[ollama.com/plans](https://ollama.com/plans).
+
+Models fall back `deepseek-v4.1-flash` → `glm-5.3-flash` → `mimo-v2.6-flash` →
+`nemotron-3-super` → `gpt-oss:20b`; `BRAIN_OLLAMA_MODEL` overrides the first. The
+provider sends no `response_format` and no `reasoning_effort`, because Ollama's
+compatibility layer does not promise either and a 400 there would burn the whole
+fallback chain — the prompt already asks for JSON, and `parse_opinion()` accepts
+fenced or bare JSON. `BRAIN_BUDGET_OLLAMA` defaults to **200** calls/day as a
+spend guard, not a free-tier limit.
+
 Two providers that look free but are **not** worth wiring up in 2026: **GitHub
 Models** was retired on 30 July 2026 and its inference API no longer exists, and
 **Mistral's** free mode no longer includes API access at all — keys require
@@ -609,9 +641,11 @@ or `Brain: heuristic (no model configured)` in amber when no provider is set.
 
 ### Which free option should you use?
 
-- **Ollama** is the only one that is truly unlimited and private: nothing leaves
-  your machine, no rate limits, no signup. It needs a machine that can run a 3B–8B
-  model. Best default if you have the RAM.
+- **Local Ollama** is the only one that is truly unlimited and private: nothing
+  leaves your machine, no rate limits, no signup. It needs a machine that can run a
+  3B–8B model. Best default if you have the RAM. Do not confuse it with **Ollama
+  Cloud** above — same vendor, opposite economics: the cloud endpoint is metered
+  and paid, and it is the only provider in the list that can answer 402.
 - **Groq** is the fastest free option and the best choice on a small VPS or phone-hosted
   setup, because the inference runs on their hardware. The free tier has a daily
   token cap that a 45-second cycle will not hit.

@@ -239,3 +239,37 @@ re-exec itself with `--start` so the report is of the NEW code, not the old.
 It also matches uvicorn by an exact `app:app` argv element instead of
 `pgrep -f "[u]vicorn app:app"`, and its "process is older than your pull" tip now
 says `bash termux/stop-desk.sh` instead of the `pkill` that left orphans.
+
+## Ollama Cloud as a sixth provider (paid, last)
+
+`desk/brain_advisor.py` gained `Ollama`: OpenAI-compatible at
+`https://ollama.com/v1/chat/completions`, so it reuses the same `Provider.call`
+path as Groq and Cerebras. Default model `deepseek-v4.1-flash`, fallbacks
+`glm-5.3-flash` -> `mimo-v2.6-flash` -> `nemotron-3-super` -> `gpt-oss:20b`;
+`BRAIN_OLLAMA_MODEL` overrides the first. `RPM` 6, `BRAIN_BUDGET_OLLAMA` 200.
+
+It is the only **paid** bucket, so it is registered **last** in
+`Advisor.providers()`. A paid provider must never be able to displace a free one:
+the advisor only reaches Ollama after Gemini, Groq, Cerebras, Cloudflare and
+OpenRouter have all declined or gone quiet. `tests/test_brain_advisor.py` pins
+that order (`names[-1] == "ollama"`) rather than just checking membership.
+
+No `response_format` and no `reasoning_effort` are sent: Ollama's compatibility
+layer does not promise either, and a 400 there would burn the whole fallback
+chain. The prompt already asks for JSON and `parse_opinion()` accepts fenced or
+bare JSON, so nothing is lost.
+
+The real key authenticates (the model list returns 200 with 24 models) but the
+account has **no credits**, so the endpoint answers **HTTP 402** *"Add usage
+credits or subscribe"*. `Provider.call` already maps 402 to the 429 path, so this
+is handled as `limited=True`, key cooled 1799s, `errors: 0` -- no error storm, no
+hammering. Verified live:
+
+    ProviderError: ollama out of quota (HTTP 402) | status: 402 | limited: True
+    snapshot: {'enabled': True, 'used_today': 1, 'keys': 1, 'keys_cooling': 1, 'errors': 0}
+
+`termux/set-ai-keys.sh` takes it as args 7/8:
+`... [CF_ACCOUNT_ID] [CF_TOKEN] [OLLAMA_KEY] [OLLAMA_MODEL]`, with the same
+`-`-preserves, too-short-refuses, strip-and-append treatment as the others.
+`verify-update.sh` now also greps for `OLLAMA_URL`. README documents the provider
+table row, the 402 behaviour, and the local-vs-cloud Ollama distinction.

@@ -6,7 +6,7 @@
 # running garbage. One short command line is atomic and always survives.
 #
 # Usage:
-#   bash termux/set-ai-keys.sh <GEMINI_KEY> <OPENROUTER_KEY> [GEMINI_MODEL] [CEREBRAS_KEY] [CF_ACCOUNT_ID] [CF_TOKEN]
+#   bash termux/set-ai-keys.sh <GEMINI_KEY> <OPENROUTER_KEY> [GEMINI_MODEL] [CEREBRAS_KEY] [CF_ACCOUNT_ID] [CF_TOKEN] [OLLAMA_KEY] [OLLAMA_MODEL]
 #
 # A fourth free provider (Cerebras) is optional and goes fifth:
 #   bash termux/set-ai-keys.sh - - - csk-xxxxxxxx
@@ -16,6 +16,13 @@
 #   bash termux/set-ai-keys.sh - - - - <account_id> <api_token>
 # Account id: dash.cloudflare.com -> Workers & Pages -> Account ID.
 # Token: My Profile -> API Tokens -> Create Token -> "Workers AI" template.
+#
+# Ollama Cloud is the sixth bucket and the only PAID one (credits or a plan).
+# It answers 402 until you top up at https://ollama.com/plans, so it sits last
+# in the fallback order and can never displace a free provider:
+#   bash termux/set-ai-keys.sh - - - - - - 49368adc01be...Pf8kxyGoXPODNW7sbyULVimz
+# Optional 8th arg overrides the model (default deepseek-v4.1-flash):
+#   bash termux/set-ai-keys.sh - - - - - - <key> glm-5.3-flash
 #
 # Both keys are optional in the sense that you can pass "-" to leave one alone:
 #   bash termux/set-ai-keys.sh - sk-or-v1-xxxx
@@ -34,12 +41,14 @@ OPENROUTER="${2:-}"
 CEREBRAS="${4:-}"
 CF_ACCOUNT="${5:-}"
 CF_TOKEN="${6:-}"
+OLLAMA="${7:-}"
+OLLAMA_MODEL="${8:-}"
 
 cd "$DESK_DIR" || { echo "No desk dir at $DESK_DIR"; exit 1; }
 
 # ---------- validate before touching anything ----------
-if [ -z "$GEMINI" ] && [ -z "$OPENROUTER" ] && [ -z "$CEREBRAS" ] && [ -z "$CF_TOKEN" ]; then
-  echo "Usage: bash termux/set-ai-keys.sh <GEMINI_KEY> <OPENROUTER_KEY> [MODEL] [CEREBRAS_KEY] [CF_ACCOUNT_ID] [CF_TOKEN]"
+if [ -z "$GEMINI" ] && [ -z "$OPENROUTER" ] && [ -z "$CEREBRAS" ] && [ -z "$CF_TOKEN" ] && [ -z "$OLLAMA" ]; then
+  echo "Usage: bash termux/set-ai-keys.sh <GEMINI_KEY> <OPENROUTER_KEY> [MODEL] [CEREBRAS_KEY] [CF_ACCOUNT_ID] [CF_TOKEN] [OLLAMA_KEY] [OLLAMA_MODEL]"
   echo "       pass - to leave a key unchanged"
   exit 2
 fi
@@ -60,6 +69,10 @@ if [ "$CF_TOKEN" != "-" ] && [ "$CF_TOKEN" != "" ] && [ "${#CF_TOKEN}" -lt 20 ];
   echo "That Cloudflare token looks too short (${#CF_TOKEN} chars). Nothing changed."
   exit 2
 fi
+if [ "$OLLAMA" != "-" ] && [ "$OLLAMA" != "" ] && [ "${#OLLAMA}" -lt 20 ]; then
+  echo "That Ollama key looks too short (${#OLLAMA} chars). Nothing changed."
+  exit 2
+fi
 # A token with no account id cannot build a URL, so refuse the half-configuration
 # instead of writing a provider that silently never works.
 if [ -n "$CF_TOKEN" ] && [ "$CF_TOKEN" != "-" ] && { [ -z "$CF_ACCOUNT" ] || [ "$CF_ACCOUNT" = "-" ]; }; then
@@ -77,6 +90,8 @@ OLD_CEREBRAS="$(grep '^CEREBRAS_API_KEY=' "$ENV_FILE" 2>/dev/null | head -1 | cu
 OLD_CF_ACCOUNT="$(grep '^CLOUDFLARE_ACCOUNT_ID=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)"
 OLD_CF_TOKEN="$(grep '^CLOUDFLARE_API_TOKEN=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)"
 OLD_MODEL="$(grep '^BRAIN_GEMINI_MODEL=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)"
+OLD_OLLAMA="$(grep '^OLLAMA_API_KEY=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)"
+OLD_OLLAMA_MODEL="$(grep '^BRAIN_OLLAMA_MODEL=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)"
 
 # ---------- back up, then rewrite only our three lines ----------
 cp "$ENV_FILE" "$ENV_FILE.bak" 2>/dev/null
@@ -86,6 +101,7 @@ chmod 600 "$ENV_FILE" "$ENV_FILE.bak" 2>/dev/null
 # would wipe the login key and lock the owner out of their own desk.
 grep -v -e '^GEMINI_API_KEY=' -e '^OPENROUTER_API_KEY=' -e '^CEREBRAS_API_KEY=' -e '^BRAIN_GEMINI_MODEL=' \
        -e '^CLOUDFLARE_ACCOUNT_ID=' -e '^CLOUDFLARE_API_TOKEN=' \
+       -e '^OLLAMA_API_KEY=' -e '^BRAIN_OLLAMA_MODEL=' \
   "$ENV_FILE" > "$ENV_FILE.new" 2>/dev/null
 mv "$ENV_FILE.new" "$ENV_FILE"
 
@@ -95,6 +111,8 @@ if [ "$OPENROUTER" = "-" ] && [ -n "${OLD_OPENROUTER:-}" ]; then OPENROUTER="$OL
 if [ "$CEREBRAS" = "-" ] && [ -n "${OLD_CEREBRAS:-}" ]; then CEREBRAS="$OLD_CEREBRAS"; fi
 if [ "$CF_ACCOUNT" = "-" ] && [ -n "${OLD_CF_ACCOUNT:-}" ]; then CF_ACCOUNT="$OLD_CF_ACCOUNT"; fi
 if [ "$CF_TOKEN" = "-" ] && [ -n "${OLD_CF_TOKEN:-}" ]; then CF_TOKEN="$OLD_CF_TOKEN"; fi
+if [ "$OLLAMA" = "-" ] && [ -n "${OLD_OLLAMA:-}" ]; then OLLAMA="$OLD_OLLAMA"; fi
+if [ "$OLLAMA_MODEL" = "-" ] && [ -n "${OLD_OLLAMA_MODEL:-}" ]; then OLLAMA_MODEL="$OLD_OLLAMA_MODEL"; fi
 
 if [ -n "$GEMINI" ] && [ "$GEMINI" != "-" ]; then
   echo "GEMINI_API_KEY=$GEMINI" >> "$ENV_FILE"
@@ -110,6 +128,12 @@ if [ -n "$CF_ACCOUNT" ] && [ "$CF_ACCOUNT" != "-" ]; then
 fi
 if [ -n "$CF_TOKEN" ] && [ "$CF_TOKEN" != "-" ]; then
   echo "CLOUDFLARE_API_TOKEN=$CF_TOKEN" >> "$ENV_FILE"
+fi
+if [ -n "$OLLAMA" ] && [ "$OLLAMA" != "-" ]; then
+  echo "OLLAMA_API_KEY=$OLLAMA" >> "$ENV_FILE"
+fi
+if [ -n "$OLLAMA_MODEL" ] && [ "$OLLAMA_MODEL" != "-" ]; then
+  echo "BRAIN_OLLAMA_MODEL=$OLLAMA_MODEL" >> "$ENV_FILE"
 fi
 # "-" (or nothing) means keep whatever model was already configured.
 if [ "$MODEL" = "-" ] || [ -z "$MODEL" ]; then MODEL="${OLD_MODEL:-}"; fi

@@ -54,6 +54,16 @@ CLOUDFLARE_FALLBACKS = ["@cf/openai/gpt-oss-120b",
                         "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
                         "@cf/qwen/qwen3-30b-a3b-fp8",
                         "@cf/meta/llama-3.1-8b-instruct-fp8-fast"]
+# Ollama Cloud: OpenAI-compatible at /v1, so it drops into the same code path as
+# Groq and Cerebras. Unlike the others it is a PAID bucket (credits or a plan);
+# with no credits the endpoint answers 402, which Provider.call already treats as
+# "out of quota" -- cool the key, do not hammer it. Placed LAST in providers() so
+# it can never displace a free provider.
+# Models verified against ollama.com/api/tags on 2026-11-14.
+OLLAMA_URL = "https://ollama.com/v1/chat/completions"
+OLLAMA_MODEL = os.getenv("BRAIN_OLLAMA_MODEL", "deepseek-v4.1-flash")
+OLLAMA_FALLBACKS = ["deepseek-v4.1-flash", "glm-5.3-flash", "mimo-v2.6-flash",
+                    "nemotron-3-super", "gpt-oss:20b"]
 # Free (":free", pricing 0) models checked on openrouter.ai/api/v1/models, strongest first.
 OPENROUTER_FALLBACKS = ["nvidia/nemotron-3-ultra-550b-a55b:free",
                         "nvidia/nemotron-3.5-super-vl:free",
@@ -73,6 +83,12 @@ def cerebras_models(primary: str | None = None) -> list[str]:
     """BRAIN_CEREBRAS_MODEL first, then the fallbacks."""
     primary = (primary if primary is not None else os.getenv("BRAIN_CEREBRAS_MODEL", "")).strip()
     return ([primary] if primary else []) + [m for m in CEREBRAS_FALLBACKS if m != primary]
+
+
+def ollama_models(primary: str | None = None) -> list[str]:
+    """BRAIN_OLLAMA_MODEL first, then the verified fallbacks."""
+    primary = (primary if primary is not None else os.getenv("BRAIN_OLLAMA_MODEL", "")).strip()
+    return ([primary] if primary else []) + [m for m in OLLAMA_FALLBACKS if m != primary]
 
 
 def cloudflare_models(primary: str | None = None) -> list[str]:
@@ -136,7 +152,8 @@ LOW_BUDGET_LEFT = 0.10          # skip the debate when under 10% of a budget rem
 # Gemini: 8/min stays under the free RPM and still fits one opinion + a short debate.
 # OpenRouter: 3/min is tighter because the free ":free" budget is ~45 calls/day
 # (enough for one debate: 1 opinion + 2 debate turns). 0 disables pacing.
-RPM = {"gemini": 8, "groq": 8, "openrouter": 3, "cerebras": 8, "cloudflare": 6}
+RPM = {"gemini": 8, "groq": 8, "openrouter": 3, "cerebras": 8, "cloudflare": 6,
+       "ollama": 6}
 
 # Free-tier limits: Groq openai/gpt-oss-120b is 30 RPM, 1K RPD, 8K TPM, 200K TPD, so about
 # 400 calls a day of ~500 tokens is the conservative ceiling. Gemini free Flash models allow
@@ -150,7 +167,9 @@ BUDGETS = {"gemini": int(os.getenv("BRAIN_BUDGET_GEMINI", "200")),
            "cerebras": int(os.getenv("BRAIN_BUDGET_CEREBRAS", "200")),
            # 10k Neurons/day at ~8 Neurons a review is >1000 calls; 300 is a
            # wide margin and still 6x what the desk can spend on exits.
-           "cloudflare": int(os.getenv("BRAIN_BUDGET_CLOUDFLARE", "300"))}
+           "cloudflare": int(os.getenv("BRAIN_BUDGET_CLOUDFLARE", "300")),
+           # Paid bucket: 200 reviews/day is a spend guard, not a free-tier limit.
+           "ollama": int(os.getenv("BRAIN_BUDGET_OLLAMA", "200"))}
 OPENROUTER_DEBATE_MIN_LEFT = 10   # no debate when OpenRouter has fewer calls than this left
 VERDICTS = ("buy", "watch", "skip")
 _CAUTION = {"skip": 0, "watch": 1, "buy": 2}
@@ -731,6 +750,59 @@ class Cerebras(Provider):
         return data["choices"][0]["message"]["content"] or ""
 
 
+class Ollama(Provider):
+    """Ollama Cloud: OpenAI-compatible at /v1, one more independent bucket.
+
+    Same request shape as Groq/Cerebras, so the only real differences are the URL
+    and that this one is PAID. With no credits the endpoint answers 402 with
+    "Add usage credits or subscribe"; Provider.call maps 402 to "out of quota",
+    cools the key and reports `limited`, so an empty wallet shows up on the
+    dashboard as a resting provider instead of an error storm.
+
+    No `response_format` and no `reasoning_effort`: Ollama's OpenAI-compat layer
+    does not promise either, and a 400 there would burn the fallback chain.
+    parse_opinion() already handles fenced or bare JSON, so the prompt is enough.
+    """
+
+    @property
+    def models(self) -> list[str]:
+        return ollama_models()
+
+    @property
+    def model(self):
+        return self.models[0]
+
+    def call(self, system: str, user: str, max_tokens: int = 700) -> str:
+        last = None
+        for m in self.models:
+            self._try_model = m
+            try:
+                out = super().call(system, user, max_tokens)
+                self.last_model = m
+                return out
+            except ProviderError as e:
+                last = e
+                # a gone model (400/404/422) or an overloaded one (5xx): try the next.
+                # 402/429 means the account is out of credits or rate limited, so
+                # stop immediately instead of walking the whole list.
+                if e.status not in (400, 404, 422, 500, 502, 503) or not self.available():
+                    raise
+        raise last or ProviderError("ollama: no model available")
+
+    def _post(self, system, user, max_tokens):
+        return requests.post(
+            OLLAMA_URL,
+            headers={"Authorization": f"Bearer {self.key()}", "Content-Type": "application/json"},
+            json={"model": getattr(self, "_try_model", self.models[0]), "temperature": 0.2,
+                  "max_tokens": max(max_tokens, 800),
+                  "messages": [{"role": "system", "content": system},
+                               {"role": "user", "content": user}]},
+            timeout=TIMEOUT_S)
+
+    def _extract(self, data) -> str:
+        return data["choices"][0]["message"]["content"] or ""
+
+
 class Cloudflare(Provider):
     """Cloudflare Workers AI: 10,000 free Neurons a day, its own bucket entirely.
 
@@ -847,6 +919,7 @@ class Advisor:
         self.cerebras = Cerebras("cerebras", "CEREBRAS_API_KEY", BUDGETS["cerebras"])
         self.cloudflare = Cloudflare("cloudflare", "CLOUDFLARE_API_TOKEN",
                                      BUDGETS["cloudflare"])
+        self.ollama = Ollama("ollama", "OLLAMA_API_KEY", BUDGETS["ollama"])
         self._cache: OrderedDict[str, tuple[float, dict, dict]] = OrderedDict()
         self._inflight: set[str] = set()
         self._lock = threading.Lock()
@@ -857,7 +930,8 @@ class Advisor:
 
     # -- state --
     def providers(self) -> list[Provider]:
-        return [self.gemini, self.groq, self.cerebras, self.cloudflare, self.openrouter]
+        return [self.gemini, self.groq, self.cerebras, self.cloudflare,
+                self.openrouter, self.ollama]
 
     def pair(self) -> list[Provider]:
         """The first usable providers, in the order Gemini, Groq, Cerebras, OpenRouter.
@@ -908,7 +982,8 @@ class Advisor:
                 "min_interval_s": MIN_INTERVAL_S,
                 "opinion_ttl_s": CACHE_TTL_S, "material_move": MATERIAL_MOVE,
                 "models": {"gemini": gemini_models(), "groq": GROQ_MODEL,
-                           "cerebras": cerebras_models(), "openrouter": openrouter_models()},
+                           "cerebras": cerebras_models(), "openrouter": openrouter_models(),
+                           "ollama": ollama_models()},
                 "providers": {p.name: p.snapshot() for p in self.providers()},
                 "cached": len(self._cache)}
 

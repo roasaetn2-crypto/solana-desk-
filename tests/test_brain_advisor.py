@@ -802,6 +802,94 @@ class CerebrasProvider(unittest.TestCase):
         self.assertFalse(p.available())
 
 
+class OllamaProvider(unittest.TestCase):
+    """Ollama Cloud is a sixth bucket and the only PAID one: it goes last."""
+
+    def setUp(self):
+        self.env = mock.patch.dict(os.environ, {"OLLAMA_API_KEY": "ollama_FAKEKEY1234567890"})
+        self.env.start()
+        self.addCleanup(self.env.stop)
+        self.p = ba.Ollama("ollama", "OLLAMA_API_KEY", 200)
+        self.p.rpm = 1000
+
+    def test_registered_in_advisor_and_budgets(self):
+        adv = ba.Advisor()
+        self.addCleanup(adv._pool.shutdown, wait=True, cancel_futures=True)
+        names = [p.name for p in adv.providers()]
+        self.assertIn("ollama", names)
+        self.assertIn("ollama", ba.BUDGETS)
+        self.assertIn("ollama", ba.RPM)
+        self.assertIn("ollama", adv.status()["models"])
+
+    def test_paid_bucket_never_displaces_a_free_one(self):
+        """Order is the safety property: a paid provider must be reached last."""
+        adv = ba.Advisor()
+        self.addCleanup(adv._pool.shutdown, wait=True, cancel_futures=True)
+        names = [p.name for p in adv.providers()]
+        self.assertEqual(names[-1], "ollama")
+        self.assertEqual(names[:5], ["gemini", "groq", "cerebras", "cloudflare", "openrouter"])
+
+    def test_models_start_with_primary_then_fallbacks(self):
+        self.assertEqual(ba.ollama_models()[0], ba.OLLAMA_MODEL)
+        self.assertEqual(ba.OLLAMA_MODEL, "deepseek-v4.1-flash")
+        self.assertIn("glm-5.3-flash", ba.ollama_models())
+
+    def test_model_override_env(self):
+        with mock.patch.dict(os.environ, {"BRAIN_OLLAMA_MODEL": "custom-model"}):
+            self.assertEqual(ba.ollama_models()[0], "custom-model")
+            self.assertEqual(len(ba.ollama_models()), len(set(ba.ollama_models())))
+
+    def test_call_parses_choices_and_sends_bearer_key(self):
+        seen = {}
+
+        def post(url, headers=None, json=None, timeout=None):
+            seen.update(url=url, headers=headers, json=json)
+            return Resp(200, {"choices": [{"message": {"content": opinion("buy", 71)}}]})
+
+        with mock.patch.object(ba.requests, "post", post):
+            out = self.p.call("sys", "user", 700)
+        self.assertEqual(json.loads(out)["verdict"], "buy")
+        self.assertEqual(seen["url"], ba.OLLAMA_URL)
+        self.assertTrue(seen["headers"]["Authorization"].startswith("Bearer ollama_"))
+        self.assertEqual(seen["json"]["model"], ba.OLLAMA_MODEL)
+        # Ollama's compat layer does not promise these, so asking would risk a 400.
+        self.assertNotIn("response_format", seen["json"])
+        self.assertNotIn("reasoning_effort", seen["json"])
+
+    def test_dead_model_falls_through_to_the_next(self):
+        replies = [Resp(404, text="no such model"), Resp(200, {"choices": [{"message": {"content": opinion()}}]})]
+        with mock.patch.object(ba.requests, "post", lambda *a, **k: replies.pop(0)):
+            out = self.p.call("sys", "user", 700)
+        self.assertEqual(json.loads(out)["verdict"], "watch")
+        self.assertEqual(self.p.last_model, self.p.models[1])
+
+    def test_402_is_out_of_quota_not_a_hard_error(self):
+        """No credits is the normal state of a paid bucket. Cool it, do not storm."""
+        body = {"error": {"message": "Add usage credits or subscribe: https://ollama.com/plans"}}
+        with mock.patch.object(ba.requests, "post", lambda *a, **k: Resp(402, body)):
+            with self.assertRaises(ba.ProviderError) as ctx:
+                self.p.call("sys", "user", 700)
+        err = ctx.exception
+        self.assertTrue(err.limited)
+        self.assertEqual(err.status, 402)
+        self.assertIn("quota", str(err))
+        self.assertFalse(self.p.available())
+        snap = self.p.snapshot()
+        self.assertEqual(snap["errors"], 0)
+        self.assertGreater(snap["cooldown_s"], 0)
+
+    def test_429_raises_so_the_advisor_cools_the_key(self):
+        with mock.patch.object(ba.requests, "post", lambda *a, **k: Resp(429, text="rate limited")):
+            with self.assertRaises(ba.ProviderError):
+                self.p.call("sys", "user", 700)
+
+    def test_no_key_means_disabled(self):
+        os.environ.pop("OLLAMA_API_KEY", None)
+        p = ba.Ollama("ollama", "OLLAMA_API_KEY", 200)
+        self.assertFalse(p.key())
+        self.assertFalse(p.available())
+
+
 class QuotaPayload(unittest.TestCase):
     """The dashboard reads this: per-provider burn, keys, cooldown, calls left."""
 
@@ -816,13 +904,14 @@ class QuotaPayload(unittest.TestCase):
         self.addCleanup(self.env.stop)
         os.environ.pop("OPENROUTER_API_KEY", None)
         os.environ.pop("CEREBRAS_API_KEY", None)
+        os.environ.pop("OLLAMA_API_KEY", None)
         self.adv = ba.Advisor()
         self.addCleanup(self.adv._pool.shutdown, wait=True, cancel_futures=True)
 
     def test_shape_and_all_providers(self):
         q = self.adv.quota()
         self.assertEqual(set(q["providers"]),
-                         {"gemini", "groq", "cerebras", "cloudflare", "openrouter"})
+                         {"gemini", "groq", "cerebras", "cloudflare", "openrouter", "ollama"})
         for row in q["providers"].values():
             self.assertEqual(set(row), self.FIELDS)
         self.assertIn("total_left", q)
