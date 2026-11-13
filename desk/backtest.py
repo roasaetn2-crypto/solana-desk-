@@ -31,6 +31,23 @@ HARD_REASONS = {
 HARD_STAGES = {"dev", "security", "live"}
 HARD_PREFIXES = ("sec_", "dev_")
 
+# Backtest gate name -> the live, operator-settable registry key (desk/settings.py).
+# Only these three gates can actually be changed on the running desk. The old-desk
+# 0-100 score, chase ratio and alive_6h ratio are replay diagnostics: the live desk
+# has no such knobs, so a recommendation must never be expressed in those terms.
+LIVE_SETTING_KEYS = {
+    "min_thesis_score": "analyst.valid_score",
+    "max_h1_change_pct": "scan.max_h1_change_pct",
+    "max_price_gap_pct": "entry.max_price_gap_pct",
+}
+# Bounds mirror desk/settings.py so a recommendation can never step outside the
+# range the operator's Confirm tap would reject.
+LIVE_SETTING_BOUNDS = {
+    "analyst.valid_score": (3, 9),
+    "scan.max_h1_change_pct": (20.0, 2000.0),
+    "entry.max_price_gap_pct": (2.0, 50.0),
+}
+
 GAP_RE = re.compile(
     r"([\d.eE+-]+)\s+vs\s+\w+\s+([\d.eE+-]+)|"
     r"GeckoTerminal\s+([\d.eE+-]+)\s+vs\s+DexScreener\s+([\d.eE+-]+)",
@@ -123,61 +140,84 @@ def current_settings() -> dict:
 
 
 def default_grid() -> list[dict]:
-    """Current row, then isolated sweeps. Alternatives never auto-apply."""
+    """Current row, then isolated one-knob sweeps of the gates the desk can change.
+
+    Each *actionable* row moves exactly ONE live setting away from `current`, so a
+    result can be attributed to that knob and turned into a real proposal. The old
+    desk's 0-100 score / chase / alive_6h gates have no live equivalent; they are
+    kept as context but flagged ``actionable=False`` and are never recommended.
+    Alternatives never auto-apply.
+    """
     cur = current_settings()
-    rows = [cur]
-    for score in (50, 55, 60, 65, 70):
+    rows = [dict(cur, actionable=True, bundle=False)]
+
+    def row(rid: str, label: str, bundle: bool = False, **changes) -> dict:
+        r = dict(cur)
+        r.update({"id": rid, "label": label, "current": False,
+                  "actionable": True, "bundle": bundle})
+        r.update(changes)
+        return r
+
+    # analyst score is a 0-10 integer on the live desk (registry bounds 3..9)
+    base_score = int(round(float(cur["min_thesis_score"] or config.MIN_SCORE)))
+    for score in sorted({max(3, base_score - 2), max(3, base_score - 1),
+                         min(9, base_score + 1), min(9, base_score + 2)}):
+        if score == base_score:
+            continue
+        rows.append(row(f"thesis_{score}", f"analyst score {score}",
+                        min_thesis_score=float(score)))
+
+    # 1h chase cap, in percent (registry bounds 20..2000)
+    base_h1 = float(cur["max_h1_change_pct"] or SCAN["max_h1_change_pct"])
+    for h1 in sorted({max(20.0, round(base_h1 * 0.4)), max(20.0, round(base_h1 * 0.6)),
+                      round(base_h1 * 1.6)}):
+        if abs(h1 - base_h1) < 1e-9:
+            continue
+        rows.append(row(f"h1_{int(h1)}", f"chase cap {int(h1)}%",
+                        max_h1_change_pct=float(h1)))
+
+    # cross-source price gap cap, in percent (registry bounds 2..50)
+    base_gap = float(cur["max_price_gap_pct"] or ENTRY["max_price_gap_pct"])
+    for gap in (10.0, 15.0, 40.0):
+        if abs(gap - base_gap) < 1e-9:
+            continue
+        rows.append(row(f"gap_{int(gap)}", f"gap cap {int(gap)}%",
+                        max_price_gap_pct=float(gap)))
+
+    # one combined candidate, so the AI can see whether a bundle beats single knobs
+    rows.append(row(
+        "tight_bundle", "tight bundle", bundle=True,
+        min_thesis_score=float(min(9, max(3, base_score + 1))),
+        max_h1_change_pct=float(max(20.0, round(base_h1 * 0.6))),
+        max_price_gap_pct=float(15.0 if base_gap > 15.0 else base_gap),
+    ))
+
+    # diagnostics: old-desk replay gates, not settable on the live desk
+    for score in (55, 65):
         rows.append({
-            "id": f"score_{score}",
-            "label": f"score {score}",
-            "current": False,
-            "min_score": score,
-            "max_chase": 0.30,
-            "min_alive_6h": 0.70,
+            "id": f"score_{score}", "label": f"score {score}", "current": False,
+            "actionable": False, "bundle": False,
+            "min_score": score, "max_chase": 0.30, "min_alive_6h": 0.70,
             "max_price_gap_pct": float(ENTRY["max_price_gap_pct"]),
-            "max_h1_change_pct": None,
-            "min_thesis_score": None,
+            "max_h1_change_pct": None, "min_thesis_score": None,
             "require_valid_setup": False,
         })
-    for chase in (0.20, 0.30, 0.50):
-        rows.append({
-            "id": f"chase_{chase:.2f}",
-            "label": f"chase {chase:.2f}",
-            "current": False,
-            "min_score": 50,
-            "max_chase": chase,
-            "min_alive_6h": 0.70,
-            "max_price_gap_pct": float(ENTRY["max_price_gap_pct"]),
-            "max_h1_change_pct": None,
-            "min_thesis_score": None,
-            "require_valid_setup": False,
-        })
-    for alive in (0.50, 0.70, 0.90):
-        rows.append({
-            "id": f"alive_{alive:.2f}",
-            "label": f"alive {alive:.2f}",
-            "current": False,
-            "min_score": 50,
-            "max_chase": 0.30,
-            "min_alive_6h": alive,
-            "max_price_gap_pct": float(ENTRY["max_price_gap_pct"]),
-            "max_h1_change_pct": None,
-            "min_thesis_score": None,
-            "require_valid_setup": False,
-        })
-    for gap in (10.0, 25.0, 40.0):
-        rows.append({
-            "id": f"gap_{int(gap)}",
-            "label": f"gap {int(gap)}%",
-            "current": False,
-            "min_score": 50,
-            "max_chase": 0.30,
-            "min_alive_6h": 0.70,
-            "max_price_gap_pct": gap,
-            "max_h1_change_pct": None,
-            "min_thesis_score": None,
-            "require_valid_setup": False,
-        })
+    rows.append({
+        "id": "chase_0.30", "label": "chase 0.30", "current": False,
+        "actionable": False, "bundle": False,
+        "min_score": 50, "max_chase": 0.30, "min_alive_6h": 0.70,
+        "max_price_gap_pct": float(ENTRY["max_price_gap_pct"]),
+        "max_h1_change_pct": None, "min_thesis_score": None,
+        "require_valid_setup": False,
+    })
+    rows.append({
+        "id": "alive_0.70", "label": "alive 0.70", "current": False,
+        "actionable": False, "bundle": False,
+        "min_score": 50, "max_chase": 0.30, "min_alive_6h": 0.70,
+        "max_price_gap_pct": float(ENTRY["max_price_gap_pct"]),
+        "max_h1_change_pct": None, "min_thesis_score": None,
+        "require_valid_setup": False,
+    })
     return rows
 
 
@@ -647,6 +687,8 @@ def simulate(history: dict, settings: dict) -> dict:
             "id": settings.get("id"),
             "label": settings.get("label") or settings.get("id"),
             "current": bool(settings.get("current")),
+            "actionable": bool(settings.get("actionable", False)),
+            "bundle": bool(settings.get("bundle", False)),
             "settings": {k: settings[k] for k in (
                 "min_score", "max_chase", "min_alive_6h", "max_price_gap_pct",
                 "max_h1_change_pct", "min_thesis_score") if k in settings},
@@ -715,10 +757,152 @@ def run(history: dict, grid: list[dict] | None = None) -> dict:
     }
 
 
+def _row_score(r: dict) -> float:
+    """Risk-adjusted ranking: reward P&L and win rate, penalise drawdown.
+
+    A bundle gets a tiny penalty so a single-knob row wins a near-tie: the AI can
+    attribute a one-knob change, which is what makes a recommendation trustworthy.
+    """
+    pnl = float(r.get("pnl_usd") or 0.0)
+    dd = float(r.get("max_drawdown_usd") or 0.0)
+    wr = float(r.get("win_rate") or 0.0)
+    score = pnl - 0.5 * dd + 2.0 * wr
+    return score - (0.05 if r.get("bundle") else 0.0)
+
+
+def _brief(row: dict | None) -> dict | None:
+    if not row:
+        return None
+    return {
+        "label": row.get("label"), "trades": row.get("trades"),
+        "win_rate": row.get("win_rate"), "pnl_usd": row.get("pnl_usd"),
+        "max_drawdown_usd": row.get("max_drawdown_usd"),
+        "settings": row.get("settings") or {},
+    }
+
+
+def recommend(report: dict) -> dict:
+    """Turn a backtest report into a concrete, registry-key recommendation.
+
+    Pure function over the report dict: no live state, no side effects. It ranks
+    only *actionable* rows (gates the desk can actually change), compares the best
+    risk-adjusted row to ``current``, and emits deltas in live settings keys so the
+    AI (or the offline fallback) can propose something the operator can Confirm.
+    """
+    rows = [r for r in (report.get("rows") or []) if isinstance(r, dict)]
+    current = next((r for r in rows if r.get("current")), None)
+    actionable = [r for r in rows if r.get("actionable") and not r.get("current")]
+    thin = bool(report.get("thin"))
+    base = {
+        "action": "hold", "confidence": "low", "deltas": [],
+        "current": _brief(current), "best": None,
+        "evidence": "Not enough recorded trades to justify a change yet.",
+        "notes": [], "thin": thin,
+    }
+    if current is None or not actionable:
+        base["notes"].append("No actionable backtest rows were produced.")
+        return base
+
+    # A row needs at least one closed trade before it can say anything about P&L.
+    traded = [r for r in actionable if (r.get("trades") or 0) > 0]
+    if not traded:
+        base["notes"].append("Every alternative had zero closed trades on the recorded path.")
+        return base
+
+    cur_score = _row_score(current)
+    best = max(traded, key=lambda r: (_row_score(r), r.get("trades") or 0))
+    trades = int(best.get("trades") or 0)
+    improvement = round(_row_score(best) - cur_score, 2)
+
+    # No free lunch: if the best alternative did not actually beat current on a
+    # risk-adjusted basis, recommending a change would be noise, not signal.
+    if improvement <= 0:
+        base.update({
+            "current": _brief(current), "best": _brief(best), "confidence": "low",
+            "evidence": (f"No actionable row beat current on a risk-adjusted basis "
+                         f"(best '{best.get('label')}' {improvement:+.2f}); keep the "
+                         f"current gates."),
+        })
+        base["notes"].append("Backtest found no gate change worth making on this sample.")
+        return base
+
+    deltas = []
+    cur_settings = current.get("settings") or {}
+    best_settings = best.get("settings") or {}
+    for bt_key, reg_key in LIVE_SETTING_KEYS.items():
+        before, after = cur_settings.get(bt_key), best_settings.get(bt_key)
+        if before is None or after is None:
+            continue
+        try:
+            if abs(float(after) - float(before)) < 1e-9:
+                continue
+        except (TypeError, ValueError):
+            continue
+        lo, hi = LIVE_SETTING_BOUNDS.get(reg_key, (None, None))
+        try:
+            val = float(after)
+        except (TypeError, ValueError):
+            continue
+        if lo is not None:
+            val = max(lo, min(hi, val))
+        if reg_key == "analyst.valid_score":
+            val = int(round(val))
+        else:
+            val = round(val, 2)
+        deltas.append({
+            "setting": reg_key,
+            "backtest_key": bt_key,
+            "current": (int(round(float(before))) if reg_key == "analyst.valid_score"
+                        else round(float(before), 2)),
+            "proposed": val,
+            "reason": (f"backtest '{best.get('label')}' beat current on the recorded path "
+                       f"(${float(best.get('pnl_usd') or 0):+.2f} vs "
+                       f"${float(current.get('pnl_usd') or 0):+.2f}, {trades} trades)"),
+        })
+
+    # Confidence: a thin sample or a tiny trade count is never "high".
+    if thin or trades < 3:
+        confidence = "low"
+    elif trades >= 8 and improvement > 0:
+        confidence = "high"
+    else:
+        confidence = "medium"
+
+    if not deltas:
+        base.update({
+            "current": _brief(current), "best": _brief(best), "confidence": confidence,
+            "evidence": (f"'{best.get('label')}' scored best but changes no live setting "
+                         f"the desk can apply; keep the current gates."),
+        })
+        base["notes"].append("Best row only moved replay-only gates (score/chase/alive).")
+        return base
+
+    base.update({
+        "action": "adjust",
+        "confidence": confidence,
+        "deltas": deltas,
+        "current": _brief(current),
+        "best": _brief(best),
+        "improvement": improvement,
+        "evidence": (f"'{best.get('label')}' made ${float(best.get('pnl_usd') or 0):+.2f} over "
+                     f"{trades} trades (win {100 * float(best.get('win_rate') or 0):.0f}%, "
+                     f"max DD ${float(best.get('max_drawdown_usd') or 0):.2f}) vs current "
+                     f"${float(current.get('pnl_usd') or 0):+.2f}."),
+    })
+    if thin:
+        base["notes"].append("Thin sample: treat this as a hint, not a proven edge.")
+    if best.get("bundle"):
+        base["notes"].append("Best row is a bundle; the deltas move more than one knob at once.")
+    if best.get("unknown"):
+        base["notes"].append(f"{best['unknown']} candidate(s) had no later price and were not scored.")
+    return base
+
+
 def report(journal: str | Path | None = None, old_db: str | Path | None = None) -> dict:
     """Build the dashboard payload from the on-disk journal (and optional old desk)."""
     hist = load_journal(journal)
     out = run(hist)
+    out["recommendation"] = recommend(out)
     alt = None
     db = old_db if old_db is not None else os.environ.get("OLD_DESK_DB")
     if db:
@@ -752,6 +936,13 @@ def main(argv: list[str] | None = None) -> int:
         mark = "<" if r["current"] else ""
         print(f"{r['label']:<16} {r['trades']:>6} {wr:>7} {r['pnl_usd']:>9.2f} "
               f"{r['max_drawdown_usd']:>8.2f} {r['unknown']:>5} {mark:>4}")
+    rec = data.get("recommendation") or {}
+    if rec.get("action") == "adjust":
+        print(f"\nrecommendation ({rec.get('confidence')} confidence): {rec.get('evidence')}")
+        for d in rec.get("deltas") or []:
+            print(f"  {d['setting']}: {d['current']} -> {d['proposed']}")
+    else:
+        print("\nrecommendation: hold current gates")
     for c in data["caveats"]:
         print("-", c)
     if data.get("old_desk"):

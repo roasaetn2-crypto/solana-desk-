@@ -36,6 +36,16 @@ MAX_REPLY = 1200
 AGENTS = {"meme": "lead", "scanner": "market", "chain": "research", "analyst": "strategist",
           "risk": "risk", "broker": "executor", "devcheck": "reviewer"}
 
+# Backtest gate names -> live registry keys. A model may echo the backtest's own
+# vocabulary; map the settable ones and drop the replay-only ones so a proposal is
+# never silently discarded as "unknown setting".
+_BT_KEY_ALIASES = {
+    "min_thesis_score": "analyst.valid_score",
+    "max_h1_change_pct": "scan.max_h1_change_pct",
+    "max_price_gap_pct": "entry.max_price_gap_pct",
+    "min_score": None, "max_chase": None, "min_alive_6h": None,
+}
+
 NO_KEYS_MSG = ("AI keys not set. Add GEMINI_API_KEY, GROQ_API_KEY or OPENROUTER_API_KEY on "
                "Render to switch me on. The desk itself keeps paper trading without me.")
 
@@ -47,6 +57,10 @@ You MAY propose PAPER setting changes from the "settings" list you are given ([k
 or [key, current, choices]). Each proposal becomes a card the operator must Confirm; never say a
 change is done. Only use keys from that list and stay inside min..max. Never propose desk mode,
 live trading, the scam/dev kills, keys or the bankroll; say those are off limits.
+When "performance.backtest.recommendation" is present it is the desk's own read of the replay:
+if action is "adjust", prefer its deltas (they already use valid setting keys) and cite its
+evidence; if action is "hold" or confidence is "low", propose nothing unless the operator insists.
+Only use keys from the "settings" list; never invent a key.
 For a trading style request (scalper, swing) propose "trading.style" plus the related exits/scanner
 keys together. Only propose when asked to change or recommend settings; otherwise "proposals": [].
 Paper money only; never encourage real-money trading. If the snapshot lacks the data, say so.
@@ -57,8 +71,10 @@ Reply with STRICT JSON only:
  "proposals":[{"setting":"<key>","proposed":<value>,"reason":"<one short line>"}]}"""
 
 RECOMMEND_Q = ("Recommend PAPER setting changes based on the recent paper performance and the backtest "
-               "rows in the snapshot. Propose at most 5 changes with a short reason each, or none if the "
-               "current settings look right. Keep risk modest; this is a small paper book.")
+               "rows in the snapshot. Use performance.backtest.recommendation as the main evidence: if "
+               "action is 'adjust', propose its deltas (valid setting keys) with a short reason each; if "
+               "action is 'hold' or confidence is 'low', propose nothing. Propose at most 5 changes, or "
+               "none if the current settings look right. Keep risk modest; this is a small paper book.")
 
 
 # ---------- rate limit ----------
@@ -782,7 +798,11 @@ def _parse(text) -> dict | None:
     if isinstance(d, dict) and isinstance(d.get("proposals"), list):
         for x in d["proposals"][:12]:
             if isinstance(x, dict) and (x.get("setting") or x.get("key")):
-                props.append({"setting": _txt(x.get("setting") or x.get("key"), 60),
+                key = _txt(x.get("setting") or x.get("key"), 60)
+                mapped = _BT_KEY_ALIASES.get(key, key)
+                if mapped is None:      # replay-only gate: not settable on the live desk
+                    continue
+                props.append({"setting": mapped,
                               "proposed": x.get("proposed", x.get("value")) if isinstance(
                                   x.get("proposed", x.get("value")), (int, float, bool)) else
                               _txt(x.get("proposed", x.get("value")), 20),
@@ -821,6 +841,10 @@ def answer(question: str, state: dict, history=None, settings: list | None = Non
         if fallback:
             return {"ok": True, "reply": scrub(fallback), "agents": agents_for(intent, facts),
                     "proposals": [], "provider": None, "source": "desk"}
+        rec = _recommend_fallback(perf)
+        if rec:
+            return {"ok": True, "reply": scrub(rec["reply"]), "agents": ["analyst", "risk"],
+                    "proposals": rec["proposals"], "provider": None, "source": "desk"}
         return {"ok": True, "reply": NO_KEYS_MSG, "agents": [], "proposals": [], "provider": None,
                 "source": "no_keys"}
     snap = snapshot(state)
@@ -862,6 +886,11 @@ def answer(question: str, state: dict, history=None, settings: list | None = Non
     if fallback:
         return {"ok": True, "reply": scrub(fallback), "agents": agents_for(intent, facts),
                 "proposals": [], "provider": None, "source": "desk",
+                "detail": scrub(last_err or "")[:120], "errors": _error_classes()}
+    rec = _recommend_fallback(perf)
+    if rec:
+        return {"ok": True, "reply": scrub(rec["reply"]), "agents": ["analyst", "risk"],
+                "proposals": rec["proposals"], "provider": None, "source": "desk",
                 "detail": scrub(last_err or "")[:120], "errors": _error_classes()}
     return {"ok": True, "reply": busy_message(), "agents": [], "proposals": [], "provider": None,
             "source": "unavailable",
@@ -921,9 +950,71 @@ def performance(state: dict, backtest: dict | None) -> dict:
                                                "meme_rejects", "risk_rejects", "entries", "exits"))}
     bt = backtest if isinstance(backtest, dict) else {}
     rows = []
-    for r in (bt.get("rows") or [])[:8]:
-        rows.append({"label": _txt(r.get("label") or "", 30), "current": bool(r.get("current")),
-                     **_pick(r, ("trades", "wins", "win_rate", "pnl_usd", "max_drawdown_usd"))})
+    # Send EVERY row (not the first 8). The old [:8] slice silently dropped the
+    # chase/alive/gap sweeps, so the AI could never see half of the evidence.
+    for r in (bt.get("rows") or [])[:24]:
+        row = {"label": _txt(r.get("label") or "", 30), "current": bool(r.get("current")),
+               "actionable": bool(r.get("actionable")),
+               **_pick(r, ("trades", "wins", "win_rate", "pnl_usd", "max_drawdown_usd",
+                           "unknown", "passed_gates"))}
+        s = r.get("settings")
+        if isinstance(s, dict):
+            row["settings"] = {k: (_num(v) if isinstance(v, (int, float)) else v)
+                               for k, v in s.items()}
+        rows.append(row)
     if rows:
-        out["backtest"] = {"hours": _num(bt.get("hours"), 1), "thin": bool(bt.get("thin")), "rows": rows}
+        # desk_chat stays read-only and imports nothing that can act, so it never
+        # calls backtest itself: the report arrives with its recommendation already
+        # computed by backtest.report().
+        rec = bt.get("recommendation")
+        out["backtest"] = {"hours": _num(bt.get("hours"), 1), "thin": bool(bt.get("thin")),
+                           "rows": rows}
+        if isinstance(rec, dict):
+            out["backtest"]["recommendation"] = _clean_rec(rec)
     return out
+
+
+def _clean_rec(rec: dict) -> dict:
+    """Whitelist the recommendation block so only compact, safe fields reach the model."""
+    out = {"action": _txt(rec.get("action") or "hold", 10),
+           "confidence": _txt(rec.get("confidence") or "low", 10),
+           "evidence": _txt(rec.get("evidence") or "", 240),
+           "notes": [_txt(n, 160) for n in (rec.get("notes") or [])[:4]]}
+    deltas = []
+    for d in (rec.get("deltas") or [])[:8]:
+        if not isinstance(d, dict):
+            continue
+        deltas.append({"setting": _txt(d.get("setting"), 60),
+                       "current": d.get("current"), "proposed": d.get("proposed"),
+                       "reason": _txt(d.get("reason") or "", 160)})
+    out["deltas"] = deltas
+    b = rec.get("best")
+    if isinstance(b, dict):
+        out["best"] = {"label": _txt(b.get("label") or "", 30),
+                       **_pick(b, ("trades", "win_rate", "pnl_usd", "max_drawdown_usd"))}
+    return out
+
+
+def _recommend_fallback(perf: dict | None) -> dict | None:
+    """Deterministic recommendation when no model can answer.
+
+    This is what makes 'Recommend settings' useful offline: the backtest already
+    knows which actionable row won and by how much, so the desk can present the
+    same pending proposal the AI would have written.
+    """
+    if not isinstance(perf, dict):
+        return None
+    bt = perf.get("backtest") or {}
+    rec = bt.get("recommendation") or {}
+    if rec.get("action") != "adjust" or not rec.get("deltas"):
+        return None
+    lines = [f"Backtest read ({rec.get('confidence', 'low')} confidence): {rec.get('evidence', '')}"]
+    props = []
+    for d in rec["deltas"][:5]:
+        lines.append(f"- {d['setting']}: {d['current']} -> {d['proposed']} ({d.get('reason', '')})")
+        props.append({"setting": d["setting"], "proposed": d["proposed"],
+                      "reason": d.get("reason", "")})
+    for n in (rec.get("notes") or [])[:2]:
+        lines.append(f"Note: {n}")
+    lines.append("These are pending proposals; tap Confirm to apply. Paper only.")
+    return {"reply": "\n".join(lines)[:MAX_REPLY], "proposals": props}
