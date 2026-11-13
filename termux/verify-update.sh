@@ -112,7 +112,25 @@ say "=== 6. is the server running the new code? ==="
 if running; then
   pid="$(pgrep -f '[u]vicorn app:app' | head -1)"
   ok "uvicorn is running (pid $pid)"
-  say "        started: $(ps -o lstart= -p "$pid" 2>/dev/null | sed 's/^ *//')"
+  # Termux's ps has no lstart/etimes, so it printed "Thu Jan 1 1970".
+  # /proc/<pid>/stat field 22 is the start time in clock ticks since boot.
+  started="$(python - "$pid" <<'PY' 2>/dev/null
+import sys, time, os
+try:
+    pid = int(sys.argv[1])
+    with open(f"/proc/{pid}/stat") as f:
+        fields = f.read().rsplit(")", 1)[1].split()
+    ticks = float(fields[19])              # field 22 overall
+    hz = os.sysconf("SC_CLK_TCK") or 100
+    with open("/proc/uptime") as f:
+        uptime = float(f.read().split()[0])
+    age = uptime - ticks / hz
+    print(f"{int(age // 3600)}h {int(age % 3600 // 60)}m ago ({int(age)}s)")
+except Exception:
+    print("unknown")
+PY
+)"
+  say "        started: $started"
   say "        if that is older than your git pull, run: pkill -f '[u]vicorn app:app'"
   if curl -s --max-time 5 "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1; then
     ok "it answers on port $PORT"

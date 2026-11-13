@@ -20,22 +20,6 @@ cd "$DESK_DIR" || { echo "FAIL: no desk dir at $DESK_DIR"; exit 1; }
 
 say() { printf '%s\n' "$*"; }
 
-# Kill ONLY the real uvicorn process. A bare `pkill -f "uvicorn app:app"` also
-# matches any shell/log viewer whose command line merely mentions that string
-# (and can kill the very script that is running), so filter on the process name.
-stop_desk() {
-  local stopped=0 pid comm
-  for pid in $(pgrep -f "uvicorn app:app" 2>/dev/null); do
-    [ "$pid" = "$$" ] && continue
-    comm="$(ps -o comm= -p "$pid" 2>/dev/null || true)"
-    case "$comm" in
-      python*|uvicorn*|python3*)
-        kill "$pid" 2>/dev/null && { say "  stopped uvicorn (pid $pid)"; stopped=1; } ;;
-    esac
-  done
-  [ "$stopped" -eq 0 ] && say "  no running server"
-  return 0
-}
 
 say "=== 1. pulling the latest code ==="
 git pull --ff-only || { say "FAIL: git pull failed (network or local changes). Fix that first."; exit 1; }
@@ -51,24 +35,22 @@ python scripts/check_ledger.py --fix || { say "FAIL: repair failed"; exit 1; }
 
 say ""
 say "=== 4. restarting the desk ==="
-stop_desk
+# stop-desk.sh kills the supervisor BEFORE uvicorn, so nothing respawns behind us.
+bash termux/stop-desk.sh || true
 sleep 1
-if pgrep -f '[s]tart-desk.sh' >/dev/null 2>&1; then
-  say "  supervisor is running; it will respawn uvicorn with the new code"
-else
-  nohup bash "$DESK_DIR/termux/start-desk.sh" >/dev/null 2>&1 &
-  say "  launched termux/start-desk.sh"
-fi
+PORT="$PORT" nohup bash "$DESK_DIR/termux/start-desk.sh" >/dev/null 2>&1 &
+say "  launched termux/start-desk.sh on port $PORT"
 
 i=0
 while [ "$i" -lt 30 ]; do
   sleep 2; i=$((i + 2))
-  pgrep -f '[u]vicorn app:app' >/dev/null 2>&1 && break
+  curl -s -m 2 -o /dev/null "http://127.0.0.1:$PORT/api/health" && break
 done
-if pgrep -f '[u]vicorn app:app' >/dev/null 2>&1; then
-  say "  uvicorn is up after ${i}s"
+if curl -s -m 3 -o /dev/null "http://127.0.0.1:$PORT/api/health"; then
+  say "  desk is up after ${i}s"
 else
-  say "  WARNING: uvicorn did not come up in 30s -- check: bash termux/verify-update.sh --log"
+  say "  WARNING: the desk did not answer on port $PORT in 30s"
+  say "           check: bash termux/verify-update.sh --log"
 fi
 
 say ""

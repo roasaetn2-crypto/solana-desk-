@@ -183,3 +183,48 @@ exactly what the one-command update script hit on a cold dir.
   and logs in with `$DESK_TOKEN`/`~/.desk_key` before reading `/api/state`
   so the balance line is real numbers instead of `unauthorized`.
 - `tests/test_cold_start.py` pins all three.
+
+## The port-8000 bind storm (why the desk kept dying)
+
+`desk.log` on the phone showed the real failure:
+
+```
+---- 17:41:46Z launching uvicorn ----
+---- 17:41:47Z launching uvicorn ----
+---- 17:41:48Z launching uvicorn ----
+ERROR: [Errno 98] error while attempting to bind on address
+       ('0.0.0.0', 8000): [errno 98] address already in use
+---- uvicorn exited (code 3); restarting in 10s ----
+```
+
+Three supervisors were alive at once: the Termux:Boot hook, `update-all.sh`
+(which restarted), and `reset-balance.sh` (which restarted again). `start-desk.sh`
+had no singleton lock and never checked the port, so all three ran
+`uvicorn --port 8000`; two died on bind, and each death was respawned 10s later,
+forever. The dashboard was reachable only by luck of which process won.
+
+`termux/start-desk.sh` now:
+
+- takes `$DESK_DIR/.supervisor.lock` (pid file); a second launch prints
+  "supervisor already running" and exits 0 instead of starting a rival;
+- probes the port with a socket before every launch and, if something is already
+  serving, logs "port already serving; waiting" instead of binding and dying --
+  so a stray uvicorn is adopted, not fought;
+- backs off 2,4,8,16,32,60s instead of a flat 10s, so a crash loop cannot hammer
+  the CPU;
+- traps TERM/INT/HUP with `exit 0` and sleeps via `sleep & wait`, so
+  `stop-desk.sh` finishes in ~1s instead of escalating to SIGKILL.
+
+New `termux/stop-desk.sh` stops the supervisor BEFORE uvicorn (the other order
+just gets uvicorn respawned), and matches processes by an exact argv element in
+`/proc/PID/cmdline` rather than `pgrep -f` on a substring -- the old pattern also
+matched any shell whose command line merely mentioned the script name.
+
+`update-all.sh` and `fix-balance.sh` now always `stop-desk.sh` then start a fresh
+supervisor, so after a pull the supervisor is running the new script.
+
+`verify-update.sh` printed `started: Thu Jan 1 03:20:51 1970` because Termux's
+`ps` has no `lstart`; it now reads `/proc/PID/stat` field 22 against
+`/proc/uptime`.
+
+Pinned by `tests/test_supervisor.py`.

@@ -20,22 +20,6 @@ cd "$DESK_DIR" || { echo "FAIL: no desk dir at $DESK_DIR"; exit 1; }
 
 say() { printf '%s\n' "$*"; }
 
-# Kill ONLY the real uvicorn process. A bare `pkill -f "uvicorn app:app"` also
-# matches any shell/log viewer whose command line merely mentions that string
-# (and can kill the very script that is running), so filter on the process name.
-stop_desk() {
-  local stopped=0 pid comm
-  for pid in $(pgrep -f "uvicorn app:app" 2>/dev/null); do
-    [ "$pid" = "$$" ] && continue
-    comm="$(ps -o comm= -p "$pid" 2>/dev/null || true)"
-    case "$comm" in
-      python*|uvicorn*|python3*)
-        kill "$pid" 2>/dev/null && { say "  stopped uvicorn (pid $pid)"; stopped=1; } ;;
-    esac
-  done
-  [ "$stopped" -eq 0 ] && say "  no running server"
-  return 0
-}
 hr()  { say "------------------------------------------------------------"; }
 
 hr; say "1/5  pulling the latest code"; hr
@@ -63,14 +47,15 @@ else
 fi
 
 hr; say "5/5  restart + health check"; hr
-stop_desk
+# Stop the supervisor AND uvicorn, then start a fresh supervisor. After a pull
+# the old supervisor is still running the OLD script, and the old script had no
+# singleton lock and no port check -- several of them would fight over port 8000
+# and storm "[Errno 98] address already in use". A fresh start is the only way
+# to be sure the new code is what is serving.
+bash termux/stop-desk.sh || true
 sleep 1
-if pgrep -f '[s]tart-desk.sh' >/dev/null 2>&1; then
-  say "  supervisor is running; it will respawn uvicorn"
-else
-  PORT="$PORT" nohup bash "$DESK_DIR/termux/start-desk.sh" >/dev/null 2>&1 &
-  say "  launched termux/start-desk.sh on port $PORT"
-fi
+PORT="$PORT" nohup bash "$DESK_DIR/termux/start-desk.sh" >/dev/null 2>&1 &
+say "  launched termux/start-desk.sh on port $PORT"
 
 # A supervisor started earlier may be bound to a different port than $PORT.
 # Rather than fail, read the port the server actually announced in desk.log.
