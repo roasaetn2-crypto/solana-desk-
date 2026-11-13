@@ -2,19 +2,55 @@
 # Check whether the desk on THIS phone has the latest code from GitHub.
 #
 # Usage:
-#   bash ~/solana-desk/termux/verify-update.sh
+#   bash ~/solana-desk/termux/verify-update.sh            # check only
+#   bash ~/solana-desk/termux/verify-update.sh --start    # check, then start it
+#   bash ~/solana-desk/termux/verify-update.sh --log      # show the server log
 #
-# Exit code 0 = up to date and the signal feature is present.
-# Exit code 1 = something is missing (it tells you what).
+# Exit code 0 = code is current AND the desk is running.
+# Exit code 1 = the CODE is old or broken (it tells you what).
+# Exit code 2 = the code is fine, the desk is just not running.
+#
+# A stopped server is NOT a failed update. Those are different problems and
+# this script used to report them identically, which is confusing.
 set -u
 
 DESK_DIR="${DESK_DIR:-$HOME/solana-desk}"
+LOG="${LOG:-$DESK_DIR/desk.log}"
+PORT="${PORT:-8000}"
+START=0
+SHOWLOG=0
+for a in "$@"; do
+  case "$a" in
+    --start) START=1 ;;
+    --log)   SHOWLOG=1 ;;
+    -h|--help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+  esac
+done
+
 cd "$DESK_DIR" || { echo "FAIL: no desk dir at $DESK_DIR"; exit 1; }
 
-fail=0
+fail=0        # code problems only
+warn=0        # not-code problems (server stopped)
 say()  { printf '%s\n' "$*"; }
 ok()   { printf '  OK    %s\n' "$*"; }
 bad()  { printf '  MISS  %s\n' "$*"; fail=1; }
+note() { printf '  ..    %s\n' "$*"; warn=1; }
+
+running() { pgrep -f "[u]vicorn app:app" >/dev/null 2>&1; }
+
+log_tail() {   # last N lines of the server log, errors first
+  n="${1:-25}"
+  [ -f "$LOG" ] || { say "  (no log at $LOG yet)"; return; }
+  say "  ---- last $n lines of $LOG ----"
+  tail -n "$n" "$LOG" 2>/dev/null | sed 's/^/  | /'
+  say "  ---- end of log ----"
+}
+
+last_error() {  # pull the most useful crash line out of the log
+  [ -f "$LOG" ] || return 0
+  tail -n 120 "$LOG" 2>/dev/null | grep -E "^(Traceback|ModuleNotFoundError|[A-Za-z]*Error:|error:|ERROR)" \
+    | tail -3 | sed 's/^/  ! /'
+}
 
 say "=== 1. what commit is on disk ==="
 say "  HEAD:   $(git rev-parse --short HEAD 2>/dev/null || echo 'not a git repo')"
@@ -69,19 +105,101 @@ fi
 
 say ""
 say "=== 6. is the server running the new code? ==="
-if pgrep -f "[u]vicorn app:app" >/dev/null 2>&1; then
-  ok "uvicorn is running (pid $(pgrep -f '[u]vicorn app:app' | head -1))"
-  say "        restarted at: $(ps -o lstart= -p "$(pgrep -f '[u]vicorn app:app' | head -1)" 2>/dev/null)"
+if running; then
+  pid="$(pgrep -f '[u]vicorn app:app' | head -1)"
+  ok "uvicorn is running (pid $pid)"
+  say "        started: $(ps -o lstart= -p "$pid" 2>/dev/null | sed 's/^ *//')"
   say "        if that is older than your git pull, run: pkill -f '[u]vicorn app:app'"
+  if curl -s --max-time 5 "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1; then
+    ok "it answers on port $PORT"
+  else
+    note "process exists but port $PORT does not answer yet (still booting?)"
+  fi
 else
-  bad "uvicorn is NOT running -> bash termux/start-desk.sh"
+  note "desk is stopped (this is not an update problem)"
+fi
+
+# ---- optional: start it and re-check ----
+if [ "$START" -eq 1 ] && ! running; then
+  say ""
+  say "=== starting the desk ==="
+  if pgrep -f "[s]tart-desk.sh" >/dev/null 2>&1; then
+    say "  supervisor already running; waiting for it to respawn uvicorn"
+  else
+    nohup bash "$DESK_DIR/termux/start-desk.sh" >/dev/null 2>&1 &
+    say "  launched termux/start-desk.sh"
+  fi
+  i=0
+  while [ "$i" -lt 30 ]; do
+    sleep 2
+    i=$((i + 2))
+    running && break
+  done
+  if running; then
+    ok "uvicorn is up after ${i}s"
+    if curl -s --max-time 5 "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1; then
+      ok "health endpoint answers on port $PORT"
+      warn=0
+    else
+      note "process is up but port $PORT is not answering"
+    fi
+  else
+    bad "uvicorn did not come up in 30s -- it is crashing on start"
+    last_error
+    log_tail 30
+  fi
+fi
+
+# ---- if it is not running, show WHY (only when asked, or if it looks crashed) ----
+if ! running; then
+  if [ "$SHOWLOG" -eq 1 ] || [ -f "$LOG" ]; then
+    err="$(last_error)"
+    if [ -n "$err" ]; then
+      say ""
+      say "=== why it is not running ==="
+      printf '%s\n' "$err"
+      say "  full log: bash termux/verify-update.sh --log"
+    fi
+  fi
+fi
+
+# ---- will it come back on its own after a reboot? ----
+say ""
+say "=== 7. will it restart itself after a reboot? ==="
+HOOK="$HOME/.termux/boot/10-desk.sh"
+if [ -f "$HOOK" ]; then
+  if grep -q "start-desk.sh" "$HOOK" 2>/dev/null; then
+    ok "Termux:Boot hook installed ($HOOK)"
+  else
+    note "a boot hook exists but does not call start-desk.sh"
+  fi
+else
+  note "no boot hook: after a reboot the desk stays down until you start it"
+  say "        install it once:  bash termux/install-boot.sh"
+fi
+if command -v termux-wake-lock >/dev/null 2>&1; then
+  ok "termux-wake-lock available (Android will not freeze it)"
+else
+  note "termux-api missing: install it (pkg install termux-api) for the wake lock"
+fi
+
+if [ "$SHOWLOG" -eq 1 ]; then
+  say ""
+  say "=== server log ==="
+  log_tail 60
 fi
 
 say ""
-if [ "$fail" -eq 0 ]; then
-  say "RESULT: up to date, signal feature present, desk running."
-  exit 0
-else
-  say "RESULT: something above is missing. Fix the MISS lines, then re-run this."
+if [ "$fail" -ne 0 ]; then
+  say "RESULT: the CODE is out of date or broken. Fix the MISS lines above, then re-run."
   exit 1
+elif [ "$warn" -ne 0 ]; then
+  say "RESULT: code is current, but the desk is not serving."
+  say "        Start it:        bash termux/start-desk.sh"
+  say "        Or let me do it: bash termux/verify-update.sh --start"
+  say "        Keep it running: bash termux/install-boot.sh"
+  exit 2
+else
+  say "RESULT: up to date, all features present, desk running and answering."
+  exit 0
 fi

@@ -179,13 +179,33 @@ termux-wake-lock
 So the desk comes back on its own after the phone restarts or the battery dies:
 
 ```bash
-mkdir -p ~/.termux/boot
-cp ~/solana-desk/termux/boot-start.sh ~/.termux/boot/10-desk.sh
-chmod +x ~/.termux/boot/10-desk.sh
+bash ~/solana-desk/termux/install-boot.sh
 ```
+
+That one command creates `~/.termux/boot`, installs the hook, makes it
+executable and checks that it points at `start-desk.sh`. It also tells you if
+Termux:Boot is missing. Remove it later with
+`bash ~/solana-desk/termux/install-boot.sh --remove`.
 
 Reboot the phone to test. After ~30 seconds the desk should be up again —
 verify with `curl -s http://localhost:8000/api/health`.
+
+> **If the desk is not running**, do not guess. Run:
+>
+> ```bash
+> bash ~/solana-desk/termux/verify-update.sh
+> ```
+>
+> It separates three different problems that look the same from the outside:
+> the code is old (exit 1), the code is fine but the server is stopped
+> (exit 2), or everything is healthy (exit 0). When the server is stopped it
+> reads `desk.log` and prints the actual crash line, e.g.
+> `ModuleNotFoundError: No module named 'fastapi'`.
+>
+> ```bash
+> bash termux/verify-update.sh --start   # check, then start it
+> bash termux/verify-update.sh --log     # show the server log
+> ```
 
 > Termux:Boot only fires if the Termux:Boot app has been opened at least once
 > (Part 1, step 4) and is not battery-restricted (Part 7).
