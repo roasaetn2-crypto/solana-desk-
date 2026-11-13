@@ -34,6 +34,44 @@
 - Off-limits: mode/live/execution, keys/secrets, wallet, scam/dev kills, bankroll, `entry.require_confirm_quote`.
 - `desk_chat` still imports nothing that can act (isolation test passes).
 
+## On Termux (your phone) — how to know it is added
+
+```
+cd ~/solana-desk
+bash termux/verify-update.sh --fix
+```
+
+`--fix` pulls, restarts the desk on the new code and re-checks. Section
+**4b. backtest -> AI recommendation feature** is new and prints one `OK` line per
+piece of this change:
+
+```
+=== 4b. backtest -> AI recommendation feature ===
+  OK    backtest maps sweeps to live setting keys
+  OK    backtest has recommend()
+  OK    rows are tagged actionable
+  OK    offline recommendation fallback present
+  OK    backtest keys normalised for the AI
+  OK    performance() forwards the recommendation
+  OK    tests/test_backtest_recommend.py present
+  OK    recommend() runs and holds on an empty report
+```
+
+If any line says `MISS`, the phone is still on old code — the `RESULT:` line at
+the bottom tells you which case you are in (code old / code fine but desk down).
+
+Then prove the feature, not just the files:
+
+```
+cd ~/solana-desk && python -m pytest tests/test_backtest_recommend.py -q
+# 17 passed
+curl -s -X POST http://127.0.0.1:8000/api/ai/recommend | head -c 400
+```
+
+A working desk answers with `"proposals":[{ ... "status":"pending" ... }]`
+(or a `hold` reply with no proposals). The old code answered only
+`AI keys not set`.
+
 ## Verification
 - New `tests/test_backtest_recommend.py`: grid isolation, `recommend()` adjust/hold/confidence, performance completeness, offline fallback, key aliases, and `/api/ai/recommend` end-to-end creating a pending proposal.
 - Full suite: **632 passed, 17 skipped**.

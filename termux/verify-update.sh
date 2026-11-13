@@ -132,11 +132,26 @@ grep -q "BRAIN_ADVISE_ON" desk/brain_advisor.py && ok "AI advice is exit-only by
 grep -q "_advise_exit"    desk/solana_agent.py  && ok "agent reviews exits with the AI"      || bad "desk/solana_agent.py missing _advise_exit"
 
 say ""
+say "=== 4b. backtest -> AI recommendation feature ==="
+grep -q "LIVE_SETTING_KEYS"     desk/backtest.py  && ok "backtest maps sweeps to live setting keys" || bad "desk/backtest.py missing LIVE_SETTING_KEYS"
+grep -q "def recommend"         desk/backtest.py  && ok "backtest has recommend()"                 || bad "desk/backtest.py missing recommend()"
+grep -q '"actionable"'          desk/backtest.py  && ok "rows are tagged actionable"               || bad "desk/backtest.py rows not tagged actionable"
+grep -q "_recommend_fallback"   desk/desk_chat.py && ok "offline recommendation fallback present"   || bad "desk/desk_chat.py missing _recommend_fallback"
+grep -q "_BT_KEY_ALIASES"       desk/desk_chat.py && ok "backtest keys normalised for the AI"      || bad "desk/desk_chat.py missing _BT_KEY_ALIASES"
+grep -q "recommendation"        desk/desk_chat.py && ok "performance() forwards the recommendation" || bad "desk/desk_chat.py performance() has no recommendation"
+[ -f tests/test_backtest_recommend.py ] && ok "tests/test_backtest_recommend.py present"           || bad "tests/test_backtest_recommend.py missing"
+
+say ""
 say "=== 5. does the code import cleanly? ==="
 if python -c "from desk import signal_engine, signal_backtest; from desk import settings; print('   ', len(settings.REGISTRY), 'settings')" 2>/dev/null; then
   ok "signal_engine + signal_backtest import, settings registry loads"
 else
   bad "import failed -> python -c 'from desk import signal_engine' to see the error"
+fi
+if python -c "from desk import backtest, desk_chat; r=backtest.recommend({'rows':[]}); assert r['action']=='hold'" 2>/dev/null; then
+  ok "recommend() runs and holds on an empty report"
+else
+  bad "recommend() failed -> python -c 'from desk import backtest; backtest.recommend({\"rows\":[]})'"
 fi
 
 say ""
