@@ -142,6 +142,19 @@ grep -q "recommendation"        desk/desk_chat.py && ok "performance() forwards 
 [ -f tests/test_backtest_recommend.py ] && ok "tests/test_backtest_recommend.py present"           || bad "tests/test_backtest_recommend.py missing"
 
 say ""
+say "=== 4c. why-no-entry diagnostic + scalper take-profit ==="
+[ -f scripts/why_no_entry.py ] && ok "scripts/why_no_entry.py present"                             || bad "scripts/why_no_entry.py missing"
+grep -q "exits.tp_plan" desk/settings.py && ok "presets pin exits.tp_plan (TP ladder re-armed)"      || bad "desk/settings.py presets do not pin exits.tp_plan"
+[ -f tests/test_why_no_entry.py ] && ok "tests/test_why_no_entry.py present"                        || bad "tests/test_why_no_entry.py missing"
+if python scripts/why_no_entry.py --json >/dev/null 2>&1; then
+  ok "why_no_entry.py runs (exit 0 = no hard block, 2 = blocked)"
+else
+  rc=$?
+  if [ "$rc" -eq 2 ]; then ok "why_no_entry.py runs and reports a hard block (see: python scripts/why_no_entry.py)"
+  else bad "why_no_entry.py failed -> python scripts/why_no_entry.py"; fi
+fi
+
+say ""
 say "=== 5. does the code import cleanly? ==="
 if python -c "from desk import signal_engine, signal_backtest; from desk import settings; print('   ', len(settings.REGISTRY), 'settings')" 2>/dev/null; then
   ok "signal_engine + signal_backtest import, settings registry loads"

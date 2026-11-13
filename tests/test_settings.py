@@ -165,6 +165,21 @@ class Flow(Base):
         self.assertEqual(EXITS["style"], "both")
         self.assertEqual(EXITS["profiles"]["scalp"]["stop_pct"], 0.20)
 
+    def test_scalper_preset_rearms_the_scalp_take_profit_ladder(self):
+        # If the operator had switched to a single/global plan, confirming scalper
+        # mode must put the per-horizon scalp ladder back in force.
+        EXITS["take_profit_mode"] = "single"
+        out = st.create_preset("scalper")
+        self.assertTrue(out["ok"])
+        keys = {c["setting"] for c in out["proposal"]["changes"]}
+        self.assertIn("exits.tp_plan", keys)
+        self.assertTrue(st.confirm(out["proposal"]["id"], "t")["ok"])
+        self.assertEqual(EXITS["take_profit_mode"], "profile")
+        self.assertEqual(EXITS["profiles"]["scalp"]["tp1_at"], 1.3)
+        self.assertEqual(EXITS["profiles"]["scalp"]["tp2_at"], 1.8)
+        self.assertGreater(EXITS["profiles"]["scalp"]["tp1_frac"], 0)
+        self.assertGreater(EXITS["profiles"]["scalp"]["tp2_frac"], 0)
+
     def test_score_setter_moves_both_gates(self):
         pid = st.create([{"setting": "analyst.valid_score", "proposed": 7}], "x", "t")["proposal"]["id"]
         st.confirm(pid, "t")

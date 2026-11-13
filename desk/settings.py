@@ -297,18 +297,26 @@ _ALIASES = {"stop_loss": "exits.scalp.stop_pct", "stop": "exits.scalp.stop_pct",
 # ---------- presets: one card, every value that changes ----------
 PRESETS: dict[str, dict] = {
     "scalper": {"label": "Scalper mode", "reason": "Scalp only: young coins, tight stop, quick take profit, short clock.",
+                # tp_plan is pinned to "profile" so a previous global/single plan
+                # can never leave scalper mode without its 1.3x/1.8x ladder. The
+                # fractions are pinned too, so a tampered value cannot neuter TP.
                 "values": {"trading.style": "scalp", "scan.max_age_hours": 6, "exits.scalp_max_age_hours": 6,
+                           "exits.tp_plan": "profile",
                            "exits.scalp.stop_pct": 0.15, "exits.scalp.tp1_at": 1.3, "exits.scalp.tp2_at": 1.8,
+                           "exits.scalp.tp1_frac": 0.33, "exits.scalp.tp2_frac": 0.5,
                            "exits.scalp.trail_pct": 0.15, "exits.scalp.timeout_hours": 1.5,
                            "exits.scalp.max_hold_hours": 4, "agent.cycle_seconds": 30}},
     "swing": {"label": "Swing mode", "reason": "Swing only: coins older than the scalp window, wider stop, 4h max hold.",
               "values": {"trading.style": "swing", "scan.max_age_hours": 72, "exits.scalp_max_age_hours": 6,
+                         "exits.tp_plan": "profile",
                          "exits.swing.stop_pct": 0.30, "exits.swing.tp1_at": 1.5, "exits.swing.tp2_at": 2.5,
                          "exits.swing.trail_pct": 0.30, "exits.swing.timeout_hours": 3,
                          "exits.swing.max_hold_hours": 4}},
     "balanced": {"label": "Both (desk default)", "reason": "Back to the desk's default mix: scalp young coins, swing older ones.",
                  "values": {"trading.style": "both", "scan.max_age_hours": 48, "exits.scalp_max_age_hours": 6.0,
+                            "exits.tp_plan": "profile",
                             "exits.scalp.stop_pct": 0.20, "exits.scalp.tp1_at": 1.5, "exits.scalp.tp2_at": 2.0,
+                            "exits.scalp.tp1_frac": 0.33, "exits.scalp.tp2_frac": 0.5,
                             "exits.scalp.trail_pct": 0.20, "exits.scalp.timeout_hours": 3.0,
                             "exits.scalp.max_hold_hours": 4.0, "exits.swing.stop_pct": 0.30,
                             "exits.swing.tp1_at": 1.5, "exits.swing.tp2_at": 2.0, "exits.swing.trail_pct": 0.30,
