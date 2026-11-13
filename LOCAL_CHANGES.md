@@ -131,3 +131,19 @@ at the stop rather than held through the rug.
 Termux: `bash termux/fix-balance.sh` repairs a corrupt ledger; the new
 `bash termux/reset-balance.sh [amount]` archives the current ledger and re-bases
 the book to a clean bankroll (default $50) without deleting the old file.
+
+# Bankroll set to $50 (owner, 2026-11-14)
+
+`PAPER["starting_equity_usd"] = 50` and `PAPER["min_ticket_usd"] = 0.50`.
+
+The floor had to come down with the bankroll. On $50 a two-caution-cut ticket is
+$0.62 (swing) to $0.94 (scalp); the old $2 floor would reject every setup in
+risk-off + a security flag, which is the sizing deadlock this repo already fixed
+once. At $0.50 the desk keeps trading through two cuts and only skips at three
+(0.125x), which is the desk being genuinely cautious.
+
+Three tests hardcoded the old $2 floor / $50-liquidity cases and were updated to
+be floor-relative instead of magic-number-relative. `tests/legacy_book.py` still
+pins the $20 book for the older sizing tests, by design.
+
+A fresh install now boots at equity $50.00, cash $50.00, day P&L $0.00.

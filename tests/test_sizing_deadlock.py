@@ -72,7 +72,7 @@ def test_risk_engine_approves_and_the_halved_ticket_still_clears_the_floor():
 
 def test_paper_cash_cap_blocks_a_ticket_larger_than_available_cash():
     acct = risk.Account(equity=100.0, day_pnl=0.0, open_positions=0,
-                        realized_equity=100.0, cash=1.0)
+                        realized_equity=100.0, cash=0.20)
     ok, ticket, reason = risk.check_token_trade(_thesis(), acct, 500_000, stop_pct=0.30)
     assert not ok
     assert "fee floor" in reason, reason
