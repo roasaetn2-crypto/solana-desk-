@@ -7,7 +7,6 @@ usage: python scripts/replay_exits.py [/workspace/desk/desk.db]
 import sqlite3, sys, tempfile, json, statistics
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import config
 from desk import exits
 from desk.broker import PaperBroker
 

@@ -1,7 +1,6 @@
 """MERGE tests: scalp/swing exits, ladder, compounding, entry confirm."""
 import sys, tempfile, time, unittest
 from pathlib import Path
-from types import SimpleNamespace
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))

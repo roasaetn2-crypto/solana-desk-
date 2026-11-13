@@ -139,14 +139,12 @@ def _post(method: str, params, session: requests.Session | None = None):
         return None
     s = session or requests.Session()
     try:
-        last = None
         for attempt in range(3):
             throttle()
             r = s.post(url,
                        json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params},
                        timeout=TIMEOUT)
             if r.status_code == 429 or r.status_code >= 500:
-                last = r
                 time.sleep(0.5 * (attempt + 1))
                 continue
             if r.status_code >= 400:

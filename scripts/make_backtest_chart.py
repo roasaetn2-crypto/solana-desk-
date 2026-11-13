@@ -1,7 +1,6 @@
 """Render a visual summary of backtest_100.json -> backtest_100.png"""
 import json
 import statistics
-from pathlib import Path
 
 import matplotlib
 matplotlib.use("Agg")

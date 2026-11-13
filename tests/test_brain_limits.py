@@ -10,7 +10,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from test_brain_advisor import Base, Net, Resp, gem, groq, opinion, ORKEY  # noqa: E402
-from desk import brain_advisor as ba  # noqa: E402
 
 
 def orr(text):

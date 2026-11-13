@@ -11,7 +11,6 @@ produce a tradeable ticket after one caution cut, for every exit profile.
 """
 from __future__ import annotations
 
-import config
 from config import EXITS, PAPER, RISK
 from desk import risk
 from desk.analyst import TokenThesis

@@ -2,7 +2,6 @@
 import json
 import sys
 import tempfile
-import time
 import unittest
 from pathlib import Path
 
@@ -145,7 +144,6 @@ class Replay(unittest.TestCase):
         t0 = self.t0
         rows = [decision(t0, tok)]
         # later quotes ~1 minute apart so the 20% scalp stop can fire
-        price = entry
         for i, p in enumerate(later, start=1):
             rows.append({"time": _iso(t0 + i * 60), "kind": "quote", "mint": tok["mint"],
                          "symbol": tok["symbol"], "price_usd": p,

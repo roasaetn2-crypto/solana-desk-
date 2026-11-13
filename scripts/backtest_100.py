@@ -161,7 +161,7 @@ def main() -> int:
         # horizon: scalp if the pool is young (<6h) else swing; unknown -> scalp
         horizon = "scalp"
         try:
-            from datetime import datetime, timezone
+            from datetime import datetime
             if p.get("created_at"):
                 created = datetime.fromisoformat(p["created_at"].replace("Z", "+00:00")).timestamp()
                 age_h = (candles[0]["ts"] - created) / 3600
@@ -181,7 +181,6 @@ def main() -> int:
     n = len(trades)
     wins = sum(1 for t in trades if t["pnl"] > 0)
     losses = n - wins
-    total_pnl = sum(t["pnl"] for t in trades)
     avg_ret = sum(t["ret_pct"] for t in trades) / n if n else 0
     gross_win = sum(t["ret_pct"] for t in trades if t["pnl"] > 0)
     gross_loss = -sum(t["ret_pct"] for t in trades if t["pnl"] <= 0)

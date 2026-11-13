@@ -1,5 +1,4 @@
 """Desk AI conversation persistence: local file + Turso, no secrets, trimmed."""
-import json
 import os
 import sys
 import tempfile

@@ -12,7 +12,6 @@ import unittest
 os.environ.setdefault("DESK_OFFLINE", "1")
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from types import SimpleNamespace
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -21,7 +20,7 @@ from desk import analyst, brain, chain, helius, live, meme, scanner             
 from desk.solana_agent import SolanaAgent                                          # noqa: E402
 from legacy_book import legacy_book  # noqa: E402
 from desk.broker import PaperBroker                           # noqa: E402
-from config import EXITS, PAPER, RISK                         # noqa: E402
+from config import PAPER, RISK                         # noqa: E402
 from desk.risk import (Account, check_live_trade, check_token_trade,  # noqa: E402
                        live_sizing_breakdown, sizing_breakdown)
 
@@ -373,7 +372,7 @@ class AccessGate(unittest.TestCase):
     """The desk must be lockable. No token = open; token = closed."""
 
     def _client(self, token):
-        import importlib, os, sys
+        import os, sys
         os.environ.pop("DESK_TOKEN", None)
         if token:
             os.environ["DESK_TOKEN"] = token

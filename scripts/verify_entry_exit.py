@@ -14,7 +14,7 @@ os.environ["DESK_OFFLINE"] = "1"
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from config import PAPER, RISK, EXITS          # noqa: E402
-from desk import broker as broker_mod, exits, risk  # noqa: E402
+from desk import broker as broker_mod, risk  # noqa: E402
 
 ok, fail = [], []
 

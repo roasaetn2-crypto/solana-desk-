@@ -22,8 +22,6 @@ class QuoteCacheIsolation(unittest.TestCase):
         now = 1_000_000.0
         body_a = [{"baseToken": {"address": "MintA"}, "priceUsd": "1.0",
                    "liquidity": {"usd": 50_000}}]
-        body_b = [{"baseToken": {"address": "MintB"}, "priceUsd": "2.0",
-                   "liquidity": {"usd": 60_000}}]
 
         scanner._store_cache("ds:tokens-v1", body_a, now)
         cached, fresh = scanner._cached_body("ds:tokens-v1", now)

@@ -13,14 +13,12 @@ import sys
 import time
 from pathlib import Path
 
-import requests
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-import config  # noqa: E402
-from backtest_100 import simulate_trade, fetch_ohlcv, GT, SESSION  # noqa: E402
+from backtest_100 import fetch_ohlcv  # noqa: E402
 
 
 def main() -> int:

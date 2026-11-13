@@ -19,8 +19,7 @@ Nothing here changes a live setting or places an order.
 """
 from __future__ import annotations
 
-import config
-from config import EXITS, PAPER
+from config import PAPER
 from desk import exits as exit_rules
 from desk import signal_engine
 

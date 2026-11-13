@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import config
-from config import ENTRY, PAPER, RISK, SCAN
+from config import ENTRY, PAPER, SCAN
 from desk import exits
 from desk.broker import PaperBroker
 from desk.ops import data_file
@@ -287,9 +287,7 @@ def _parse_gap_reason(reason: str | None) -> tuple[float | None, float | None, f
     p1, p2 = _num(a), _num(b)
     if not p1 or not p2:
         return p1, p2, None
-    mid = (p1 + p2) / 2
-    gap = abs(p1 / p2 - 1) * 100 if p2 else None
-    # also as percent of the other quote
+    # gap as a percent of the other quote (symmetric, so a 2x is 100% not 50%)
     gap = max(abs(p1 / p2 - 1), abs(p2 / p1 - 1)) * 100
     return p1, p2, gap
 
@@ -369,7 +367,6 @@ def _history_from_events(events: list[dict], source: str, label: str) -> dict:
             token = _snap_token(ev.get("token") if isinstance(ev.get("token"), dict) else ev)
             if ev.get("price_usd") and "price_usd" not in token:
                 token["price_usd"] = ev["price_usd"]
-            extras = {}
             sc = ev.get("scorecard") if isinstance(ev.get("scorecard"), dict) else {}
             thesis = ev.get("thesis") if isinstance(ev.get("thesis"), dict) else {}
             feat = rules_features(token, {
@@ -622,7 +619,7 @@ def simulate(history: dict, settings: dict) -> dict:
                 unknown += 1
                 unknown_why[reason] = unknown_why.get(reason, 0) + 1
                 continue
-            fill = broker.buy(mint, cand.get("symbol") or mint[:6], ticket, entry_px, horizon=horizon)
+            broker.buy(mint, cand.get("symbol") or mint[:6], ticket, entry_px, horizon=horizon)
             broker.s["positions"][mint]["opened"] = cand["ts"]
             # Exits are applied by later 'tick' steps on the same timeline so a
             # price is never consumed twice.
