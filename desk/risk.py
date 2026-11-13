@@ -212,3 +212,21 @@ def live_sizing_breakdown(liquidity_usd: float, caps: dict) -> dict:
         "by_pool": round(by_pool, 2),
         "ticket": round(min(caps["max_trade"], remaining, by_pool), 2),
     }
+
+
+def open_risk_usd(positions: dict) -> float:
+    """Dollars the open book loses if every stop fills at its stop.
+
+    This is the number the daily stop should be measured against. Sizing each
+    ticket at 1.5% risk is meaningless if six of them are open at once: that is
+    9% of the book at risk on a desk that promises a 3% day. The entry gate uses
+    this to refuse a ticket that would push total open risk past the daily stop.
+    """
+    total = 0.0
+    for p in (positions or {}).values():
+        qty = float(p.get("qty") or 0.0)
+        last = float(p.get("last") or 0.0)
+        stop = float(p.get("stop_price") or 0.0)
+        if qty > 0 and last > 0 and 0 < stop < last:
+            total += qty * (last - stop)
+    return round(total, 4)

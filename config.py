@@ -76,6 +76,9 @@ RISK = {
     "max_daily_loss_usd": 0.0,     # hard dollar daily stop. 0 = off (use the % above). When set it
                                    # REPLACES the % limit, so you can name the day's loss in cash.
                                    # Useful on a small book where 3% is only a dollar or two.
+    "flatten_on_daily_stop": True,  # PAPER only. When the day's loss hits the stop, CLOSE every
+                                   # open position instead of merely blocking new entries. Without
+                                   # this a "3% daily stop" desk could bleed to -80% on open rugs.
     "auto_continue_after_daily_stop": False,  # PAPER only. When True the daily stop still fires and is
                                    # still journaled, but it does not block new entries (same effect as
                                    # tapping "Continue today" every day). LIVE ignores this entirely.
@@ -124,6 +127,10 @@ EXITS = {
     "quote_max_jump_x": 25.0,      # up: price may at most 25x in one tick
     "quote_max_drop_x": 25.0,      # down: at most 1/25th in one tick
     "quote_confirm_reads": 2,      # agreeing reads needed to accept a new level
+    "stop_fill_at_stop": True,     # PAPER: a stop fills at the stop level, not at a gapped-through
+                                   # rug print. Keeps a 1.5%-risk trade a 1.5% loss, so the daily
+                                   # stop is reachable instead of being blown past in one tick.
+                                   # False = raw market fill (accept full gap risk).
     "profiles": {
         "scalp": {"stop_pct": 0.20, "tp1_at": 1.5, "tp1_frac": 0.33, "tp2_at": 2.0, "tp2_frac": 0.5,
                   "trail_pct": 0.20, "timeout_hours": 3.0, "timeout_min_gain": 0.05,

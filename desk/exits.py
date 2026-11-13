@@ -133,6 +133,13 @@ def evaluate(pos: dict, q: dict | None, now: float, prof: dict | None = None) ->
 
     if price <= pos["stop_price"]:
         tag = "breakeven stop" if pos["stop_price"] >= entry else f"stop -{int(pr['stop_pct'] * 100)}%"
+        # A stop is a promise, not a hope. Fill at the stop level, not at whatever
+        # the next print happens to be: on a memecoin one tick can gap far past the
+        # stop (a rug), and filling there turns a 1.5%-risk trade into a 20%-of-book
+        # loss. That is exactly how a desk advertising a 3% daily stop ended a day
+        # at -80%. EXITS["stop_fill_at_stop"] = False restores raw market fills.
+        if EXITS.get("stop_fill_at_stop", True):
+            pos["fill_at"] = pos["stop_price"]
         return (1.0, tag)
     if pos["stage"] >= 1:
         # Runner (what is left after TP1). It trails no looser than runner_trail_pct and

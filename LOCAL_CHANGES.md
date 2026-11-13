@@ -96,3 +96,38 @@ What changed
 - Tests: `tests/test_scanner_sources.py` covers limiter, cooldown, no-sleep
   429, one search per cycle, and batched quotes.
 
+# The -80.53% day (2026-11-14 01:12): a stop that never stopped
+
+Screenshot: equity **$13.01**, day P&L **-$53.80 (-80.53%)** on a book that had
+been $66.81 -- while the dashboard still advertised "Daily loss stop 3%". Three
+separate holes, all now closed:
+
+1. **A stop filled at the rug print, not at the stop.** `exits.evaluate` marked
+   `pos["last"]` from the quote and returned a stop signal; `_manage_positions`
+   then sold at `pos["last"]`. On a memecoin a single tick can gap far past the
+   stop (a rug), so a 1.5%-risk trade realised a 20%-of-book loss.
+   Fix: `EXITS["stop_fill_at_stop"] = True` -- a stop exit carries `pos["fill_at"]
+   = pos["stop_price"]`, and the sell uses that level. `False` restores raw
+   market fills.
+
+2. **The daily stop blocked new buys but never closed the book.** `daily_loss_hit`
+   was only consulted in `check_token_trade`. Open positions kept bleeding all
+   day. Fix: `SolanaAgent._enforce_daily_stop()` flattens every open position the
+   moment the day's loss hits the stop (paper only, once per day, never when the
+   operator tapped Continue). It runs before and after `_manage_positions`, and
+   again after **every** realised exit, so a batch of rugs in one cycle cannot
+   realise the whole book before the next cycle notices.
+
+3. **Risk was sized per ticket, never for the book.** Six 1.5%-risk trades is 9%
+   at risk on a 3% day. Fix: `risk.open_risk_usd()` sums what the open book loses
+   if every stop fills at its stop, and the entry gate refuses a ticket that would
+   push total open risk past the daily stop. A single ticket is still the sizing
+   layer's job; the gate only governs *stacking*.
+
+Replaying the screenshot (six risk-sized positions, all rug to 1/10th) now ends
+the day at **-4.65%** instead of **-80.53%**, and the rest of the book is closed
+at the stop rather than held through the rug.
+
+Termux: `bash termux/fix-balance.sh` repairs a corrupt ledger; the new
+`bash termux/reset-balance.sh [amount]` archives the current ledger and re-bases
+the book to a clean bankroll (default $50) without deleting the old file.

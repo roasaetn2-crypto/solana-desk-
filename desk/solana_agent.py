@@ -41,7 +41,8 @@ from desk.netutil import offline
 from desk.ops import Bench, alert, data_file, journal, killed
 from desk.risk import daily_loss_hit, daily_loss_limit_usd, daily_override_active
 from desk.risk import (Account, check_live_trade, check_token_trade,
-                       live_sizing_breakdown, sizing_base, sizing_breakdown)
+                       live_sizing_breakdown, open_risk_usd, sizing_base,
+                       sizing_breakdown)
 
 
 
@@ -430,12 +431,47 @@ class SolanaAgent:
 
     def _liquidate(self, reason: str):
         for mint in list(self.broker.s["positions"]):
-            price = self.broker.s["positions"][mint]["last"]
-            entry = self.broker.s["positions"][mint].get("entry")
+            pos = self.broker.s["positions"][mint]
+            price = pos.get("fill_at") or pos["last"]
+            entry = pos.get("entry")
             fill = self.broker.sell(mint, 1.0, price, reason)
             journal("exit", **fill)
             self.emit("exit", f"closed {fill['symbol']} — {reason}", fraction=1.0, entry=entry, **fill)
             self._mark_trade("sell", fill, fraction=1.0, entry=entry, mcap_usd=self._mcap_of(mint))
+
+    def _enforce_daily_stop(self):
+        """Turn the daily loss stop from a label into a promise.
+
+        Until now `daily_loss_hit` only blocked NEW entries. Open positions kept
+        bleeding, so a desk that advertises "Daily loss stop 3%" could end the day
+        at -80% (screenshot 2026-11-14 01:12: $66.81 -> $13.01, -80.53%). A stop
+        that does not close the book is not a stop.
+
+        Paper only, once per day, and never when the operator has tapped
+        "Continue today". The limit itself is untouched.
+        """
+        if not self._paper_only() or not RISK.get("flatten_on_daily_stop", True):
+            return
+        today = str(date.today())
+        if self.paper.s.get("daily_stop_flatten_date") == today:
+            return
+        if daily_override_active(self.mode, self.paper.s.get("daily_loss_override_date"), today):
+            return
+        acct = self._paper_account()
+        if not daily_loss_hit(acct) or not self.paper.s["positions"]:
+            return
+        before, day_pnl = acct.equity, acct.day_pnl
+        self._liquidate(f"daily loss stop {RISK['max_daily_loss_pct'] * 100:.0f}% hit")
+        self.paper.s["daily_stop_flatten_date"] = today
+        self.paper._save()
+        after = self.paper.equity()
+        journal("risk_flatten", day=today, equity_before=round(before, 2),
+                equity_after=round(after, 2), day_pnl=round(day_pnl, 2),
+                limit_pct=RISK["max_daily_loss_pct"])
+        self.emit("warn",
+                  f"daily loss stop: flattened the book at ${before:.2f} "
+                  f"(day P&L ${day_pnl:.2f}); no new entries until tomorrow.",
+                  stage="risk")
 
     # ---------- one cycle ----------
     def run_once(self, force_demo: bool = False) -> dict:
@@ -452,6 +488,12 @@ class SolanaAgent:
             except Exception as e:
                 self.stats["errors"] += 1
                 self.emit("error", f"ledger repair skipped ({type(e).__name__}: {e})")
+            # The daily stop must close the book, not just stop new buys.
+            try:
+                self._enforce_daily_stop()
+            except Exception as e:
+                self.stats["errors"] += 1
+                self.emit("error", f"daily stop flatten skipped ({type(e).__name__}: {e})")
             self.cycle_no += 1
             self.stats["cycles"] += 1
             cycle = self.cycle_no
@@ -463,6 +505,14 @@ class SolanaAgent:
                 self.stats["errors"] += 1
             self.emit("error", f"position management failed ({type(e).__name__}: {e})")
             journal("error", stage="manage", error=str(e))
+        # Re-check after this cycle's exits: a batch of stops can push the day
+        # past the limit inside one cycle, and the rest of the book must not keep
+        # bleeding until the next one.
+        try:
+            self._enforce_daily_stop()
+        except Exception as e:
+            self.stats["errors"] += 1
+            self.emit("error", f"daily stop flatten skipped ({type(e).__name__}: {e})")
         tokens, source = self._scan(force_demo)
         with self.lock:
             self.data_source = source
@@ -687,6 +737,26 @@ class SolanaAgent:
                         ok, ticket, reason, guard_info, chips = self._caution(
                             t, ticket, sec, brk, stop, acct)
                         sizes["guard"] = guard_info
+                    # Risk budget: the daily stop must cover the WHOLE open book,
+                    # not one ticket at a time. Six 1.5%-risk trades is 9% at risk
+                    # on a 3% day. Refuse a ticket that would overrun the budget.
+                    if ok and self.broker is self.paper:
+                        budget = daily_loss_limit_usd(acct)
+                        open_risk = open_risk_usd(self.paper.s["positions"])
+                        new_risk = ticket * stop
+                        sizes["open_risk_usd"] = round(open_risk, 2)
+                        sizes["new_risk_usd"] = round(new_risk, 2)
+                        sizes["risk_budget_usd"] = round(budget, 2)
+                        # Only gate STACKING. A single ticket is the sizing
+                        # layer's job; this stops a second/third position from
+                        # pushing total open risk past the day's stop.
+                        if budget > 0 and open_risk > 0 and open_risk + new_risk > budget + 1e-9:
+                            ok = False
+                            reason = (f"open risk ${open_risk + new_risk:.2f} "
+                                      f"(open ${open_risk:.2f} + new ${new_risk:.2f}) "
+                                      f"would exceed the ${budget:.2f} daily stop")
+                            self.emit("info", f"risk budget: skip ${t['symbol']} — {reason}",
+                                      stage="risk")
                 # the seats talk to each other before anything is filled
                 convo = dialogue.debate(t, f, ds, dev, sc, th.model_dump(), ok, ticket,
                                         reason, sizes)
@@ -1089,7 +1159,9 @@ class SolanaAgent:
                 pos = self.broker.s["positions"][mint]
                 # advisory only, never blocks or delays the sell below
                 self._advise_exit(mint, pos, q, reason, hold_sig)
-                price = pos["last"]
+                # A stop that fired carries its own fill level (the stop price),
+                # so a rug print cannot drag the fill far below the stop.
+                price = pos.pop("fill_at", None) or pos["last"]
                 entry = pos.get("entry")
                 snap = {"peak": pos.get("peak"), "opened": pos.get("opened"),
                         "horizon": pos.get("horizon"), "meta": dict(pos.get("meta") or {}),
@@ -1124,6 +1196,16 @@ class SolanaAgent:
                         mult = None
                 self._mark_trade("sell", fill, fraction=fraction, entry=entry, mult=mult,
                                  mcap_usd=self._mcap_of(mint))
+                # Re-check the daily stop after EVERY realised exit. A batch of
+                # rugs in one cycle used to realise the whole book before the
+                # next cycle could flatten it; this closes the rest immediately.
+                if self._paper_only():
+                    try:
+                        if daily_loss_hit(self._paper_account()):
+                            self._enforce_daily_stop()
+                            break
+                    except Exception:
+                        pass
 
     def _review(self, mint: str, fill: dict, fraction: float, entry, snap: dict,
                 exit_jup: dict | None) -> dict:

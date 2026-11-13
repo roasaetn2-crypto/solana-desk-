@@ -260,3 +260,136 @@ def test_repair_recovers_an_already_blown_up_book():
     assert round(book.s["cash"], 2) == 50.0, book.s["cash"]
     assert round(book.equity(), 2) == 50.0
     assert round(book.realized_equity(), 2) == 50.0
+
+
+# ---------------------------------------------------------------------------
+# The -80.53% day (screenshot 2026-11-14 01:12): $66.81 -> $13.01 on a desk
+# that advertises "Daily loss stop 3%". Two independent holes:
+#   1. a stop filled at whatever a rug print said, not at the stop level;
+#   2. the daily stop blocked new buys but never closed the open book.
+# ---------------------------------------------------------------------------
+
+def test_stop_fills_at_the_stop_not_at_a_rug_print():
+    import json, tempfile, time
+    from pathlib import Path
+    from desk import exits
+    from desk.broker import PaperBroker
+
+    d = Path(tempfile.mkdtemp())
+    path = d / "paper_ledger.json"
+    path.write_text(json.dumps({"cash": 50.0, "positions": {}, "day": "2026-11-14",
+                                "day_start": 50.0, "start_equity": 50.0, "closed": []}))
+    book = PaperBroker(path)
+    book.buy("M1", "RUG", 3.0, 1.0, "scalp")
+    pos = book.s["positions"]["M1"]
+    stop_price = pos["stop_price"]
+    assert stop_price < pos["entry"]
+
+    # a rug print 10x below the last accepted price: inside the 25x tick band,
+    # so plausible() accepts it, and it is far below the stop.
+    sig = exits.evaluate(pos, {"price_usd": 0.10, "volume_h24": 1e6, "volume_h6": 1e6},
+                         time.time())
+    assert sig is not None and sig[1].startswith("stop"), sig
+    assert pos["fill_at"] == stop_price, (pos.get("fill_at"), stop_price)
+    assert pos["fill_at"] > 0.10, "the fill must not be the rug print"
+
+
+def test_six_rugs_cannot_turn_a_3pct_day_into_80pct():
+    """The screenshot scenario, replayed with the fix in place."""
+    import json, tempfile, time
+    from pathlib import Path
+    from desk import exits
+    from desk.broker import PaperBroker
+
+    d = Path(tempfile.mkdtemp())
+    path = d / "paper_ledger.json"
+    start = 66.81
+    path.write_text(json.dumps({"cash": start, "positions": {}, "day": "2026-11-14",
+                                "day_start": start, "start_equity": start, "closed": []}))
+    book = PaperBroker(path)
+
+    # risk-sized tickets: 1.5% of the book at the stop, six of them
+    for i in range(6):
+        stop = exits.profile("scalp")["stop_pct"]
+        ticket = round(RISK["max_risk_per_trade"] * start / stop, 2)
+        book.buy(f"M{i}", f"RUG{i}", ticket, 1.0, "scalp")
+
+    # every one rugs to a tenth of its price
+    for mint in list(book.s["positions"]):
+        pos = book.s["positions"][mint]
+        sig = exits.evaluate(pos, {"price_usd": 0.10, "volume_h24": 1e6,
+                                   "volume_h6": 1e6}, time.time())
+        assert sig is not None and sig[1].startswith("stop"), sig
+        book.sell(mint, 1.0, pos.pop("fill_at"), sig[1])
+
+    # at most 6 x 1.5% = 9% of the book, nowhere near -80%
+    assert book.equity() > start * 0.88, book.equity()
+    assert book.equity() > 13.01
+
+
+def test_daily_stop_flattens_the_open_book():
+    import json, os, tempfile
+    from datetime import date
+    from pathlib import Path
+    from unittest import mock
+
+    tmp = tempfile.TemporaryDirectory()
+    d = Path(tmp.name)
+    ledger = d / "paper_ledger.json"
+    ledger.write_text(json.dumps({"cash": 50.0, "positions": {}, "day": "2026-11-14",
+                                  "day_start": 50.0, "start_equity": 50.0, "closed": []}))
+    try:
+        with mock.patch.dict(os.environ, {"DESK_DATA_DIR": str(d)}):
+            from desk.solana_agent import SolanaAgent
+            from desk.risk import daily_loss_limit_usd
+            a = SolanaAgent(ledger=ledger, bench_path=d / "b.db", live_ledger=d / "l.json")
+            a.paper.buy("M1", "RUG", 3.0, 1.0, "scalp")
+            limit = daily_loss_limit_usd(a._paper_account())
+            a.paper.s["day_start"] = a.paper.equity() + limit + 0.01
+            a.paper._save()
+
+            a._enforce_daily_stop()
+            assert a.paper.s["positions"] == {}, a.paper.s["positions"]
+            assert a.paper.s.get("daily_stop_flatten_date") == str(date.today())
+            # idempotent: a second call the same day does nothing
+            a._enforce_daily_stop()
+            assert a.paper.s["positions"] == {}
+    finally:
+        tmp.cleanup()
+
+
+def test_daily_stop_does_not_flatten_when_operator_continued_today():
+    import json, os, tempfile
+    from datetime import date
+    from pathlib import Path
+    from unittest import mock
+
+    tmp = tempfile.TemporaryDirectory()
+    d = Path(tmp.name)
+    ledger = d / "paper_ledger.json"
+    ledger.write_text(json.dumps({"cash": 50.0, "positions": {}, "day": "2026-11-14",
+                                  "day_start": 50.0, "start_equity": 50.0, "closed": []}))
+    try:
+        with mock.patch.dict(os.environ, {"DESK_DATA_DIR": str(d)}):
+            from desk.solana_agent import SolanaAgent
+            from desk.risk import daily_loss_limit_usd
+            a = SolanaAgent(ledger=ledger, bench_path=d / "b.db", live_ledger=d / "l.json")
+            a.paper.buy("M1", "RUG", 3.0, 1.0, "scalp")
+            limit = daily_loss_limit_usd(a._paper_account())
+            a.paper.s["day_start"] = a.paper.equity() + limit + 0.01
+            a.paper.s["daily_loss_override_date"] = str(date.today())
+            a.paper._save()
+
+            a._enforce_daily_stop()
+            assert "M1" in a.paper.s["positions"], "Continue today must not be flattened"
+    finally:
+        tmp.cleanup()
+
+
+def test_open_risk_budget_counts_the_whole_book():
+    from desk.risk import open_risk_usd
+    pos = {"a": {"qty": 100, "last": 1.0, "stop_price": 0.8},
+           "b": {"qty": 50, "last": 2.0, "stop_price": 1.9}}
+    # 100*(1.0-0.8)=20 ; 50*(2.0-1.9)=5
+    assert open_risk_usd(pos) == 25.0
+    assert open_risk_usd({}) == 0.0
