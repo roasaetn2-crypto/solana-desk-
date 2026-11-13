@@ -67,6 +67,29 @@ if [ -n "$OPENROUTER" ] && [ "$OPENROUTER" != "-" ]; then
   echo "OPENROUTER_API_KEY=$OPENROUTER" >> "$ENV_FILE"
 fi
 echo "BRAIN_GEMINI_MODEL=$MODEL" >> "$ENV_FILE"
+
+# ---------- quota saver ----------
+# The trading loop ticks every 30s. Unpaced, the advisor asks for an opinion
+# 120 times an hour: 2 coins x 2 providers + a 3-turn debate = 7 calls a cycle,
+# which empties a 200/day Gemini budget in about 25 minutes and then sits on
+# "AI busy / limited" for the rest of the day. These settings trade a little
+# freshness for a budget that lasts the whole day:
+#   1 coin x 1 provider, no debate, at most one review every 4 minutes
+#   = 15 calls/hour, ~180/day, inside the 200 cap.
+# Raise BRAIN_OPINIONS to 2 or BRAIN_DEBATES_PER_CYCLE to 1 if you want the
+# two-bot back-and-forth and do not mind it running out sooner.
+if [ "${KEEP_QUOTA:-1}" = "1" ]; then
+  grep -v -e '^BRAIN_PER_CYCLE=' -e '^BRAIN_OPINIONS=' -e '^BRAIN_DEBATES_PER_CYCLE=' \
+       -e '^BRAIN_MIN_INTERVAL_S=' -e '^BRAIN_CACHE_TTL_S=' "$ENV_FILE" > "$ENV_FILE.new" 2>/dev/null
+  mv "$ENV_FILE.new" "$ENV_FILE"
+  {
+    echo "BRAIN_PER_CYCLE=1"
+    echo "BRAIN_OPINIONS=1"
+    echo "BRAIN_DEBATES_PER_CYCLE=0"
+    echo "BRAIN_MIN_INTERVAL_S=240"
+    echo "BRAIN_CACHE_TTL_S=1800"
+  } >> "$ENV_FILE"
+fi
 chmod 600 "$ENV_FILE"
 
 echo "=== .env (values masked) ==="
@@ -102,3 +125,6 @@ curl -s --max-time 8 "http://127.0.0.1:$PORT/api/health" | head -c 700
 echo
 echo
 echo "Look for \"keys_present\":true. Then reload http://127.0.0.1:$PORT/?v=2#ai"
+echo
+echo "Quota profile: 1 coin, 1 opinion, no debate, 1 review / 4 min (~180 calls/day)."
+echo "Want the two-bot debate back?  KEEP_QUOTA=0 bash termux/set-ai-keys.sh - -"

@@ -70,13 +70,28 @@ TIMEOUT_S = float(os.getenv("BRAIN_TIMEOUT_S", "8"))   # per HTTP call
 # Set BRAIN_GEMINI_MODEL=gemini-3.5-flash-lite (or raise BRAIN_TIMEOUT_S) if the
 # primary model keeps timing out.
 DEADLINE_S = 40.0               # whole review incl. debate
-PER_CYCLE = int(os.getenv("BRAIN_PER_CYCLE", "2"))      # coins reviewed per cycle
-DEBATES_PER_CYCLE = 1
+# ---------- quota knobs ----------
+# The trading loop runs every CYCLE_SECONDS (30s), so an unpaced advisor would ask
+# for an opinion 120 times an hour and burn a whole day of free-tier quota in
+# ~25 minutes. Every knob below is an env var so the burn rate can be tuned
+# without editing code. Costs per cycle, with the defaults:
+#   PER_CYCLE coins x OPINIONS providers  +  DEBATES_PER_CYCLE x 3 debate turns
+#   1 x 1 + 0 x 3 = 1 call per review, and MIN_INTERVAL_S keeps reviews apart.
+PER_CYCLE = int(os.getenv("BRAIN_PER_CYCLE", "2"))       # coins reviewed per cycle
+OPINIONS = max(1, min(2, int(os.getenv("BRAIN_OPINIONS", "2"))))  # providers per review
+# A debate is 3 extra calls (B, A, B) and is the most expensive thing here.
+# 0 = opinions only, no back-and-forth.
+DEBATES_PER_CYCLE = int(os.getenv("BRAIN_DEBATES_PER_CYCLE", "1"))
 DEBATE_CALLS_PER_PROVIDER = 2   # hard cap per coin
+# Hard floor between two reviews, so a 30s loop cannot outrun the daily budget.
+# 0 disables the gate. 240s = 15 reviews/hour = 180 calls/day at 1 opinion each.
+# Off by default so the library keeps its old behaviour; termux/set-ai-keys.sh
+# writes the quota-saver profile into .env, which is where it belongs.
+MIN_INTERVAL_S = float(os.getenv("BRAIN_MIN_INTERVAL_S", "0"))
 # Reuse the last opinion for this long unless price or liquidity moved a lot.
-CACHE_TTL_S = 25 * 60
+CACHE_TTL_S = int(os.getenv("BRAIN_CACHE_TTL_S", str(25 * 60)))
 CACHE_MAX = 500
-MATERIAL_MOVE = 0.25            # 25% change in price or liquidity forces a fresh ask
+MATERIAL_MOVE = float(os.getenv("BRAIN_MATERIAL_MOVE", "0.25"))  # price/liquidity jump forces a fresh ask
 DEFAULT_COOLDOWN_S = 120
 MAX_COOLDOWN_S = 3600
 LOW_BUDGET_LEFT = 0.10          # skip the debate when under 10% of a budget remains
@@ -90,7 +105,11 @@ RPM = {"gemini": 8, "groq": 8, "openrouter": 3}
 # 400 calls a day of ~500 tokens is the conservative ceiling. Gemini free Flash models allow
 # several hundred requests a day; 200 leaves a wide margin.
 # OpenRouter free tier: 20 RPM and 50 requests/day shared across all ":free" models.
-BUDGETS = {"gemini": 200, "groq": 400, "openrouter": 45}
+# Self-imposed daily caps, deliberately below the published free tiers so the desk
+# stops on its own terms instead of eating 429s all day.
+BUDGETS = {"gemini": int(os.getenv("BRAIN_BUDGET_GEMINI", "200")),
+           "groq": int(os.getenv("BRAIN_BUDGET_GROQ", "400")),
+           "openrouter": int(os.getenv("BRAIN_BUDGET_OPENROUTER", "45"))}
 OPENROUTER_DEBATE_MIN_LEFT = 10   # no debate when OpenRouter has fewer calls than this left
 VERDICTS = ("buy", "watch", "skip")
 _CAUTION = {"skip": 0, "watch": 1, "buy": 2}
@@ -532,14 +551,19 @@ class Advisor:
         self._pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="brain")
         self.cycle_reviews = 0
         self.cycle_debates = 0
+        self.last_review_at = 0.0
 
     # -- state --
     def providers(self) -> list[Provider]:
         return [self.gemini, self.groq, self.openrouter]
 
     def pair(self) -> list[Provider]:
-        """The first two usable providers, in the order Gemini, Groq, OpenRouter."""
-        return [p for p in self.providers() if p.available()][:2]
+        """The first usable providers, in the order Gemini, Groq, OpenRouter.
+
+        Capped at OPINIONS (default 1) because each provider in the pair costs one
+        call per review. Two voices are nicer to read and twice the quota.
+        """
+        return [p for p in self.providers() if p.available()][:OPINIONS]
 
     def enabled(self) -> bool:
         return any(p.key() for p in self.providers())
@@ -560,6 +584,8 @@ class Advisor:
 
     def status(self) -> dict:
         return {"enabled": self.enabled(), "resting": self.resting(), "per_cycle": PER_CYCLE,
+                "opinions": OPINIONS, "debates_per_cycle": DEBATES_PER_CYCLE,
+                "min_interval_s": MIN_INTERVAL_S,
                 "opinion_ttl_s": CACHE_TTL_S, "material_move": MATERIAL_MOVE,
                 "models": {"gemini": gemini_models(), "groq": GROQ_MODEL,
                            "openrouter": openrouter_models()},
@@ -803,6 +829,12 @@ class Advisor:
             with self._lock:
                 if mint in self._inflight or self.cycle_reviews >= PER_CYCLE:
                     return "skipped"
+                # Quota gate: the loop ticks every 30s, the budget is per day.
+                # Without this the advisor asks 120 times an hour and the whole
+                # free tier is gone in half an hour.
+                if MIN_INTERVAL_S and time.time() - self.last_review_at < MIN_INTERVAL_S:
+                    return "skipped"
+                self.last_review_at = time.time()
                 self.cycle_reviews += 1
                 self._inflight.add(mint)
 
