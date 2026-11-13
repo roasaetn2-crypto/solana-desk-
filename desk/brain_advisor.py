@@ -308,6 +308,27 @@ def _day() -> str:
     return time.strftime("%Y-%m-%d", time.gmtime())
 
 
+def _seconds_to_reset(now: float | None = None) -> float:
+    """Seconds until the daily quota resets (00:00 UTC), minimum 1.
+
+    Every provider here resets on UTC midnight, so this is the window the daily
+    budget has to be stretched across.
+    """
+    now = time.time() if now is None else now
+    t = time.gmtime(now)
+    midnight = now - (t.tm_hour * 3600 + t.tm_min * 60 + t.tm_sec)
+    return max(1.0, midnight + 86400 - now)
+
+
+# Spread the daily budget across the whole day instead of letting a burst spend it
+# by lunchtime and leave the desk on the heuristic until midnight. Off by default
+# for providers that are cheap and plentiful; `BRAIN_SPREAD_DAY=groq,cerebras`
+# turns it on per provider (or `all`). A call is refused only when the day's
+# allowance is genuinely ahead of schedule, so the desk falls through to the next
+# provider rather than going quiet.
+SPREAD_DAY = {n.strip().lower() for n in os.getenv("BRAIN_SPREAD_DAY", "").split(",") if n.strip()}
+
+
 class ProviderError(Exception):
     def __init__(self, msg: str, status: int | None = None, retry_after: float | None = None,
                  limited: bool = False):
@@ -425,6 +446,8 @@ class Provider:
         self.last_error: str | None = None   # error class only, never text from the provider
         self.last_error_at = 0.0
         self.last_ok_at = 0.0
+        self._credit = 0.0          # day-spread token bucket, in calls
+        self._credit_at = 0.0       # when _credit was last topped up
         self.lock = threading.Lock()
 
     @property
@@ -488,6 +511,69 @@ class Provider:
                 return False
             return any(now >= self._cooldowns.get(k, 0.0) for k in ks)
 
+    @property
+    def spread(self) -> bool:
+        """Is this provider's daily budget stretched across the day?"""
+        return "all" in SPREAD_DAY or self.name in SPREAD_DAY
+
+    def _burst(self) -> float:
+        """How many calls may be spent back-to-back before the pace takes over.
+
+        A twelfth of the day's budget: enough for a cluster of positions opening
+        at once, small enough that a busy hour cannot eat the afternoon.
+        """
+        return max(3.0, self.budget / 12.0)
+
+    def _rate(self, now: float) -> float:
+        """Calls per second this provider can still afford until the reset.
+
+        Must be called with self.lock held (it reads self.used).
+        """
+        left = max(0, self.budget - self.used)
+        return left / _seconds_to_reset(now) if left else 0.0
+
+    def _accrue(self, now: float) -> float:
+        """Top up the day bucket by the calls earned since the last look.
+
+        Must be called with self.lock held. The bucket is capped at the burst
+        size so idle hours cannot be banked into a spending spree.
+        """
+        if not self.spread:
+            return float("inf")
+        if not self._credit_at:
+            self._credit_at = now
+            self._credit = self._burst()
+            return self._credit
+        # What is LEFT, over the time that is LEFT. Using the full budget here
+        # would let a provider that already spent 300 of 400 still trickle at the
+        # 400/day rate and blow through midnight with hours to go.
+        rate = self._rate(now)
+        self._credit = min(self._burst(), self._credit + (now - self._credit_at) * rate)
+        self._credit_at = now
+        return self._credit
+
+    def on_pace(self, now: float | None = None) -> bool:
+        """True if the day's budget is not being spent ahead of schedule."""
+        if not self.spread:
+            return True
+        now = time.time() if now is None else now
+        with self.lock:
+            return self._accrue(now) >= 1.0
+
+    def seconds_until_call(self, now: float | None = None) -> float:
+        """How long until the day bucket can afford one more call."""
+        if not self.spread:
+            return 0.0
+        now = time.time() if now is None else now
+        with self.lock:
+            if self.used >= self.budget:
+                return float(_seconds_to_reset(now))   # nothing left today
+            credit = self._accrue(now)
+            if credit >= 1.0:
+                return 0.0
+            rate = self._rate(now)
+            return (1.0 - credit) / rate if rate else 86400.0
+
     def reserve(self) -> bool:
         """Take one call from the first key that is not cooling. Rotates on a 429."""
         with self.lock:
@@ -496,11 +582,15 @@ class Provider:
             if not ks or self.used >= self.budget:
                 return False
             now = time.time()
+            if self._accrue(now) < 1.0:
+                return False        # ahead of the day's pace: let another provider answer
             for k in ks:
                 if now >= self._cooldowns.get(k, 0.0):
                     self._active = k
                     self.used += 1
                     self._per_key[k] = self._per_key.get(k, 0) + 1
+                    if self.spread:
+                        self._credit -= 1.0
                     return True
             return False
 

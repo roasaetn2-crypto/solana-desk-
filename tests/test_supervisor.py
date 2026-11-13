@@ -91,3 +91,65 @@ def test_update_all_attaches_a_detached_head():
     t = _text(ROOT / "termux" / "update-all.sh")
     assert "symbolic-ref -q HEAD" in t
     assert "git checkout main" in t
+
+
+# ---------------------------------------------------------------------------
+# set-ai-keys.sh must not put a key in the wrong slot.
+#
+# A Groq key (gsk_...) pasted into the OpenRouter position was written as
+# OPENROUTER_API_KEY, so the desk called openrouter.ai with a Groq key, got 401,
+# and it looked like the key was broken. The prefixes are unambiguous, so the
+# script routes on them instead of trusting the argument position.
+# ---------------------------------------------------------------------------
+KEYS = ROOT / "termux" / "set-ai-keys.sh"
+
+
+def _route(tmp_path, *args):
+    """Run set-ai-keys.sh against a scratch .env and return the keys it wrote."""
+    (tmp_path / "termux").mkdir()
+    # A stub supervisor, and a copy of the script whose health poll does not
+    # actually wait 40 seconds.
+    (tmp_path / "termux" / "start-desk.sh").write_text("#!/bin/bash\ntrue\n")
+    (tmp_path / "termux" / "start-desk.sh").chmod(0o755)
+    fast = _text(KEYS).replace("  sleep 2\n", "  sleep 0.01\n")
+    fast = fast.replace("i=$((i + 2))", "i=$((i + 20))")
+    (tmp_path / "termux" / "fast.sh").write_text(fast)
+    (tmp_path / ".env").write_text("DESK_TOKEN=abc123\n")
+    subprocess.run(["bash", str(tmp_path / "termux" / "fast.sh"), *args],
+                   env={"DESK_DIR": str(tmp_path), "PORT": "59999", "PATH": "/usr/bin:/bin",
+                        "HOME": str(tmp_path)},
+                   capture_output=True, timeout=60)
+    out = {}
+    for line in (tmp_path / ".env").read_text().splitlines():
+        if "=" in line and not line.startswith("#"):
+            k, v = line.split("=", 1)
+            out[k] = v
+    return out
+
+
+def test_groq_key_pasted_in_the_openrouter_slot_is_routed_to_groq(tmp_path):
+    env = _route(tmp_path, "-", "gsk_FAKEFAKEFAKE1234567890")
+    assert env.get("GROQ_API_KEY", "").startswith("gsk_")
+    assert "OPENROUTER_API_KEY" not in env
+
+
+def test_openrouter_key_stays_in_the_openrouter_slot(tmp_path):
+    env = _route(tmp_path, "-", "sk-or-v1-abcdefghijklmnopqrstuvwx")
+    assert env.get("OPENROUTER_API_KEY", "").startswith("sk-or-v1-")
+    assert "GROQ_API_KEY" not in env
+
+
+def test_gemini_and_cerebras_are_routed_by_prefix(tmp_path):
+    env = _route(tmp_path, "AIzaSyABCDEFGHIJKLMNOPQRSTUV", "-", "-", "csk-abcdefghijklmnopqrstuvwxyz")
+    assert env.get("GEMINI_API_KEY", "").startswith("AIza")
+    assert env.get("CEREBRAS_API_KEY", "").startswith("csk-")
+
+
+def test_groq_is_also_accepted_as_the_ninth_argument(tmp_path):
+    env = _route(tmp_path, "-", "-", "-", "-", "-", "-", "-", "-", "gsk_explicitgroqkey1234567")
+    assert env.get("GROQ_API_KEY", "").startswith("gsk_")
+
+
+def test_quota_saver_spreads_the_groq_budget_across_the_day(tmp_path):
+    env = _route(tmp_path, "-", "gsk_FAKEFAKEFAKE1234567890")
+    assert env.get("BRAIN_SPREAD_DAY") == "groq"

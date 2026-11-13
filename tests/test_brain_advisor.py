@@ -890,6 +890,102 @@ class OllamaProvider(unittest.TestCase):
         self.assertFalse(p.available())
 
 
+class DaySpread(unittest.TestCase):
+    """Spend the daily budget across the whole day, so it lasts until reset.
+
+    Without this a burst spends all 400 Groq calls by mid-morning and the desk
+    sits on the heuristic until midnight.
+    """
+
+    MIDNIGHT = 1794528000.0 - (1794528000.0 % 86400)   # a UTC midnight
+
+    def setUp(self):
+        self.env = mock.patch.dict(os.environ, {"GROQ_API_KEY": "gsk_FAKEFAKEFAKE1234567890"})
+        self.env.start()
+        self.addCleanup(self.env.stop)
+        self._spread = ba.SPREAD_DAY
+        self.addCleanup(setattr, ba, "SPREAD_DAY", self._spread)
+        self._time = ba.time.time
+        self.addCleanup(setattr, ba.time, "time", self._time)
+        self.clock = self.MIDNIGHT
+        ba.time.time = lambda: self.clock
+
+    def provider(self, budget=400, spread=True):
+        ba.SPREAD_DAY = {"groq"} if spread else set()
+        p = ba.Groq("groq", "GROQ_API_KEY", budget)
+        return p
+
+    def test_seconds_to_reset_counts_down_to_utc_midnight(self):
+        self.assertAlmostEqual(ba._seconds_to_reset(self.MIDNIGHT), 86400, delta=1)
+        self.assertAlmostEqual(ba._seconds_to_reset(self.MIDNIGHT + 3600), 82800, delta=1)
+        # never zero, or the rate would divide by zero at the stroke of midnight
+        self.assertGreaterEqual(ba._seconds_to_reset(self.MIDNIGHT + 86400 - 0.5), 1.0)
+
+    def test_off_by_default_keeps_the_old_burst_behaviour(self):
+        p = self.provider(spread=False)
+        self.assertFalse(p.spread)
+        for _ in range(50):
+            self.assertTrue(p.reserve())
+        self.assertEqual(p.used, 50)
+
+    def test_burst_is_allowed_then_the_pace_takes_over(self):
+        p = self.provider()
+        burst = int(p._burst())
+        for i in range(burst):
+            self.assertTrue(p.reserve(), f"burst call {i} should be allowed")
+        # the bucket is empty now: the next call is ahead of schedule
+        self.assertFalse(p.reserve())
+        self.assertEqual(p.used, burst)
+
+    def test_credit_accrues_with_time(self):
+        p = self.provider()
+        burst = int(p._burst())
+        for _ in range(burst):
+            p.reserve()
+        self.assertFalse(p.reserve())
+        self.assertGreater(p.seconds_until_call(), 0)
+        # wait out the wait it just quoted, and the call is affordable again
+        self.clock += p.seconds_until_call() + 1
+        self.assertTrue(p.reserve())
+
+    def test_a_spent_budget_slows_the_trickle(self):
+        """Rate is what is LEFT over the time that is LEFT, not the full budget."""
+        fresh = self.provider()
+        fresh._accrue(self.clock)
+        spent = self.provider()
+        spent.used = 380          # 20 of 400 left
+        spent._accrue(self.clock)
+        self.assertLess(spent._rate(self.clock), fresh._rate(self.clock))
+
+    def test_a_bursty_day_still_has_calls_left_at_the_end(self):
+        """The property that matters: the budget survives until the reset."""
+        p = self.provider()
+        calls, last_hour = 0, 0.0
+        t = self.MIDNIGHT
+        while t < self.MIDNIGHT + 86400:
+            self.clock = t
+            if p.reserve():
+                calls += 1
+                last_hour = (t - self.MIDNIGHT) / 3600.0
+            t += 60                      # a review every minute, all day
+        self.assertEqual(calls, 400, "every call in the budget should get spent")
+        self.assertLessEqual(p.used, p.budget)
+        # and the last one lands near midnight, not at 06:40
+        self.assertGreater(last_hour, 20.0)
+
+    def test_without_spreading_the_same_day_runs_dry_early(self):
+        p = self.provider(spread=False)
+        t = self.MIDNIGHT
+        while t < self.MIDNIGHT + 86400 and p.reserve():
+            t += 60
+        self.assertLess((t - self.MIDNIGHT) / 3600.0, 8.0)
+
+    def test_no_budget_means_no_calls(self):
+        p = self.provider(budget=0)
+        self.assertFalse(p.reserve())
+        self.assertGreater(p.seconds_until_call(), 0)
+
+
 class QuotaPayload(unittest.TestCase):
     """The dashboard reads this: per-provider burn, keys, cooldown, calls left."""
 

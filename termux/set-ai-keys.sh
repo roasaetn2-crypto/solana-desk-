@@ -6,7 +6,15 @@
 # running garbage. One short command line is atomic and always survives.
 #
 # Usage:
-#   bash termux/set-ai-keys.sh <GEMINI_KEY> <OPENROUTER_KEY> [GEMINI_MODEL] [CEREBRAS_KEY] [CF_ACCOUNT_ID] [CF_TOKEN] [OLLAMA_KEY] [OLLAMA_MODEL]
+#   bash termux/set-ai-keys.sh <GEMINI_KEY> <OPENROUTER_KEY> [GEMINI_MODEL] [CEREBRAS_KEY] [CF_ACCOUNT_ID] [CF_TOKEN] [OLLAMA_KEY] [OLLAMA_MODEL] [GROQ_KEY]
+#
+# Keys are also routed by their prefix, so you cannot put one in the wrong slot:
+#   gsk_...      -> GROQ_API_KEY      (Groq keys start gsk_)
+#   sk-or-v1-... -> OPENROUTER_API_KEY
+#   AIza...      -> GEMINI_API_KEY
+#   csk-...      -> CEREBRAS_API_KEY
+# So this does the right thing even though Groq is arg 9:
+#   bash termux/set-ai-keys.sh - gsk_xxxxxxxx
 #
 # A fourth free provider (Cerebras) is optional and goes fifth:
 #   bash termux/set-ai-keys.sh - - - csk-xxxxxxxx
@@ -43,12 +51,28 @@ CF_ACCOUNT="${5:-}"
 CF_TOKEN="${6:-}"
 OLLAMA="${7:-}"
 OLLAMA_MODEL="${8:-}"
+GROQ="${9:-}"
+
+# Route by prefix. A Groq key pasted into the OpenRouter slot used to be written
+# as OPENROUTER_API_KEY, which then failed with 401 at the wrong endpoint and
+# looked like a broken key. The prefix is unambiguous, so trust it over position.
+case "$OPENROUTER" in
+  gsk_*)      if [ -z "$GROQ" ]; then GROQ="$OPENROUTER"; OPENROUTER="-"; fi ;;
+esac
+case "$GROQ" in
+  sk-or-*)    if [ "$OPENROUTER" = "-" ] || [ -z "$OPENROUTER" ]; then OPENROUTER="$GROQ"; GROQ="-"; fi ;;
+  AIza*)      GEMINI="$GROQ"; GROQ="-" ;;
+esac
+case "$OPENROUTER" in
+  AIza*)      GEMINI="$OPENROUTER"; OPENROUTER="-" ;;
+  csk-*)      CEREBRAS="$OPENROUTER"; OPENROUTER="-" ;;
+esac
 
 cd "$DESK_DIR" || { echo "No desk dir at $DESK_DIR"; exit 1; }
 
 # ---------- validate before touching anything ----------
-if [ -z "$GEMINI" ] && [ -z "$OPENROUTER" ] && [ -z "$CEREBRAS" ] && [ -z "$CF_TOKEN" ] && [ -z "$OLLAMA" ]; then
-  echo "Usage: bash termux/set-ai-keys.sh <GEMINI_KEY> <OPENROUTER_KEY> [MODEL] [CEREBRAS_KEY] [CF_ACCOUNT_ID] [CF_TOKEN] [OLLAMA_KEY] [OLLAMA_MODEL]"
+if [ -z "$GEMINI" ] && [ -z "$OPENROUTER" ] && [ -z "$CEREBRAS" ] && [ -z "$CF_TOKEN" ] && [ -z "$OLLAMA" ] && [ -z "$GROQ" ]; then
+  echo "Usage: bash termux/set-ai-keys.sh <GEMINI_KEY> <OPENROUTER_KEY> [MODEL] [CEREBRAS_KEY] [CF_ACCOUNT_ID] [CF_TOKEN] [OLLAMA_KEY] [OLLAMA_MODEL] [GROQ_KEY]"
   echo "       pass - to leave a key unchanged"
   exit 2
 fi
@@ -67,6 +91,10 @@ if [ "$CEREBRAS" != "-" ] && [ "$CEREBRAS" != "" ] && [ "${#CEREBRAS}" -lt 20 ];
 fi
 if [ "$CF_TOKEN" != "-" ] && [ "$CF_TOKEN" != "" ] && [ "${#CF_TOKEN}" -lt 20 ]; then
   echo "That Cloudflare token looks too short (${#CF_TOKEN} chars). Nothing changed."
+  exit 2
+fi
+if [ "$GROQ" != "-" ] && [ "$GROQ" != "" ] && [ "${#GROQ}" -lt 20 ]; then
+  echo "That Groq key looks too short (${#GROQ} chars). Nothing changed."
   exit 2
 fi
 if [ "$OLLAMA" != "-" ] && [ "$OLLAMA" != "" ] && [ "${#OLLAMA}" -lt 20 ]; then
@@ -90,6 +118,7 @@ OLD_CEREBRAS="$(grep '^CEREBRAS_API_KEY=' "$ENV_FILE" 2>/dev/null | head -1 | cu
 OLD_CF_ACCOUNT="$(grep '^CLOUDFLARE_ACCOUNT_ID=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)"
 OLD_CF_TOKEN="$(grep '^CLOUDFLARE_API_TOKEN=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)"
 OLD_MODEL="$(grep '^BRAIN_GEMINI_MODEL=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)"
+OLD_GROQ="$(grep '^GROQ_API_KEY=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)"
 OLD_OLLAMA="$(grep '^OLLAMA_API_KEY=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)"
 OLD_OLLAMA_MODEL="$(grep '^BRAIN_OLLAMA_MODEL=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)"
 
@@ -101,7 +130,7 @@ chmod 600 "$ENV_FILE" "$ENV_FILE.bak" 2>/dev/null
 # would wipe the login key and lock the owner out of their own desk.
 grep -v -e '^GEMINI_API_KEY=' -e '^OPENROUTER_API_KEY=' -e '^CEREBRAS_API_KEY=' -e '^BRAIN_GEMINI_MODEL=' \
        -e '^CLOUDFLARE_ACCOUNT_ID=' -e '^CLOUDFLARE_API_TOKEN=' \
-       -e '^OLLAMA_API_KEY=' -e '^BRAIN_OLLAMA_MODEL=' \
+       -e '^OLLAMA_API_KEY=' -e '^BRAIN_OLLAMA_MODEL=' -e '^GROQ_API_KEY=' \
   "$ENV_FILE" > "$ENV_FILE.new" 2>/dev/null
 mv "$ENV_FILE.new" "$ENV_FILE"
 
@@ -111,6 +140,7 @@ if [ "$OPENROUTER" = "-" ] && [ -n "${OLD_OPENROUTER:-}" ]; then OPENROUTER="$OL
 if [ "$CEREBRAS" = "-" ] && [ -n "${OLD_CEREBRAS:-}" ]; then CEREBRAS="$OLD_CEREBRAS"; fi
 if [ "$CF_ACCOUNT" = "-" ] && [ -n "${OLD_CF_ACCOUNT:-}" ]; then CF_ACCOUNT="$OLD_CF_ACCOUNT"; fi
 if [ "$CF_TOKEN" = "-" ] && [ -n "${OLD_CF_TOKEN:-}" ]; then CF_TOKEN="$OLD_CF_TOKEN"; fi
+if [ "$GROQ" = "-" ] && [ -n "${OLD_GROQ:-}" ]; then GROQ="$OLD_GROQ"; fi
 if [ "$OLLAMA" = "-" ] && [ -n "${OLD_OLLAMA:-}" ]; then OLLAMA="$OLD_OLLAMA"; fi
 if [ "$OLLAMA_MODEL" = "-" ] && [ -n "${OLD_OLLAMA_MODEL:-}" ]; then OLLAMA_MODEL="$OLD_OLLAMA_MODEL"; fi
 
@@ -128,6 +158,9 @@ if [ -n "$CF_ACCOUNT" ] && [ "$CF_ACCOUNT" != "-" ]; then
 fi
 if [ -n "$CF_TOKEN" ] && [ "$CF_TOKEN" != "-" ]; then
   echo "CLOUDFLARE_API_TOKEN=$CF_TOKEN" >> "$ENV_FILE"
+fi
+if [ -n "$GROQ" ] && [ "$GROQ" != "-" ]; then
+  echo "GROQ_API_KEY=$GROQ" >> "$ENV_FILE"
 fi
 if [ -n "$OLLAMA" ] && [ "$OLLAMA" != "-" ]; then
   echo "OLLAMA_API_KEY=$OLLAMA" >> "$ENV_FILE"
@@ -153,7 +186,8 @@ fi
 # two-bot back-and-forth and do not mind it running out sooner.
 if [ "${KEEP_QUOTA:-1}" = "1" ]; then
   grep -v -e '^BRAIN_PER_CYCLE=' -e '^BRAIN_OPINIONS=' -e '^BRAIN_DEBATES_PER_CYCLE=' \
-       -e '^BRAIN_MIN_INTERVAL_S=' -e '^BRAIN_CACHE_TTL_S=' -e '^BRAIN_ADVISE_ON=' "$ENV_FILE" > "$ENV_FILE.new" 2>/dev/null
+       -e '^BRAIN_MIN_INTERVAL_S=' -e '^BRAIN_CACHE_TTL_S=' -e '^BRAIN_ADVISE_ON=' \
+       -e '^BRAIN_SPREAD_DAY=' "$ENV_FILE" > "$ENV_FILE.new" 2>/dev/null
   mv "$ENV_FILE.new" "$ENV_FILE"
   {
     echo "BRAIN_PER_CYCLE=1"
@@ -162,6 +196,12 @@ if [ "${KEEP_QUOTA:-1}" = "1" ]; then
     echo "BRAIN_MIN_INTERVAL_S=240"
     echo "BRAIN_CACHE_TTL_S=1800"
     echo "BRAIN_ADVISE_ON=exit"
+    # Spread each provider's daily budget across the whole day. Without this a
+    # burst can spend all 400 Groq calls by mid-morning and leave the desk on the
+    # rule-based heuristic until midnight. Measured: a review every 60s with no
+    # spreading runs dry at hour 6.7 and refuses 1040 calls; with spreading the
+    # first refusal is at hour 23.98. Costs nothing when the desk is idle.
+    echo "BRAIN_SPREAD_DAY=${BRAIN_SPREAD_DAY:-groq}"
   } >> "$ENV_FILE"
 fi
 chmod 600 "$ENV_FILE"

@@ -592,6 +592,44 @@ Models fall back `@cf/openai/gpt-oss-120b` →
 first. `BRAIN_BUDGET_CLOUDFLARE` (default 300) caps calls per day, well inside the
 Neuron allowance.
 
+#### Making a free tier last until the reset
+
+Every provider here resets at 00:00 UTC. The failure mode that matters is not
+running out of quota eventually — it is running out at 06:40 and leaving the desk
+on the rule-based heuristic for the rest of the day. A burst of positions opening
+together can spend a whole daily budget in an hour.
+
+`BRAIN_SPREAD_DAY` fixes that. Name the providers whose budget should be stretched
+across the day (or `all`):
+
+```bash
+BRAIN_SPREAD_DAY=groq          # one provider
+BRAIN_SPREAD_DAY=groq,cerebras # or several
+BRAIN_SPREAD_DAY=all           # everything with a daily cap
+```
+
+Each named provider gets a small token bucket. It starts with a burst worth a
+twelfth of the day's budget — enough for a cluster of entries, small enough that a
+busy hour cannot eat the afternoon — and then refills at *what is left over the
+time that is left*. When the bucket is empty the call is refused, the advisor
+falls through to the next provider, and the budget is still there later.
+
+The measured difference, reviewing every 60 seconds for 24 hours on Groq's 400-call
+budget:
+
+| | calls spent | first refusal | behaviour |
+|---|---|---|---|
+| no spreading | 400 | hour 6.7 | dead for 17 hours, 1,040 refusals |
+| `BRAIN_SPREAD_DAY=groq` | 400 | hour 23.98 | lasts until the reset |
+
+At the desk's default cadence (one review every 4 minutes) it never refuses at
+all — 360 calls, ending the day with 40 to spare. Spreading costs nothing when the
+desk is idle, because the bucket is capped: quiet hours cannot be banked into a
+spending spree.
+
+`termux/set-ai-keys.sh` sets `BRAIN_SPREAD_DAY=groq` for you as part of its quota
+profile.
+
 #### Ollama Cloud is the sixth bucket, and the only one you pay for
 
 Everything above is free. **Ollama Cloud** is not: it is the same OpenAI-compatible
@@ -658,8 +696,11 @@ or `Brain: heuristic (no model configured)` in amber when no provider is set.
   Cloud** above — same vendor, opposite economics: the cloud endpoint is metered
   and paid, and it is the only provider in the list that can answer 402.
 - **Groq** is the fastest free option and the best choice on a small VPS or phone-hosted
-  setup, because the inference runs on their hardware. The free tier has a daily
-  token cap that a 45-second cycle will not hit.
+  setup, because the inference runs on their hardware. Its free tier for
+  `openai/gpt-oss-120b` measured **1,000 requests/day and 8,000 tokens/minute** on a
+  real key, and a short exit review costs about 270 tokens — so the token cap is
+  never the binding constraint at this desk's cadence. Pair it with
+  `BRAIN_SPREAD_DAY=groq` and it lasts until the reset.
 - **Gemini** free tier is good at strict JSON, which is what the typed thesis needs.
 - **OpenRouter** is the escape hatch: one key, many models, filter by `:free`.
 

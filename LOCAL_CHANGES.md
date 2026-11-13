@@ -285,3 +285,40 @@ desk is down. Exit 0 if something can answer, 1 if nothing can.
 Ollama is labelled `key ok, paid` and is never counted as "can answer at no
 cost", because a key is not the same thing as credits -- that is exactly the
 mistake its 402 invites.
+
+## Free tiers now last until the reset (`BRAIN_SPREAD_DAY`)
+
+A daily budget was only checked as a total: `reserve()` refused once `used >=
+budget`, with nothing stopping a burst from spending all of it by mid-morning.
+Measured on Groq's 400-call budget reviewing every 60s: the budget was gone at
+**hour 6.7**, and the desk refused 1,040 calls over the remaining 17 hours.
+
+`Provider` now has a day-spread token bucket, enabled per provider with
+`BRAIN_SPREAD_DAY=groq` (or a comma list, or `all`):
+
+- the bucket starts with a burst of `budget/12`, so a cluster of entries still
+  goes through at once;
+- it refills at `(budget - used) / seconds_to_UTC_midnight` -- what is LEFT over
+  the time that is LEFT, not the full budget, or a provider that already spent
+  300 of 400 would keep trickling at the 400/day rate and blow through midnight;
+- the bucket is capped at the burst size, so idle hours cannot be banked;
+- `reserve()` refuses when the bucket is empty, so the advisor falls through to
+  the next provider instead of going quiet.
+
+Same 60s-for-24h run with spreading: first refusal at **hour 23.98**, i.e. it
+lasts until the reset. At the desk's default 4-minute cadence it never refuses at
+all (360 calls, 40 to spare). Off by default, so nothing changes for providers
+that are cheap and plentiful. `set-ai-keys.sh` sets `BRAIN_SPREAD_DAY=groq`.
+
+## set-ai-keys.sh wrote a Groq key as OPENROUTER_API_KEY
+
+There was no Groq argument at all, so `bash termux/set-ai-keys.sh - gsk_...` --
+the exact command the README implied -- stored the Groq key under
+`OPENROUTER_API_KEY`. The desk then called openrouter.ai with a Groq key, got
+401, and it looked like a bad key. Found by running the script against a scratch
+`.env` and reading the result instead of trusting it.
+
+Keys are now routed by prefix, which is unambiguous, rather than by position:
+`gsk_` -> Groq, `sk-or-v1-` -> OpenRouter, `AIza` -> Gemini, `csk-` -> Cerebras.
+Groq is also accepted explicitly as arg 9. Pinned by five tests in
+`tests/test_supervisor.py` that run the real script.
