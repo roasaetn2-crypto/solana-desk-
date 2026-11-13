@@ -34,7 +34,8 @@ warn=0        # not-code problems (server stopped)
 say()  { printf '%s\n' "$*"; }
 ok()   { printf '  OK    %s\n' "$*"; }
 bad()  { printf '  MISS  %s\n' "$*"; fail=1; }
-note() { printf '  ..    %s\n' "$*"; warn=1; }
+note() { printf '  ..    %s\n' "$*"; warn=1; }   # a serving problem
+tip()  { printf '  ..    %s\n' "$*"; }          # advice only, not a failure
 
 running() { pgrep -f "[u]vicorn app:app" >/dev/null 2>&1; }
 
@@ -171,16 +172,16 @@ if [ -f "$HOOK" ]; then
   if grep -q "start-desk.sh" "$HOOK" 2>/dev/null; then
     ok "Termux:Boot hook installed ($HOOK)"
   else
-    note "a boot hook exists but does not call start-desk.sh"
+    tip "a boot hook exists but does not call start-desk.sh"
   fi
 else
-  note "no boot hook: after a reboot the desk stays down until you start it"
+  tip "no boot hook: after a reboot the desk stays down until you start it"
   say "        install it once:  bash termux/install-boot.sh"
 fi
 if command -v termux-wake-lock >/dev/null 2>&1; then
   ok "termux-wake-lock available (Android will not freeze it)"
 else
-  note "termux-api missing: install it (pkg install termux-api) for the wake lock"
+  tip "termux-api missing: install it (pkg install termux-api) for the wake lock"
 fi
 
 if [ "$SHOWLOG" -eq 1 ]; then
@@ -190,6 +191,10 @@ if [ "$SHOWLOG" -eq 1 ]; then
 fi
 
 say ""
+if [ "$fail" -eq 0 ] && running && [ "$warn" -eq 0 ]; then
+  say "RESULT: up to date, all features present, desk running and answering."
+  exit 0
+fi
 if [ "$fail" -ne 0 ]; then
   say "RESULT: the CODE is out of date or broken. Fix the MISS lines above, then re-run."
   exit 1
