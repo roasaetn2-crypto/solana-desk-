@@ -628,6 +628,17 @@ Models** was retired on 30 July 2026 and its inference API no longer exists, and
 **Mistral's** free mode no longer includes API access at all — keys require
 billing activation. Both are still recommended by older blog posts.
 
+To see which providers you actually have, and how much free quota is left, without
+starting the server or spending a single call:
+
+```bash
+python scripts/ai_status.py
+```
+
+It prints one row per provider with cost, key count, calls used and left, and
+whether it is ready, cooling, or missing a key — then names the free providers
+you have not added yet. Exit code 0 means something can answer at no cost.
+
 The dashboard's **AI quota** panel draws one bar per provider with calls used
 today, key count and any cooldown, plus a single line for total free calls left.
 `keys_cooling` tells you when only *part* of a provider is spent — e.g. `1 of 2

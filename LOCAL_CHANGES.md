@@ -273,3 +273,15 @@ hammering. Verified live:
 `-`-preserves, too-short-refuses, strip-and-append treatment as the others.
 `verify-update.sh` now also greps for `OLLAMA_URL`. README documents the provider
 table row, the 402 behaviour, and the local-vs-cloud Ollama distinction.
+
+## `scripts/ai_status.py`: which providers do I actually have?
+
+"How much free AI do I have left?" needed the server running and a login. This
+script answers it offline: it loads `.env`, builds the `Advisor`, and prints one
+row per provider with cost, keys, used, left and state (ready / cooling / no
+key). It makes **no** provider call, so it spends no quota and works while the
+desk is down. Exit 0 if something can answer, 1 if nothing can.
+
+Ollama is labelled `key ok, paid` and is never counted as "can answer at no
+cost", because a key is not the same thing as credits -- that is exactly the
+mistake its 402 invites.
