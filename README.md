@@ -461,6 +461,36 @@ OpenRouter, Claude), then the heuristic. That means **the desk always works**:
 a model outage, a rate limit or a bad response falls back to the deterministic
 analyst instead of stalling the pipeline.
 
+#### Running out of free quota? Add more keys, not more providers
+
+Free tiers meter **per key**, so the cheapest way to get more calls is a second
+account on a provider you already use. The advisor rotates keys automatically:
+
+```bash
+export GROQ_API_KEY=gsk_first...
+export GROQ_API_KEY_2=gsk_second...     # up to _5
+export GEMINI_API_KEY=...
+export GEMINI_API_KEY_2=...             # same pattern for every provider
+```
+
+Each key gets its own daily budget and its own cooldown, so a `429` on one key
+rotates to the next instead of resting the whole provider. Three Groq keys at the
+default `BRAIN_BUDGET_GROQ=400` is **1,200 calls/day**, and the provider only
+goes quiet when every key is exhausted. Duplicate keys are ignored, so a
+copy-paste mistake cannot inflate the budget. `/api/ai/status` and `/api/health`
+report `keys` and `used_today` per provider so you can see the rotation working.
+
+Two other knobs cut burn without touching quality:
+
+```bash
+export BRAIN_MIN_INTERVAL_S=240   # at most 15 reviews/hour (default 0 = unpaced)
+export BRAIN_CACHE_TTL_S=1500     # reuse an opinion for 25 min unless price moves
+export BRAIN_DEBATES_PER_CYCLE=0  # a debate is 3 extra calls; opinions still work
+```
+
+Desk AI chat has its own per-minute window, separate from the trading loop, so a
+long conversation can no longer starve the review path (or vice versa).
+
 The dashboard shows exactly what is thinking, e.g. `Brain: Groq · llama-3.3-70b-versatile · free`,
 or `Brain: heuristic (no model configured)` in amber when no provider is set.
 

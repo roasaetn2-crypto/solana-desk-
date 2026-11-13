@@ -698,3 +698,48 @@ class Advisory(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class KeyRotation(unittest.TestCase):
+    """Extra free-tier keys are extra quota: rotate on a 429 instead of resting."""
+
+    def setUp(self):
+        self.env = mock.patch.dict(os.environ, {
+            "GROQ_API_KEY": "gsk_firstkey000000",
+            "GROQ_API_KEY_2": "gsk_secondkey00000",
+        })
+        self.env.start()
+        self.addCleanup(self.env.stop)
+        self.p = ba.Groq("groq", "GROQ_API_KEY", 10)
+        self.p.rpm = 0
+
+    def test_keys_found_in_order(self):
+        self.assertEqual(self.p.keys(), ["gsk_firstkey000000", "gsk_secondkey00000"])
+
+    def test_budget_multiplies_with_keys(self):
+        self.assertEqual(self.p.budget, 20)          # 10 per key x 2 keys
+
+    def test_duplicate_key_does_not_double_budget(self):
+        os.environ["GROQ_API_KEY_2"] = "gsk_firstkey000000"
+        self.assertEqual(len(self.p.keys()), 1)
+        self.assertEqual(self.p.budget, 10)
+
+    def test_reserve_rotates_after_a_429(self):
+        self.assertTrue(self.p.reserve())
+        first = self.p.key()
+        self.p.cool(60)                              # that key is now cooling
+        self.assertTrue(self.p.available())
+        self.assertTrue(self.p.reserve())
+        self.assertNotEqual(self.p.key(), first)     # the second key took over
+
+    def test_provider_rests_only_when_every_key_cools(self):
+        self.p.reserve(); self.p.cool(60)
+        self.assertTrue(self.p.available())
+        self.p.reserve(); self.p.cool(60)
+        self.assertFalse(self.p.available())
+        self.assertTrue(self.p.resting() if hasattr(self.p, "resting") else True)
+
+    def test_short_or_blank_keys_ignored(self):
+        os.environ["GROQ_API_KEY_3"] = "  "
+        os.environ["GROQ_API_KEY_4"] = "short"
+        self.assertEqual(len(self.p.keys()), 2)

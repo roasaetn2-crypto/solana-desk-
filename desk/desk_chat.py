@@ -836,6 +836,15 @@ def answer(question: str, state: dict, history=None, settings: list | None = Non
             + "\n\nOperator question: " + q)
     last_err = None
     for p in _providers():
+        # Chat used to call straight through, so a fast operator could burst past the
+        # provider's free RPM and eat the whole daily budget in minutes. Pace it like
+        # the review path; if no slot frees quickly, fall to the next provider.
+        try:
+            if not p.pace_chat(max_wait=1.5):
+                last_err = f"{p.name} busy (rpm cap)"
+                continue
+        except Exception:
+            pass
         try:
             out = _parse(p.call(SYSTEM, user, 1000))
         except ProviderError as e:

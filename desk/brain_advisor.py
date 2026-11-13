@@ -283,27 +283,70 @@ def parse_chat(text) -> dict | None:
 class Provider:
     """One free-tier model: key, daily budget, cooldown after 429."""
 
+    MAX_KEYS = 5   # ENV, ENV_2 ... ENV_5: each key has its own free-tier quota
+
     def __init__(self, name: str, env: str, budget: int):
-        self.name, self.env, self.budget = name, env, budget
+        self.name, self.env = name, env
+        self.base_budget = budget          # per key; total scales with the number of keys
         self.cooldown_until = 0.0
+        self._cooldowns: dict[str, float] = {}   # per-key cooldown after a 429
+        self._per_key: dict[str, int] = {}       # calls made with each key today
+        self._active = ""
         self.day = _day()
         self.used = 0
         self.errors = 0
         self.rpm = RPM.get(name, 8)
         self._hits: list[float] = []        # timestamps of reserved calls in the last minute
+        self._chat_hits: list[float] = []   # chat has its own RPM bucket, so it cannot
+                                            # starve the trading review path
         self.last_error: str | None = None   # error class only, never text from the provider
         self.last_error_at = 0.0
         self.last_ok_at = 0.0
         self.lock = threading.Lock()
 
+    @property
+    def budget(self) -> int:
+        """Daily call budget for this provider: per-key budget x keys in rotation."""
+        return self.base_budget * max(1, len(self.keys()))
+
+    @budget.setter
+    def budget(self, value: int) -> None:
+        self.base_budget = int(value)
+
+    def keys(self) -> list[str]:
+        """Every key configured for this provider: ENV, ENV_2 ... ENV_5.
+
+        Free tiers meter per key, so two keys are two independent daily quotas.
+        Duplicates are dropped so a copy-pasted key cannot double the budget.
+        """
+        out: list[str] = []
+        for i in range(1, self.MAX_KEYS + 1):
+            name = self.env if i == 1 else f"{self.env}_{i}"
+            k = os.getenv(name, "").strip().strip('"').strip("'")
+            if len(k) >= 8 and k not in out:
+                out.append(k)
+        return out
+
     def key(self) -> str:
-        k = os.getenv(self.env, "").strip()
-        return k if len(k) >= 8 else ""
+        """The key a call would use right now: the reserved one if it is still usable,
+        otherwise the first key that is not cooling. Never returns a cooling key."""
+        ks = self.keys()
+        if not ks:
+            return ""
+        now = time.time()
+        if self._active in ks and now >= self._cooldowns.get(self._active, 0.0):
+            return self._active
+        for k in ks:
+            if now >= self._cooldowns.get(k, 0.0):
+                return k
+        return ks[0]   # everything is cooling; caller is expected to have checked available()
 
     def _roll(self):
         d = _day()
         if d != self.day:
             self.day, self.used = d, 0
+            self._per_key = {}
+            self._cooldowns = {}
 
     def _trim_hits(self, now: float):
         self._hits = [t for t in self._hits if now - t < 60.0]
@@ -317,15 +360,26 @@ class Provider:
         now = time.time() if now is None else now
         with self.lock:
             self._roll()
-            return bool(self.key()) and now >= self.cooldown_until and self.budget - self.used >= need
+            ks = self.keys()
+            if not ks or self.budget - self.used < need:
+                return False
+            return any(now >= self._cooldowns.get(k, 0.0) for k in ks)
 
     def reserve(self) -> bool:
+        """Take one call from the first key that is not cooling. Rotates on a 429."""
         with self.lock:
             self._roll()
-            if not self.key() or time.time() < self.cooldown_until or self.used >= self.budget:
+            ks = self.keys()
+            if not ks or self.used >= self.budget:
                 return False
-            self.used += 1
-            return True
+            now = time.time()
+            for k in ks:
+                if now >= self._cooldowns.get(k, 0.0):
+                    self._active = k
+                    self.used += 1
+                    self._per_key[k] = self._per_key.get(k, 0) + 1
+                    return True
+            return False
 
     def pace(self, max_wait: float = 7.0, sleep=time.sleep) -> bool:
         """Reserve a slot in this provider's 60s review window. Review path only.
@@ -349,10 +403,42 @@ class Provider:
                 return False
             sleep(min(wait, max(0.0, deadline - time.time())))
 
+    def pace_chat(self, max_wait: float = 1.5, sleep=time.sleep) -> bool:
+        """Reserve a slot in the CHAT window. Separate from the review window so a
+        chatty operator cannot starve the trading loop, and vice versa.
+
+        Chat is allowed a little more headroom than a review (a human is waiting),
+        but still under the provider's free RPM. rpm <= 0 disables pacing.
+        """
+        cap = self.rpm * 2 if self.rpm else 0
+        if not cap:
+            return True
+        deadline = time.time() + max(0.0, max_wait)
+        while True:
+            with self.lock:
+                now = time.time()
+                self._chat_hits = [t for t in self._chat_hits if now - t < 60.0]
+                if len(self._chat_hits) < cap:
+                    self._chat_hits.append(now)
+                    return True
+                wait = 60.0 - (now - self._chat_hits[0]) + 0.01
+            if now + wait > deadline:
+                return False
+            sleep(min(wait, max(0.0, deadline - time.time())))
+
     def cool(self, seconds: float | None):
+        """Cool the key that just failed, not the whole provider — the others still work."""
         s = min(MAX_COOLDOWN_S, max(30.0, seconds or DEFAULT_COOLDOWN_S))
         with self.lock:
-            self.cooldown_until = time.time() + s
+            if self._active:
+                self._cooldowns[self._active] = time.time() + s
+            # provider-level cooldown only while every key is cooling
+            ks = self.keys()
+            now = time.time()
+            if ks and not any(now >= self._cooldowns.get(k, 0.0) for k in ks):
+                self.cooldown_until = min(self._cooldowns.get(k, 0.0) for k in ks)
+            else:
+                self.cooldown_until = 0.0
 
     def _fail(self, cls: str):
         self.last_error, self.last_error_at = cls, time.time()
@@ -405,7 +491,8 @@ class Provider:
             self._trim_hits(now)
             cd = max(0, int(self.cooldown_until - now))
             used, hits, rpm = self.used, len(self._hits), self.rpm
-        return {"key_present": bool(self.key()), "available": self.available(), "cooling_s": cd,
+        return {"key_present": bool(self.key()), "keys": len(self.keys()),
+                "available": self.available(), "cooling_s": cd,
                 "used_today": used, "budget": self.budget, "rpm": rpm,
                 "used_last_min": hits, "last_error": self.last_error,
                 "last_error_age_s": int(time.time() - self.last_error_at) if self.last_error_at else None,
@@ -424,7 +511,7 @@ class Provider:
             self._trim_hits(now)
             cd = max(0, int(self.cooldown_until - now))
             return {"enabled": bool(self.key()), "used_today": self.used, "budget": self.budget,
-                    "cooldown_s": cd, "errors": self.errors, "rpm": self.rpm,
+                    "keys": len(self.keys()), "cooldown_s": cd, "errors": self.errors, "rpm": self.rpm,
                     "used_last_min": len(self._hits)}
 
 
