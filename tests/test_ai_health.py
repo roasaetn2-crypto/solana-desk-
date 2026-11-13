@@ -14,7 +14,8 @@ from desk.brain_advisor import ADVISOR  # noqa: E402
 
 GKEY = "AIzaHEALTHkeyABCDEFGHIJ1234567"
 OKEY = "sk-or-v1-HEALTHkeyABCDEFGHIJ1234567"
-NO_ENV = {"GEMINI_API_KEY": "", "GROQ_API_KEY": "", "OPENROUTER_API_KEY": ""}
+NO_ENV = {"GEMINI_API_KEY": "", "GROQ_API_KEY": "", "OPENROUTER_API_KEY": "",
+          "CEREBRAS_API_KEY": "", "CLOUDFLARE_API_TOKEN": "", "CLOUDFLARE_ACCOUNT_ID": ""}
 
 
 class _Resp:
@@ -41,7 +42,11 @@ class Health(unittest.TestCase):
         with mock.patch.dict(os.environ, {**NO_ENV, "GEMINI_API_KEY": GKEY, "OPENROUTER_API_KEY": OKEY}):
             h = dc.health()
         blob = repr(h)
-        for bad in (GKEY, OKEY, GKEY[:6], OKEY[:8], str(len(GKEY)), str(len(OKEY))):
+        for bad in (GKEY, OKEY, GKEY[:6], OKEY[:8]):
+            self.assertNotIn(bad, blob)
+        # Key length must not be exposed either, but as a whole value: a bare
+        # substring check on "30" also matches an unrelated budget of 300.
+        for bad in (f"'{len(GKEY)}'", f"'{len(OKEY)}'", "key_len"):
             self.assertNotIn(bad, blob)
         self.assertTrue(h["gemini"]["key_present"] and h["openrouter"]["key_present"])
         self.assertFalse(h["groq"]["key_present"])

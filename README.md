@@ -445,6 +445,7 @@ need a paid key and you do not need a model SDK. Cheapest first:
 | **Groq** | free tier | free key | [console.groq.com](https://console.groq.com) → API keys |
 | **Google Gemini** | free tier | free key | [aistudio.google.com](https://aistudio.google.com/apikey) |
 | **Cerebras** | free tier | free key | [cloud.cerebras.ai](https://cloud.cerebras.ai) → API keys |
+| **Cloudflare Workers AI** | 10,000 Neurons/day | account id + token | [dash.cloudflare.com](https://dash.cloudflare.com) → Workers AI |
 | **OpenRouter** | `:free` models | free key | [openrouter.ai/keys](https://openrouter.ai/keys) |
 | **Claude** | paid | paid key | `ANTHROPIC_API_KEY` |
 | **heuristic** | free, no model | none | always available, pure rules |
@@ -512,13 +513,45 @@ export BRAIN_CACHE_TTL_S=1500     # reuse an opinion for 25 min unless price mov
 export BRAIN_DEBATES_PER_CYCLE=0  # a debate is 3 extra calls; opinions still work
 ```
 
-The advisor ships with **four** independent free buckets — Gemini, Groq,
-Cerebras and OpenRouter — tried in that order. They meter separately, so when
-three of them are cooling the fourth still answers. Cerebras is OpenAI-compatible
-and very fast; set `CEREBRAS_API_KEY` (free at
+The advisor ships with **five** independent free buckets — Gemini, Groq,
+Cerebras, Cloudflare and OpenRouter — tried in that order. They meter
+separately, so when four of them are cooling the fifth still answers. Cerebras is
+OpenAI-compatible and very fast; set `CEREBRAS_API_KEY` (free at
 [cloud.cerebras.ai](https://cloud.cerebras.ai)) and it is picked up with no other
 change. Its models fall back `llama-3.3-70b` → `llama3.1-8b` → `gpt-oss-120b`,
 and `BRAIN_CEREBRAS_MODEL` overrides the first one.
+
+#### The biggest free quota is Cloudflare, and it is the one to add
+
+Cloudflare Workers AI gives **10,000 Neurons a day, every day**, and it bills in
+Neurons (GPU compute) rather than requests. A short exit review — roughly 600
+tokens in, 150 out — costs about **8 Neurons**, so the free allowance covers
+well over a thousand calls a day. That is more than this desk can spend on exits
+even if it tried, which makes Cloudflare the single best free bucket available.
+
+It is the only provider here that needs **two** values, because the endpoint is
+scoped to your account:
+
+```bash
+bash termux/set-ai-keys.sh - - - - <CLOUDFLARE_ACCOUNT_ID> <CLOUDFLARE_API_TOKEN>
+```
+
+The account id is on the Workers & Pages overview page; the token comes from
+*My Profile → API Tokens → Create Token → "Workers AI"*. Tokens rotate as
+`CLOUDFLARE_API_TOKEN_2`…`_5` and share one account id. A token without an
+account id cannot build a URL, so the provider reports itself as unconfigured
+instead of failing quietly — and `set-ai-keys.sh` refuses the half-configuration.
+
+Models fall back `@cf/openai/gpt-oss-120b` →
+`@cf/meta/llama-3.3-70b-instruct-fp8-fast` → `@cf/qwen/qwen3-30b-a3b-fp8` →
+`@cf/meta/llama-3.1-8b-instruct-fp8-fast`; `BRAIN_CLOUDFLARE_MODEL` overrides the
+first. `BRAIN_BUDGET_CLOUDFLARE` (default 300) caps calls per day, well inside the
+Neuron allowance.
+
+Two providers that look free but are **not** worth wiring up in 2026: **GitHub
+Models** was retired on 30 July 2026 and its inference API no longer exists, and
+**Mistral's** free mode no longer includes API access at all — keys require
+billing activation. Both are still recommended by older blog posts.
 
 The dashboard's **AI quota** panel draws one bar per provider with calls used
 today, key count and any cooldown, plus a single line for total free calls left.

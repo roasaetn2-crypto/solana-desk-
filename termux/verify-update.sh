@@ -89,6 +89,7 @@ grep -q "signal_engine" desk/solana_agent.py && ok "agent imports the signal eng
 grep -q "take_profit_mode" config.py      && ok "config has take_profit_mode"          || bad "config.py missing take_profit_mode"
 grep -q "exits.tp_plan" desk/settings.py  && ok "settings expose exits.tp_plan"        || bad "desk/settings.py missing exits.tp_plan"
 grep -q "CEREBRAS_URL"   desk/brain_advisor.py && ok "Cerebras is a free provider"        || bad "desk/brain_advisor.py missing Cerebras"
+grep -q "cloudflare_url"  desk/brain_advisor.py && ok "Cloudflare is a free provider"      || bad "desk/brain_advisor.py missing Cloudflare"
 grep -q "def quota"      desk/brain_advisor.py && ok "advisor reports per-provider quota"  || bad "desk/brain_advisor.py missing quota()"
 grep -q "keys_cooling"   desk/brain_advisor.py && ok "per-key cooldown is reported"       || bad "desk/brain_advisor.py missing keys_cooling"
 grep -q "quotaBars"      web/index.html        && ok "dashboard has the AI quota panel"   || bad "web/index.html missing quota panel"

@@ -820,9 +820,10 @@ class QuotaPayload(unittest.TestCase):
         self.adv = ba.Advisor()
         self.addCleanup(self.adv._pool.shutdown, wait=True, cancel_futures=True)
 
-    def test_shape_and_all_four_providers(self):
+    def test_shape_and_all_providers(self):
         q = self.adv.quota()
-        self.assertEqual(set(q["providers"]), {"gemini", "groq", "cerebras", "openrouter"})
+        self.assertEqual(set(q["providers"]),
+                         {"gemini", "groq", "cerebras", "cloudflare", "openrouter"})
         for row in q["providers"].values():
             self.assertEqual(set(row), self.FIELDS)
         self.assertIn("total_left", q)
@@ -1034,3 +1035,114 @@ class ExitAdvisoryWiring(unittest.TestCase):
                 mock.patch.object(ba.ADVISOR, "submit_exit") as sub:
             SolanaAgent._advise_exit(a, "M1", {"symbol": "W"}, None, "stop")
         self.assertFalse(sub.called)
+
+
+class CloudflareProvider(unittest.TestCase):
+    """Cloudflare Workers AI: 10k free Neurons/day, the largest free quota here."""
+
+    def setUp(self):
+        self.env = mock.patch.dict(os.environ, {
+            "CLOUDFLARE_ACCOUNT_ID": "acct_1234567890abcdef",
+            "CLOUDFLARE_API_TOKEN": "cftoken_FAKE1234567890",
+        })
+        self.env.start()
+        self.addCleanup(self.env.stop)
+        self.p = ba.Cloudflare("cloudflare", "CLOUDFLARE_API_TOKEN", 300)
+        self.p.rpm = 1000
+
+    def test_registered_in_advisor_and_budgets(self):
+        adv = ba.Advisor()
+        self.addCleanup(adv._pool.shutdown, wait=True, cancel_futures=True)
+        names = [p.name for p in adv.providers()]
+        self.assertIn("cloudflare", names)
+        self.assertIn("cloudflare", ba.BUDGETS)
+        self.assertIn("cloudflare", ba.RPM)
+
+    def test_models_start_with_primary_then_fallbacks(self):
+        self.assertEqual(ba.cloudflare_models()[0], ba.CLOUDFLARE_MODEL)
+        self.assertIn("@cf/meta/llama-3.1-8b-instruct-fp8-fast", ba.cloudflare_models())
+
+    def test_model_override_env(self):
+        with mock.patch.dict(os.environ, {"BRAIN_CLOUDFLARE_MODEL": "@cf/custom/model"}):
+            self.assertEqual(ba.cloudflare_models()[0], "@cf/custom/model")
+            self.assertEqual(len(ba.cloudflare_models()), len(set(ba.cloudflare_models())))
+
+    def test_url_is_scoped_to_the_account(self):
+        self.assertIn("acct_1234567890abcdef", ba.cloudflare_url())
+        self.assertTrue(ba.cloudflare_url().endswith("/ai/v1/chat/completions"))
+
+    def test_no_account_id_means_disabled(self):
+        """A token without an account id cannot build a URL, so it must not count."""
+        with mock.patch.dict(os.environ, {"CLOUDFLARE_ACCOUNT_ID": ""}):
+            p = ba.Cloudflare("cloudflare", "CLOUDFLARE_API_TOKEN", 300)
+            self.assertEqual(p.keys(), [])
+            self.assertFalse(p.available())
+            self.assertFalse(p.enabled if hasattr(p, "enabled") else False)
+
+    def test_no_token_means_disabled(self):
+        with mock.patch.dict(os.environ, {"CLOUDFLARE_API_TOKEN": ""}):
+            p = ba.Cloudflare("cloudflare", "CLOUDFLARE_API_TOKEN", 300)
+            self.assertEqual(p.keys(), [])
+            self.assertFalse(p.available())
+
+    def test_call_parses_choices_and_sends_bearer_token(self):
+        seen = {}
+
+        def fake_post(url, headers=None, json=None, timeout=None):
+            seen["url"], seen["headers"], seen["json"] = url, headers, json
+            r = mock.Mock(status_code=200)
+            r.json.return_value = {"choices": [{"message": {"content": '{"verdict":"hold"}'}}]}
+            return r
+
+        with mock.patch.object(ba.requests, "post", fake_post):
+            out = self.p.call("sys", "user", 400)
+        self.assertEqual(out, '{"verdict":"hold"}')
+        self.assertEqual(seen["headers"]["Authorization"], "Bearer cftoken_FAKE1234567890")
+        self.assertIn("acct_1234567890abcdef", seen["url"])
+        self.assertEqual(seen["json"]["model"], ba.CLOUDFLARE_MODEL)
+
+    def test_token_rotation_gives_independent_keys(self):
+        with mock.patch.dict(os.environ, {"CLOUDFLARE_API_TOKEN_2": "cftoken_SECOND1234567"}):
+            p = ba.Cloudflare("cloudflare", "CLOUDFLARE_API_TOKEN", 300)
+            self.assertEqual(len(p.keys()), 2)
+            self.assertEqual(p.budget, 600)
+
+    def test_duplicate_tokens_do_not_double_the_budget(self):
+        with mock.patch.dict(os.environ, {"CLOUDFLARE_API_TOKEN_2": "cftoken_FAKE1234567890"}):
+            p = ba.Cloudflare("cloudflare", "CLOUDFLARE_API_TOKEN", 300)
+            self.assertEqual(len(p.keys()), 1)
+            self.assertEqual(p.budget, 300)
+
+    def test_falls_through_to_the_next_model_on_404(self):
+        calls = []
+
+        def fake_post(url, headers=None, json=None, timeout=None):
+            calls.append(json["model"])
+            if len(calls) == 1:
+                r = mock.Mock(status_code=404)
+                r.json.return_value = {"errors": [{"message": "model not found"}]}
+                return r
+            r = mock.Mock(status_code=200)
+            r.json.return_value = {"choices": [{"message": {"content": "ok"}}]}
+            return r
+
+        with mock.patch.object(ba.requests, "post", fake_post):
+            self.assertEqual(self.p.call("s", "u", 100), "ok")
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0], ba.CLOUDFLARE_MODEL)
+
+    def test_429_does_not_walk_the_model_list(self):
+        """A rate limit is the key's problem, not the model's: stop immediately."""
+        calls = []
+
+        def fake_post(url, headers=None, json=None, timeout=None):
+            calls.append(json["model"])
+            r = mock.Mock(status_code=429)
+            r.headers = {}
+            r.json.return_value = {"errors": [{"message": "rate limited"}]}
+            return r
+
+        with mock.patch.object(ba.requests, "post", fake_post):
+            with self.assertRaises(ba.ProviderError):
+                self.p.call("s", "u", 100)
+        self.assertEqual(len(calls), 1)

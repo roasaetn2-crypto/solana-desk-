@@ -6,10 +6,16 @@
 # running garbage. One short command line is atomic and always survives.
 #
 # Usage:
-#   bash termux/set-ai-keys.sh <GEMINI_KEY> <OPENROUTER_KEY> [GEMINI_MODEL] [CEREBRAS_KEY]
+#   bash termux/set-ai-keys.sh <GEMINI_KEY> <OPENROUTER_KEY> [GEMINI_MODEL] [CEREBRAS_KEY] [CF_ACCOUNT_ID] [CF_TOKEN]
 #
-# A fourth free provider (Cerebras) is optional and goes last:
+# A fourth free provider (Cerebras) is optional and goes fifth:
 #   bash termux/set-ai-keys.sh - - - csk-xxxxxxxx
+#
+# Cloudflare Workers AI is the biggest free quota (10,000 Neurons/day) and the
+# only provider that needs two values, so it goes last:
+#   bash termux/set-ai-keys.sh - - - - <account_id> <api_token>
+# Account id: dash.cloudflare.com -> Workers & Pages -> Account ID.
+# Token: My Profile -> API Tokens -> Create Token -> "Workers AI" template.
 #
 # Both keys are optional in the sense that you can pass "-" to leave one alone:
 #   bash termux/set-ai-keys.sh - sk-or-v1-xxxx
@@ -26,12 +32,14 @@ MODEL="${3:-gemini-3.5-flash-lite}"
 GEMINI="${1:-}"
 OPENROUTER="${2:-}"
 CEREBRAS="${4:-}"
+CF_ACCOUNT="${5:-}"
+CF_TOKEN="${6:-}"
 
 cd "$DESK_DIR" || { echo "No desk dir at $DESK_DIR"; exit 1; }
 
 # ---------- validate before touching anything ----------
-if [ -z "$GEMINI" ] && [ -z "$OPENROUTER" ] && [ -z "$CEREBRAS" ]; then
-  echo "Usage: bash termux/set-ai-keys.sh <GEMINI_KEY> <OPENROUTER_KEY> [MODEL] [CEREBRAS_KEY]"
+if [ -z "$GEMINI" ] && [ -z "$OPENROUTER" ] && [ -z "$CEREBRAS" ] && [ -z "$CF_TOKEN" ]; then
+  echo "Usage: bash termux/set-ai-keys.sh <GEMINI_KEY> <OPENROUTER_KEY> [MODEL] [CEREBRAS_KEY] [CF_ACCOUNT_ID] [CF_TOKEN]"
   echo "       pass - to leave a key unchanged"
   exit 2
 fi
@@ -48,12 +56,26 @@ if [ "$CEREBRAS" != "-" ] && [ "$CEREBRAS" != "" ] && [ "${#CEREBRAS}" -lt 20 ];
   echo "That Cerebras key looks too short (${#CEREBRAS} chars). Nothing changed."
   exit 2
 fi
+if [ "$CF_TOKEN" != "-" ] && [ "$CF_TOKEN" != "" ] && [ "${#CF_TOKEN}" -lt 20 ]; then
+  echo "That Cloudflare token looks too short (${#CF_TOKEN} chars). Nothing changed."
+  exit 2
+fi
+# A token with no account id cannot build a URL, so refuse the half-configuration
+# instead of writing a provider that silently never works.
+if [ -n "$CF_TOKEN" ] && [ "$CF_TOKEN" != "-" ] && { [ -z "$CF_ACCOUNT" ] || [ "$CF_ACCOUNT" = "-" ]; }; then
+  if ! grep -q '^CLOUDFLARE_ACCOUNT_ID=.' "$ENV_FILE" 2>/dev/null; then
+    echo "Cloudflare needs the account id too (arg 5). Nothing changed."
+    exit 2
+  fi
+fi
 
 # ---------- remember what is already there ----------
 touch "$ENV_FILE"
 OLD_GEMINI="$(grep '^GEMINI_API_KEY=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)"
 OLD_OPENROUTER="$(grep '^OPENROUTER_API_KEY=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)"
 OLD_CEREBRAS="$(grep '^CEREBRAS_API_KEY=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)"
+OLD_CF_ACCOUNT="$(grep '^CLOUDFLARE_ACCOUNT_ID=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)"
+OLD_CF_TOKEN="$(grep '^CLOUDFLARE_API_TOKEN=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)"
 OLD_MODEL="$(grep '^BRAIN_GEMINI_MODEL=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)"
 
 # ---------- back up, then rewrite only our three lines ----------
@@ -63,6 +85,7 @@ chmod 600 "$ENV_FILE" "$ENV_FILE.bak" 2>/dev/null
 # grep -v keeps every other line, including DESK_TOKEN. Overwriting the file
 # would wipe the login key and lock the owner out of their own desk.
 grep -v -e '^GEMINI_API_KEY=' -e '^OPENROUTER_API_KEY=' -e '^CEREBRAS_API_KEY=' -e '^BRAIN_GEMINI_MODEL=' \
+       -e '^CLOUDFLARE_ACCOUNT_ID=' -e '^CLOUDFLARE_API_TOKEN=' \
   "$ENV_FILE" > "$ENV_FILE.new" 2>/dev/null
 mv "$ENV_FILE.new" "$ENV_FILE"
 
@@ -70,6 +93,8 @@ mv "$ENV_FILE.new" "$ENV_FILE"
 if [ "$GEMINI" = "-" ] && [ -n "${OLD_GEMINI:-}" ]; then GEMINI="$OLD_GEMINI"; fi
 if [ "$OPENROUTER" = "-" ] && [ -n "${OLD_OPENROUTER:-}" ]; then OPENROUTER="$OLD_OPENROUTER"; fi
 if [ "$CEREBRAS" = "-" ] && [ -n "${OLD_CEREBRAS:-}" ]; then CEREBRAS="$OLD_CEREBRAS"; fi
+if [ "$CF_ACCOUNT" = "-" ] && [ -n "${OLD_CF_ACCOUNT:-}" ]; then CF_ACCOUNT="$OLD_CF_ACCOUNT"; fi
+if [ "$CF_TOKEN" = "-" ] && [ -n "${OLD_CF_TOKEN:-}" ]; then CF_TOKEN="$OLD_CF_TOKEN"; fi
 
 if [ -n "$GEMINI" ] && [ "$GEMINI" != "-" ]; then
   echo "GEMINI_API_KEY=$GEMINI" >> "$ENV_FILE"
@@ -79,6 +104,12 @@ if [ -n "$OPENROUTER" ] && [ "$OPENROUTER" != "-" ]; then
 fi
 if [ -n "$CEREBRAS" ] && [ "$CEREBRAS" != "-" ]; then
   echo "CEREBRAS_API_KEY=$CEREBRAS" >> "$ENV_FILE"
+fi
+if [ -n "$CF_ACCOUNT" ] && [ "$CF_ACCOUNT" != "-" ]; then
+  echo "CLOUDFLARE_ACCOUNT_ID=$CF_ACCOUNT" >> "$ENV_FILE"
+fi
+if [ -n "$CF_TOKEN" ] && [ "$CF_TOKEN" != "-" ]; then
+  echo "CLOUDFLARE_API_TOKEN=$CF_TOKEN" >> "$ENV_FILE"
 fi
 # "-" (or nothing) means keep whatever model was already configured.
 if [ "$MODEL" = "-" ] || [ -z "$MODEL" ]; then MODEL="${OLD_MODEL:-}"; fi
