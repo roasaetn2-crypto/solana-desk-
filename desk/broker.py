@@ -127,6 +127,14 @@ class PaperBroker:
                   f"(equity now ${self.equity():,.2f})")
         return fixes
     def _save(self):
+        # A fresh DESK_DATA_DIR (first boot, or a reset that recreates the
+        # directory) used to crash here: LiveBroker writes its empty book at
+        # construction, and write_text does not create missing parents. Make
+        # the directory first so a cold start can never fail on the ledger.
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
         self.path.write_text(json.dumps(self.s, indent=1))
         # paper book only; the live ledger is never pushed here
         if self.path.name == "paper_ledger.json" or self.path.name.endswith("paper_ledger.json"):

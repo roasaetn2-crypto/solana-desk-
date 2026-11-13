@@ -166,3 +166,20 @@ module, so the desk keeps failing even after a "successful" install.
 The feed is optional: without it the desk falls back to the REST scanner.
 Verified after install: `pumpportal: connected, subscribed subscribeNewToken`,
 health `status: on`, `error: null`.
+
+## Cold start: a fresh DESK_DATA_DIR must not crash the ledger
+
+`LiveBroker.__init__` writes an empty `live_ledger.json` at construction, and
+`PaperBroker._save` used `write_text()` without creating the parent directory.
+On a brand-new `DESK_DATA_DIR` (first install, or a reset that recreates the
+dir) `import app` died with `FileNotFoundError: live_ledger.json`, which is
+exactly what the one-command update script hit on a cold dir.
+
+- `desk/broker.py:_save` now `mkdir(parents=True, exist_ok=True)` first.
+- `scripts/check_ledger.py --fix` now persists the fresh book it creates
+  (`PaperBroker` only builds state in memory until something needs repair).
+- `termux/update-all.sh` restarts exactly once (reset-balance runs with
+  `NO_RESTART=1`), reads the port the server actually bound from `desk.log`,
+  and logs in with `$DESK_TOKEN`/`~/.desk_key` before reading `/api/state`
+  so the balance line is real numbers instead of `unauthorized`.
+- `tests/test_cold_start.py` pins all three.

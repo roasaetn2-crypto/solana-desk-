@@ -53,7 +53,10 @@ python scripts/check_ledger.py --fix || { say "FAIL: ledger repair failed."; exi
 
 if [ -n "$AMOUNT" ]; then
   hr; say "4/5  re-basing the book to \$$AMOUNT"; hr
-  bash termux/reset-balance.sh "$AMOUNT" || { say "FAIL: reset failed."; exit 1; }
+  # NO_RESTART: step 5 does the single restart. Restarting here too meant the
+  # server was killed and respawned twice, and the second kill could race the
+  # supervisor's 10s backoff and leave the desk down.
+  NO_RESTART=1 bash termux/reset-balance.sh "$AMOUNT" || { say "FAIL: reset failed."; exit 1; }
 else
   hr; say "4/5  keeping the current balance (pass an amount to re-base)"; hr
   say "  e.g. bash termux/update-all.sh 50"
@@ -65,17 +68,28 @@ sleep 1
 if pgrep -f '[s]tart-desk.sh' >/dev/null 2>&1; then
   say "  supervisor is running; it will respawn uvicorn"
 else
-  nohup bash "$DESK_DIR/termux/start-desk.sh" >/dev/null 2>&1 &
-  say "  launched termux/start-desk.sh"
+  PORT="$PORT" nohup bash "$DESK_DIR/termux/start-desk.sh" >/dev/null 2>&1 &
+  say "  launched termux/start-desk.sh on port $PORT"
 fi
 
+# A supervisor started earlier may be bound to a different port than $PORT.
+# Rather than fail, read the port the server actually announced in desk.log.
+probe() { curl -s -m 2 -o /dev/null "http://127.0.0.1:$1/api/health"; }
 i=0
 while [ "$i" -lt 40 ]; do
   sleep 2; i=$((i + 2))
-  curl -s -m 2 -o /dev/null "http://127.0.0.1:$PORT/api/health" && break
+  probe "$PORT" && break
 done
+if ! probe "$PORT"; then
+  alt="$(grep -o 'Uvicorn running on http://[0-9.]*:[0-9]*' "$DESK_DIR/desk.log" 2>/dev/null \
+        | tail -1 | sed 's/.*://')"
+  if [ -n "$alt" ] && [ "$alt" != "$PORT" ] && probe "$alt"; then
+    say "  note: the running server is on port $alt, not $PORT (stale supervisor)"
+    PORT="$alt"
+  fi
+fi
 
-if ! curl -s -m 3 -o /dev/null "http://127.0.0.1:$PORT/api/health"; then
+if ! probe "$PORT"; then
   say "  FAIL: the desk did not answer on port $PORT after ${i}s"
   say "  look at: tail -40 $DESK_DIR/desk.log"
   exit 1
@@ -84,7 +98,21 @@ say "  desk is up after ${i}s"
 
 say ""
 say "  balance now:"
-curl -s -m 8 "http://127.0.0.1:$PORT/api/state" | python -c '
+# /api/state is behind the desk key. Log in once into a temp cookie jar with the
+# same key start-desk.sh uses, otherwise the readout is just "unauthorized".
+JAR="$(mktemp 2>/dev/null || echo /tmp/desk_cookies.$$)"
+KEY="${DESK_TOKEN:-}"
+if [ -z "$KEY" ] && [ -f "$HOME/.desk_key" ]; then
+  KEY="$(tr -d '\r\n' < "$HOME/.desk_key")"
+fi
+if [ -n "$KEY" ]; then
+  curl -s -m 5 -c "$JAR" -o /dev/null -X POST \
+       --data-urlencode "token=$KEY" "http://127.0.0.1:$PORT/login" || true
+  CURL_AUTH="-b $JAR"
+else
+  CURL_AUTH=""
+fi
+curl -s -m 8 $CURL_AUTH "http://127.0.0.1:$PORT/api/state" | python -c '
 import json, sys
 try:
     d = json.load(sys.stdin)
@@ -96,10 +124,12 @@ print("    cash         $" + str(b.get("cash")))
 print("    day P&L      $" + str(b.get("day_pnl")))
 print("    positions    " + str(len(b.get("positions") or [])))
 print("    start_equity $" + str(d.get("starting_equity")))
-pp = d.get("pumpportal") or {}
+pp = ((d.get("integrations") or {}).get("pumpportal")) or d.get("pumpportal") or {}
 if pp:
     print("    pump feed    " + str(pp.get("status")) + " (error: " + str(pp.get("error")) + ")")
 '
+
+rm -f "$JAR" 2>/dev/null || true
 
 hr
 say "done. HEAD $HEAD is running."

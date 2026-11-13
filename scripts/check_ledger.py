@@ -119,6 +119,10 @@ def main() -> int:
         if a.fix:
             from desk.broker import PaperBroker
             b = PaperBroker(path)
+            # PaperBroker builds the fresh state in memory but only writes when
+            # something needs repairing, so persist it explicitly. Otherwise the
+            # next boot still sees "no ledger" and the reset looks ignored.
+            b._save()
             print(f"no ledger at {path} -- created a fresh book at ${b.equity():,.2f}")
             return 0
         print(f"no ledger at {path} (nothing to check yet)")

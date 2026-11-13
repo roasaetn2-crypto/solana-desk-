@@ -87,6 +87,14 @@ print(f"  new book: cash ${amount:.2f}, start_equity ${amount:.2f}, no positions
 PY
 [ $? -eq 0 ] || { say "FAIL: re-base failed"; exit 1; }
 
+if [ "${NO_RESTART:-0}" = "1" ]; then
+  say ""
+  say "=== 4. restart skipped (NO_RESTART=1; the caller will restart) ==="
+  say ""
+  say "=== done. new book at \$$AMOUNT is written. ==="
+  exit 0
+fi
+
 say ""
 say "=== 4. restarting the desk ==="
 stop_desk
