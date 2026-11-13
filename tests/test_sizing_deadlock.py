@@ -158,3 +158,58 @@ def test_snapshot_reports_ledger_basis_not_config_basis():
         assert round(snap["broker"]["equity"] / snap["starting_equity"], 2) == 1.0
     finally:
         tmp.cleanup()
+
+
+def test_position_card_never_shows_an_impossible_mark():
+    """The card must agree with the equity: no 32-billion-percent positions.
+
+    Reproduces the 2026-11-14 phone screenshot: MAYA bought at 8.85e-7, marked
+    at 284.67 (a decimals/pool mismatch). `_value()` already kept equity sane,
+    but the position row handed the raw `last` to the UI and computed pnl_pct
+    from it, so the card read +32,156,727,091.40%. The row must report the
+    clamped mark, and a long-running process must heal the ledger each cycle.
+    """
+    import json, tempfile
+    from pathlib import Path
+    from desk.broker import PaperBroker
+
+    d = Path(tempfile.mkdtemp())
+    path = d / "paper_ledger.json"
+    path.write_text(json.dumps({"cash": 55.0, "positions": {}, "day": "2026-11-14",
+                                "day_start": 55.0, "start_equity": 55.0, "closed": []}))
+    book = PaperBroker(path)
+    book.buy("ECguXxx", "MAYA", 1.76, 8.85e-7, "scalp")
+    # a corrupt print lands mid-cycle (after boot repair already ran)
+    book.s["positions"]["ECguXxx"]["last"] = 284.67
+    book.s["positions"]["ECguXxx"]["peak"] = 284.67
+
+    row = book.snapshot()["positions"][0]
+    assert row["mark_clamped"] is True
+    assert row["raw_last"] == 284.67
+    # the card shows the sane mark, not the corrupt print
+    assert row["last"] < 1e-5, row["last"]
+    assert abs(row["pnl_pct"]) < 100, row["pnl_pct"]
+    # and equity is unchanged by the bad print
+    assert round(book.equity(), 2) == 55.0
+
+
+def test_repair_heals_a_corrupt_mark_on_a_running_process():
+    """_repair() is idempotent and fixes an impossible mark written after boot."""
+    import json, tempfile
+    from pathlib import Path
+    from desk.broker import PaperBroker
+
+    d = Path(tempfile.mkdtemp())
+    path = d / "paper_ledger.json"
+    path.write_text(json.dumps({"cash": 55.0, "positions": {}, "day": "2026-11-14",
+                                "day_start": 55.0, "start_equity": 55.0, "closed": []}))
+    book = PaperBroker(path)
+    book.buy("ECguXxx", "MAYA", 1.76, 8.85e-7, "scalp")
+    book.s["positions"]["ECguXxx"]["last"] = 284.67
+
+    fixes = book._repair()
+    assert any(f["kind"] == "mark" for f in fixes), fixes
+    pos = book.s["positions"]["ECguXxx"]
+    assert pos["last"] == pos["entry"], (pos["last"], pos["entry"])
+    # idempotent: a clean book reports nothing to fix
+    assert book._repair() == []

@@ -1025,7 +1025,7 @@ function render(s) {
           </div>
           <div class="pos-meta">
             <span>Entry <b>${priceFmt(p.entry)}</b></span>
-            <span>Last <b>${priceFmt(p.last)}</b></span>
+            <span>Last <b>${priceFmt(p.last)}</b>${p.mark_clamped ? ' <em class="mark-bad" title="quote was outside the sane band; showing the entry price">?</em>' : ''}</span>
             <span>Cost <b>${fmtMoney(p.cost)}</b></span>
             <span>Held <b>${heldFor(p.opened)}</b></span>
           </div>

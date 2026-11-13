@@ -245,6 +245,34 @@ class PaperBroker:
         p = self.s["positions"][mint]
         return exits.evaluate(p, q, now or time.time())
 
+    def _position_row(self, mint: str, p: dict) -> dict:
+        """One position for the dashboard, using the SAME clamped mark as equity.
+
+        `last` is written by the quote loop and can be corrupt (a decimals
+        mismatch, a different pool for the same mint, a hand-edited ledger). The
+        equity already refuses to value such a mark (`_value`), but this row used
+        to hand the raw `last` to the UI and compute `pnl_pct` from it, so a
+        position bought at 8.85e-7 and marked at 284.67 showed
+        +32,156,727,091% on the card while the book itself stayed sane. The card
+        must never disagree with the equity, so the mark here is the clamped one.
+        `raw_last` and `mark_clamped` are kept so the corruption stays visible
+        instead of silently disappearing.
+        """
+        qty = p.get("qty") or 0.0
+        cost = p.get("cost") or 0.0
+        entry = p.get("entry") or 0.0
+        raw_last = p.get("last") or 0.0
+        value = self._value(p)                       # clamped, same as equity()
+        eff_price = (value / qty) if qty else raw_last
+        clamped = abs(value - qty * raw_last) > 1e-9
+        pnl_pct = round((eff_price / entry - 1) * 100, 2) if entry else 0.0
+        return {"mint": mint, "symbol": p.get("symbol"), "qty": qty, "entry": entry,
+                "last": eff_price, "raw_last": raw_last, "mark_clamped": clamped,
+                "value": round(value, 2), "cost": cost, "pnl_pct": pnl_pct,
+                "opened": p.get("opened"), "half_taken": p.get("half_taken"),
+                "horizon": p.get("horizon"), "stage": p.get("stage", 0),
+                "stop_price": p.get("stop_price"), "peak": p.get("peak")}
+
     def snapshot(self) -> dict:
         return {
             "cash": round(self.s["cash"], 2),
@@ -256,14 +284,6 @@ class PaperBroker:
             "day_start": round(self.s.get("day_start", self.s.get("start_equity", 0.0)), 2),
             "open_count": self.open_count(),
             "clamped_marks": self.clamped(),
-            "positions": [
-                {"mint": m, "symbol": p["symbol"], "qty": p["qty"], "entry": p["entry"],
-                 "last": p["last"], "cost": p["cost"],
-                 "pnl_pct": round((p["last"] / p["entry"] - 1) * 100, 2),
-                 "opened": p["opened"], "half_taken": p["half_taken"],
-                 "horizon": p.get("horizon"), "stage": p.get("stage", 0),
-                 "stop_price": p.get("stop_price"), "peak": p.get("peak")}
-                for m, p in self.s["positions"].items()
-            ],
+            "positions": [self._position_row(m, p) for m, p in self.s["positions"].items()],
             "closed": list(reversed(self.s["closed"][-30:])),
         }

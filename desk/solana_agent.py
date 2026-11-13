@@ -443,6 +443,15 @@ class SolanaAgent:
             # roll the paper day in a long-running process too, so the daily stop
             # (and any Continue override) resets at the day roll, not only on restart
             self.paper._roll_day()
+            # Heal a corrupt mark every cycle, not only on boot. On Termux the
+            # process can run for days, so a bad print written by any path would
+            # otherwise sit in the ledger until the next restart. _repair is
+            # idempotent and only writes when it actually fixes something.
+            try:
+                self.paper._repair()
+            except Exception as e:
+                self.stats["errors"] += 1
+                self.emit("error", f"ledger repair skipped ({type(e).__name__}: {e})")
             self.cycle_no += 1
             self.stats["cycles"] += 1
             cycle = self.cycle_no
