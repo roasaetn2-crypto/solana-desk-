@@ -213,3 +213,50 @@ def test_repair_heals_a_corrupt_mark_on_a_running_process():
     assert pos["last"] == pos["entry"], (pos["last"], pos["entry"])
     # idempotent: a clean book reports nothing to fix
     assert book._repair() == []
+
+
+def test_sell_cannot_fill_at_a_corrupt_price():
+    """The real balance leak: a sell at a corrupt `last` dumped millions into cash.
+
+    The "no quote" and kill-switch paths sell at pos["last"] directly. If that
+    mark is corrupt (8.85e-7 -> 284.67), the sell used to realize a ~320M-x gain,
+    inflating cash to $361M and (compounding) buying a $62 ticket on a $50 book.
+    sell() must clamp the fill to the sane band around entry.
+    """
+    import json, tempfile
+    from pathlib import Path
+    from desk.broker import PaperBroker
+
+    d = Path(tempfile.mkdtemp())
+    path = d / "paper_ledger.json"
+    path.write_text(json.dumps({"cash": 50.0, "positions": {}, "day": "2026-11-14",
+                                "day_start": 50.0, "start_equity": 50.0, "closed": []}))
+    book = PaperBroker(path)
+    book.buy("M1", "MAYA", 1.76, 8.85e-7, "scalp")
+    book.s["positions"]["M1"]["last"] = 284.67
+    out = book.sell("M1", 1.0, book.s["positions"]["M1"]["last"],
+                    "no quote x3, cannot measure, close")
+    assert out.get("price_clamped") is True
+    assert out["fill"] < 1e-5, out["fill"]
+    # cash stays near the book, not $361M
+    assert 45 < book.s["cash"] < 55, book.s["cash"]
+    assert book.equity() < 100
+
+
+def test_repair_recovers_an_already_blown_up_book():
+    """A ledger already inflated to $361M must come back to its real basis."""
+    import json, tempfile
+    from pathlib import Path
+    from desk.broker import PaperBroker
+
+    d = Path(tempfile.mkdtemp())
+    path = d / "paper_ledger.json"
+    path.write_text(json.dumps({
+        "cash": 361700658.26, "positions": {}, "day": "2026-11-14",
+        "day_start": 50.0, "start_equity": 50.0,
+        "closed": [{"mint": "M1", "symbol": "MAYA", "pnl_usd": 361700608.26,
+                    "reason": "no quote", "closed": 0}]}))
+    book = PaperBroker(path)
+    assert round(book.s["cash"], 2) == 50.0, book.s["cash"]
+    assert round(book.equity(), 2) == 50.0
+    assert round(book.realized_equity(), 2) == 50.0

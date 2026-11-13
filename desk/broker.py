@@ -214,8 +214,36 @@ class PaperBroker:
         return {"side": "buy", "mint": mint, "symbol": symbol, "qty": qty, "fill": fill,
                 "fee": fee, "ticket_usd": ticket_usd, "horizon": horizon}
 
+    def _safe_fill_price(self, p: dict, price: float) -> tuple[float, bool]:
+        """A sell may only fill at a price that could be real for this position.
+
+        `_value()` already refuses to *mark* the book from a corrupt print, but
+        the sell path used to trust whatever price it was handed. A position
+        bought at 8.85e-7 whose `last` had been corrupted to 284.67 then closed
+        at 284.67 -- the "no quote" and kill-switch paths sell at `pos["last"]`
+        directly -- and dumped hundreds of millions into cash. That is the real
+        balance bug: the book's equity exploded to $361M and sizing (compounding
+        off realized P&L) then bought a $62 ticket on a ~$50 book.
+
+        A fill outside [entry * min_mark_mult, entry * max_mark_mult] is not a
+        price, so it fills at the entry price instead and reports `clamped`.
+        """
+        entry = p.get("entry") or 0.0
+        lo = float(PAPER.get("min_mark_mult", 0.001))
+        hi = float(PAPER.get("max_mark_mult", 1000.0))
+        try:
+            px = float(price)
+        except (TypeError, ValueError):
+            return entry, True
+        if not (px == px) or px in (float("inf"), float("-inf")) or px <= 0:
+            return entry, True
+        if entry and not (entry * lo <= px <= entry * hi):
+            return entry, True
+        return px, False
+
     def sell(self, mint: str, fraction: float, price: float, reason: str) -> dict:
         p = self.s["positions"][mint]
+        price, clamped = self._safe_fill_price(p, price)
         qty = p["qty"] * fraction
         fill = price * (1 - PAPER["slippage_pct"])
         gross = qty * fill
@@ -225,6 +253,14 @@ class PaperBroker:
         p["proceeds"] = p.get("proceeds", 0.0) + gross - fee
         out = {"side": "sell", "mint": mint, "symbol": p["symbol"], "qty": qty,
                "fill": fill, "fee": fee, "reason": reason}
+        if clamped:
+            out["price_clamped"] = True
+            try:
+                from desk.ops import journal
+                journal("sell_price_clamped", mint=mint, symbol=p.get("symbol"),
+                        was=price, entry=p.get("entry"), reason=reason)
+            except Exception:
+                pass
         if fraction >= 1 or p["qty"] <= 1e-12:
             pnl = round(p["proceeds"] - p["cost"], 2)
             out["pnl_usd"] = pnl
