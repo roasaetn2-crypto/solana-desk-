@@ -228,3 +228,14 @@ supervisor, so after a pull the supervisor is running the new script.
 `/proc/uptime`.
 
 Pinned by `tests/test_supervisor.py`.
+
+## `verify-update.sh --fix`
+
+`verify-update.sh` only ever *reported* `MISS 1 commit(s) behind GitHub -> run:
+git pull`, and the operator reasonably ran it again instead of pulling. It now
+takes `--fix`: pull (`--ff-only`), `stop-desk.sh`, start a fresh supervisor, then
+re-exec itself with `--start` so the report is of the NEW code, not the old.
+
+It also matches uvicorn by an exact `app:app` argv element instead of
+`pgrep -f "[u]vicorn app:app"`, and its "process is older than your pull" tip now
+says `bash termux/stop-desk.sh` instead of the `pkill` that left orphans.

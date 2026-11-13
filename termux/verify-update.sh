@@ -3,6 +3,7 @@
 #
 # Usage:
 #   bash ~/solana-desk/termux/verify-update.sh            # check only
+#   bash ~/solana-desk/termux/verify-update.sh --fix      # pull + restart + re-check
 #   bash ~/solana-desk/termux/verify-update.sh --start    # check, then start it
 #   bash ~/solana-desk/termux/verify-update.sh --log      # show the server log
 #
@@ -19,8 +20,10 @@ LOG="${LOG:-$DESK_DIR/desk.log}"
 PORT="${PORT:-8000}"
 START=0
 SHOWLOG=0
+FIX=0
 for a in "$@"; do
   case "$a" in
+    --fix)   FIX=1 ;;
     --start) START=1 ;;
     --log)   SHOWLOG=1 ;;
     -h|--help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
@@ -37,7 +40,17 @@ bad()  { printf '  MISS  %s\n' "$*"; fail=1; }
 note() { printf '  ..    %s\n' "$*"; warn=1; }   # a serving problem
 tip()  { printf '  ..    %s\n' "$*"; }          # advice only, not a failure
 
-running() { pgrep -f "[u]vicorn app:app" >/dev/null 2>&1; }
+# Match the real uvicorn by an exact argv element. `pgrep -f "[u]vicorn app:app"`
+# also matches any shell whose command line merely mentions the string.
+uvicorn_pids() {
+  local pid
+  for pid in $(pgrep -f "uvicorn app:app" 2>/dev/null); do
+    [ "$pid" = "$$" ] && continue
+    [ -r "/proc/$pid/cmdline" ] || continue
+    tr '\0' '\n' < "/proc/$pid/cmdline" 2>/dev/null | grep -qx "app:app" && echo "$pid"
+  done
+}
+running() { [ -n "$(uvicorn_pids)" ]; }
 
 log_tail() {   # last N lines of the server log, errors first
   n="${1:-25}"
@@ -67,6 +80,23 @@ if git fetch --quiet origin 2>/dev/null; then
     bad "could not compare with origin (offline?)"
   else
     bad "$behind commit(s) behind GitHub -> run: git pull"
+    if [ "$FIX" = "1" ]; then
+      say ""
+      say "  --fix: pulling now"
+      if git pull --ff-only; then
+        ok "pulled; now $(git rev-parse --short HEAD)"
+        say "  --fix: restarting the desk on the new code"
+        bash termux/stop-desk.sh || true
+        sleep 1
+        PORT="$PORT" nohup bash "$DESK_DIR/termux/start-desk.sh" >/dev/null 2>&1 &
+        sleep 6
+        say "  --fix: re-checking"
+        say ""
+        exec bash "$0" --start
+      else
+        bad "git pull failed (local changes or network). Fix that, then re-run."
+      fi
+    fi
   fi
 else
   bad "git fetch failed (no network, or auth problem)"
@@ -131,7 +161,8 @@ except Exception:
 PY
 )"
   say "        started: $started"
-  say "        if that is older than your git pull, run: pkill -f '[u]vicorn app:app'"
+  say "        if that is older than your git pull, run: bash termux/stop-desk.sh"
+  say "        then: bash termux/start-desk.sh"
   if curl -s --max-time 5 "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1; then
     ok "it answers on port $PORT"
   else
