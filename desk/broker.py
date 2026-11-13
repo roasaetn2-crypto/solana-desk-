@@ -27,10 +27,24 @@ class PaperBroker:
         self.path = Path(path) if path is not None else data_file("paper_ledger.json")
         if self.path.exists():
             self.s = json.loads(self.path.read_text())
+            # A ledger written before `start_equity` existed (or written when the
+            # bankroll was a different number) must not silently re-base itself on
+            # whatever config.py says today. Sizing would use the new number while
+            # `cash` still held the old one, and the book would spend money it
+            # never had. Keep the ledger's own basis and say so once.
+            if "start_equity" not in self.s:
+                implied = round(self.s.get("cash", 0.0) + sum(
+                    p.get("cost", 0.0) for p in self.s.get("positions", {}).values()), 2)
+                self.s["start_equity"] = implied
+                if abs(implied - PAPER["starting_equity_usd"]) > 0.01:
+                    print(f"[desk] paper ledger predates start_equity: keeping its own basis "
+                          f"${implied:.2f} (config says ${PAPER['starting_equity_usd']:.2f}). "
+                          f"Tap Reset to re-base the book.")
+                self._save()
         else:
             eq = PAPER["starting_equity_usd"]
             self.s = {"cash": eq, "positions": {}, "day": str(date.today()), "day_start": eq,
-                      "closed": []}
+                      "start_equity": eq, "closed": []}
         self._roll_day()
 
     # ---------- state ----------
@@ -55,8 +69,13 @@ class PaperBroker:
         return round(self.s["cash"] + held, 2)
 
     def realized_equity(self) -> float:
-        """Starting bankroll + closed-trade P&L. Unrealized gains are not sized against (compounding)."""
-        return round(PAPER["starting_equity_usd"] + sum(c.get("pnl_usd", 0.0) for c in self.s["closed"]), 2)
+        """Starting bankroll + closed-trade P&L. Unrealized gains are not sized against (compounding).
+
+        The basis is the LEDGER's start_equity, not config.PAPER. A config change
+        must never re-base a book that already has history.
+        """
+        start = self.s.get("start_equity", PAPER["starting_equity_usd"])
+        return round(start + sum(c.get("pnl_usd", 0.0) for c in self.s["closed"]), 2)
 
     def day_pnl(self) -> float:
         return round(self.equity() - self.s["day_start"], 2)
@@ -67,7 +86,7 @@ class PaperBroker:
     def reset(self):
         eq = PAPER["starting_equity_usd"]
         self.s = {"cash": eq, "positions": {}, "day": str(date.today()), "day_start": eq,
-                  "closed": []}
+                  "start_equity": eq, "closed": []}
         self._save()
 
     # ---------- orders ----------

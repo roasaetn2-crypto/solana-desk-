@@ -286,7 +286,8 @@ class SolanaAgent:
     def _paper_account(self) -> Account:
         return Account(equity=self.paper.equity(), day_pnl=self.paper.day_pnl(),
                        open_positions=self.paper.open_count(),
-                       realized_equity=self.paper.realized_equity())
+                       realized_equity=self.paper.realized_equity(),
+                       cash=self.paper.s.get("cash"))
 
     def daily_override_today(self) -> bool:
         """Operator tapped Continue today, or auto-continue is switched on.
@@ -640,7 +641,9 @@ class SolanaAgent:
                     stop = exits.profile(horizon)["stop_pct"]
                     acct = Account(equity=self.broker.equity(), day_pnl=self.broker.day_pnl(),
                                    open_positions=self.broker.open_count(),
-                                   realized_equity=self.broker.realized_equity())
+                                   realized_equity=self.broker.realized_equity(),
+                                   cash=(self.paper.s.get("cash")
+                                         if self.broker is self.paper else None))
                     ok, ticket, reason = check_token_trade(th, acct, t["liquidity_usd"],
                                                            stop_pct=stop,
                                                            daily_override=self.daily_override_today())
