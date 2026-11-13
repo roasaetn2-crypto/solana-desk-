@@ -43,4 +43,4 @@
 - [x] Full suite: 644 passed, 17 skipped.
 - [x] Add section 4c to `termux/verify-update.sh`.
 - [x] Docs: `WHY-NO-ENTRY.md`.
-- [ ] Commit + push to GitHub main.
+- [x] Commit + push to GitHub main (4b16fc3).
