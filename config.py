@@ -83,6 +83,13 @@ RISK = {
                                    # still journaled, but it does not block new entries (same effect as
                                    # tapping "Continue today" every day). LIVE ignores this entirely.
     "min_ticket_usd": 10,          # live fee floor (unchanged). Paper floor is PAPER["min_ticket_usd"]
+    "risk_budget_split_across_slots": False,  # Divide the whole-book risk budget across
+                                   # max_open_positions, so the per-trade risk cap agrees with
+                                   # the daily stop by construction. Without this the config
+                                   # contradicts itself (1.5% x 6 slots = 9% at risk on a 3%
+                                   # day), only two positions can ever open, and the third is
+                                   # refused forever. Set False to size every ticket at
+                                   # max_risk_per_trade and let the budget limit concurrency.
     "compound": True,              # MERGE: size off REALIZED equity (start + closed P&L), so wins are reinvested
                                    # and losses shrink size. Still capped by every cap below + 2% of pool.
     "quiet_hours": (0, 0),         # local hours with no new entries. (0,0) = trade 24/7.

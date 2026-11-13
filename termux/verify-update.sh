@@ -167,6 +167,24 @@ else
 fi
 
 say ""
+say "=== 4e. whole-book risk budget (open risk vs daily stop) ==="
+if python -c "
+from desk.risk import Account, fit_risk_budget, risk_budget_usd
+a = Account(equity=51.33, day_pnl=-0.4, open_positions=3, realized_equity=51.33,
+            cash=20.0, day_start_equity=51.33)
+assert abs(risk_budget_usd(a) - 1.54) < 0.01, risk_budget_usd(a)
+ok, t, why = fit_risk_budget(1.40, 4.17, 0.06, a, 0.50)
+assert ok and t < 4.17, (ok, t, why)          # trims, does not refuse
+ok2, _, why2 = fit_risk_budget(1.89, 4.17, 0.06, a, 0.50)
+assert not ok2 and 'over its risk budget' in why2
+" 2>/dev/null; then
+  ok "risk budget: trims to fit, refuses only when the book is already over"
+else
+  bad "risk budget gate failed -> python -m pytest tests/test_risk_budget.py"
+fi
+[ -f tests/test_risk_budget.py ] && ok "tests/test_risk_budget.py present (16 tests)" || bad "tests/test_risk_budget.py missing"
+
+say ""
 say "=== 5. does the code import cleanly? ==="
 if python -c "from desk import signal_engine, signal_backtest; from desk import settings; print('   ', len(settings.REGISTRY), 'settings')" 2>/dev/null; then
   ok "signal_engine + signal_backtest import, settings registry loads"

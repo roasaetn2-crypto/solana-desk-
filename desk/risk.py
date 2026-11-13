@@ -22,6 +22,11 @@ class Account:
     # cash cap is skipped. When set, no ticket may exceed it: without this the
     # paper book could open 6 x 25% = 150% of equity and drive cash negative.
     cash: float | None = None
+    # Equity at the start of the trading day. The risk budget is measured against
+    # THIS, not against live mark-to-market equity. Using equity made the budget
+    # shrink as unrealised losses deepened, so the desk locked itself out of new
+    # entries exactly when it was already under water (procyclical deadlock).
+    day_start_equity: float | None = None
 
 
 def in_quiet_hours(now: datetime | None = None) -> bool:
@@ -89,6 +94,97 @@ def daily_loss_limit_usd(account: Account) -> float:
     return RISK["max_daily_loss_pct"] * account.equity
 
 
+def risk_budget_usd(account: Account) -> float:
+    """Dollars of OPEN risk the book may carry at once.
+
+    This is the daily stop expressed in cash, but measured against the day's
+    OPENING equity rather than live equity. The distinction matters: live equity
+    falls when open positions are under water, which used to shrink the budget
+    and lock the desk out of every new entry at precisely the moment it was
+    already losing. A budget that moves with the marks is not a budget.
+
+    Falls back to `daily_loss_limit_usd` when no day-start equity is reported
+    (live path, backtests), so callers that never set it behave as before.
+    """
+    usd_limit = float(RISK.get("max_daily_loss_usd") or 0.0)
+    if usd_limit > 0:
+        return usd_limit
+    base = account.day_start_equity
+    if base is None or base <= 0:
+        return daily_loss_limit_usd(account)
+    return RISK["max_daily_loss_pct"] * base
+
+
+def per_trade_risk_usd(account: Account) -> float:
+    """Dollars of risk a single ticket may carry, given the whole-book budget.
+
+    Without this the config can contradict itself: 1.5% risk per trade across 6
+    slots is 9% of the book at risk against a 3% daily stop, so only two
+    positions could ever open and the third was refused forever. Dividing the
+    budget across the slots makes the two numbers agree by construction.
+    """
+    budget = risk_budget_usd(account)
+    slots = max(1, int(RISK.get("max_open_positions") or 1))
+    by_config = RISK["max_risk_per_trade"] * sizing_base(account)
+    if not RISK.get("risk_budget_split_across_slots", True) or budget <= 0:
+        return by_config
+    # Never split so far that the caution layer's worst cut (a quarter) drops
+    # the ticket under the paper fee floor. That would be the sizing deadlock
+    # wearing a new hat: the desk would look alive and reject every setup.
+    stop = EXITS["stop_pct"]
+    floor = PAPER.get("min_ticket_usd", RISK["min_ticket_usd"])
+    viable = (floor * stop / 0.25) if stop > 0 else 0.0
+    return min(by_config, max(budget / slots, viable))
+
+
+def fit_risk_budget(open_risk: float, ticket: float, stop_pct: float,
+                    account: Account, floor: float) -> tuple[bool, float, str]:
+    """Fit a ticket inside what is left of the whole-book risk budget.
+
+    Returns ``(ok, ticket, reason)``. The ticket is SHRUNK to fit rather than
+    refused outright: refusing on a few cents of overrun is what bricked the
+    desk, because once open risk drifted above the budget every subsequent
+    entry was rejected forever and the desk looked alive but never traded.
+
+    Refusal is now reserved for the two cases where there is genuinely nothing
+    sensible to do:
+
+    * the book is ALREADY over budget (nothing can be added until it shrinks);
+    * the largest ticket that fits is below the fee floor.
+
+    Both messages name the numbers and the way out, so the operator can act
+    instead of guessing why the desk went quiet.
+    """
+    budget = risk_budget_usd(account)
+    if budget <= 0:
+        return True, ticket, "approved"
+    if open_risk <= 0:
+        # First position: a single ticket is the sizing layer's job
+        # (max_risk_per_trade already caps it). Trimming it here would also
+        # corrupt the caution layer's relative cuts -- a halved ticket would end
+        # up LARGER than a trimmed baseline, because the cut is applied before
+        # this check. The budget exists to stop STACKING.
+        return True, ticket, "approved"
+    remaining = budget - open_risk
+    if remaining <= 1e-9:
+        return False, 0.0, (
+            f"book is over its risk budget: open risk ${open_risk:.2f} vs "
+            f"${budget:.2f} budget (over by ${open_risk - budget:.2f}). "
+            f"No new entry can fit until open positions close or their stops tighten.")
+    if stop_pct <= 0:
+        return True, ticket, "approved"
+    if ticket * stop_pct <= remaining + 1e-9:
+        return True, ticket, "approved"
+    fitted = round(remaining / stop_pct, 2)
+    if fitted < floor:
+        return False, 0.0, (
+            f"only ${remaining:.2f} of risk budget left (open ${open_risk:.2f} of "
+            f"${budget:.2f}); the ${fitted:.2f} ticket that fits is below the "
+            f"${floor:.2f} fee floor")
+    return True, fitted, (f"ticket trimmed ${ticket:.2f} -> ${fitted:.2f} to keep "
+                          f"open risk inside the ${budget:.2f} budget")
+
+
 def daily_loss_hit(account: Account) -> bool:
     """True once the day's realised loss reaches the daily stop.
 
@@ -137,7 +233,7 @@ def check_token_trade(thesis, account: Account, liquidity_usd: float,
         return False, 0.0, "max open positions"
 
     base, stop = sizing_base(account), (stop_pct or EXITS["stop_pct"])
-    by_risk = RISK["max_risk_per_trade"] * base / stop
+    by_risk = per_trade_risk_usd(account) / stop
     by_size = RISK["max_position_pct"] * base
     by_pool = RISK["max_pool_share"] * liquidity_usd
     ticket = round(min(by_risk, by_size, by_pool), 2)
@@ -157,7 +253,7 @@ def check_token_trade(thesis, account: Account, liquidity_usd: float,
 def sizing_breakdown(account: Account, liquidity_usd: float, stop_pct: float | None = None) -> dict:
     """The caps, for the dashboard. The smallest one wins."""
     base, stop = sizing_base(account), (stop_pct or EXITS["stop_pct"])
-    by_risk = RISK["max_risk_per_trade"] * base / stop
+    by_risk = per_trade_risk_usd(account) / stop
     by_size = RISK["max_position_pct"] * base
     by_pool = RISK["max_pool_share"] * liquidity_usd
     caps = [by_risk, by_size, by_pool]

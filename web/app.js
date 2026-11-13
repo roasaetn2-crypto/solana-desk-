@@ -340,6 +340,18 @@ function renderRisk(s) {
     txt.textContent = "Daily loss stop hit (" + limitLabel + ", day P&L $" +
       Number(rk.day_pnl || 0).toFixed(2) + "). New paper entries paused for today.";
     btn.hidden = !rk.can_continue;
+  } else if (paper && rk.over_risk_budget) {
+    // The whole-book risk budget is already spent. Without this the desk just
+    // refused every entry with a reason buried in the decision card, which
+    // looked like a silent failure. Say it on the dashboard instead.
+    banner.hidden = false;
+    banner.classList.remove("overridden");
+    const over = Number(rk.open_risk_usd || 0) - Number(rk.risk_budget_usd || 0);
+    txt.textContent = "Open risk $" + Number(rk.open_risk_usd || 0).toFixed(2) +
+      " is over the $" + Number(rk.risk_budget_usd || 0).toFixed(2) +
+      " risk budget (over by $" + over.toFixed(2) +
+      "). New entries wait until positions close or stops tighten.";
+    btn.hidden = true;
   } else {
     banner.hidden = true;
     btn.hidden = true;

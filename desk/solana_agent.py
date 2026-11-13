@@ -41,8 +41,8 @@ from desk.netutil import offline
 from desk.ops import Bench, alert, data_file, journal, killed
 from desk.risk import daily_loss_hit, daily_loss_limit_usd, daily_override_active
 from desk.risk import (Account, check_live_trade, check_token_trade,
-                       live_sizing_breakdown, open_risk_usd, sizing_base,
-                       sizing_breakdown)
+                       fit_risk_budget, live_sizing_breakdown, open_risk_usd,
+                       risk_budget_usd, sizing_base, sizing_breakdown)
 
 
 
@@ -289,7 +289,8 @@ class SolanaAgent:
         return Account(equity=self.paper.equity(), day_pnl=self.paper.day_pnl(),
                        open_positions=self.paper.open_count(),
                        realized_equity=self.paper.realized_equity(),
-                       cash=self.paper.s.get("cash"))
+                       cash=self.paper.s.get("cash"),
+                       day_start_equity=self.paper.s.get("day_start"))
 
     def daily_override_today(self) -> bool:
         """Operator tapped Continue today, or auto-continue is switched on.
@@ -332,6 +333,11 @@ class SolanaAgent:
                 "blocking_entries": halted and not override,
                 "can_continue": paper and halted and not override,
                 "override_date": self.paper.s.get("daily_loss_override_date") if paper else None,
+                "risk_budget_usd": round(risk_budget_usd(acct), 2) if acct else None,
+                "open_risk_usd": (round(open_risk_usd(self.paper.s.get("positions") or {}), 2)
+                                  if paper else None),
+                "over_risk_budget": (open_risk_usd(self.paper.s.get("positions") or {})
+                                     > risk_budget_usd(acct) + 1e-9) if acct else False,
             }
 
     def continue_today(self) -> dict:
@@ -739,23 +745,28 @@ class SolanaAgent:
                         sizes["guard"] = guard_info
                     # Risk budget: the daily stop must cover the WHOLE open book,
                     # not one ticket at a time. Six 1.5%-risk trades is 9% at risk
-                    # on a 3% day. Refuse a ticket that would overrun the budget.
+                    # on a 3% day. `fit_risk_budget` shrinks the ticket to what is
+                    # left of the budget instead of refusing on a few cents of
+                    # overrun -- refusing outright is what bricked the desk once
+                    # open risk drifted above the budget.
                     if ok and self.broker is self.paper:
-                        budget = daily_loss_limit_usd(acct)
                         open_risk = open_risk_usd(self.paper.s["positions"])
-                        new_risk = ticket * stop
+                        floor = PAPER.get("min_ticket_usd", RISK["min_ticket_usd"])
+                        ok, fitted, budget_reason = fit_risk_budget(
+                            open_risk, ticket, stop, acct, floor)
+                        budget = risk_budget_usd(acct)
                         sizes["open_risk_usd"] = round(open_risk, 2)
-                        sizes["new_risk_usd"] = round(new_risk, 2)
+                        sizes["new_risk_usd"] = round(fitted * stop, 2)
                         sizes["risk_budget_usd"] = round(budget, 2)
-                        # Only gate STACKING. A single ticket is the sizing
-                        # layer's job; this stops a second/third position from
-                        # pushing total open risk past the day's stop.
-                        if budget > 0 and open_risk > 0 and open_risk + new_risk > budget + 1e-9:
-                            ok = False
-                            reason = (f"open risk ${open_risk + new_risk:.2f} "
-                                      f"(open ${open_risk:.2f} + new ${new_risk:.2f}) "
-                                      f"would exceed the ${budget:.2f} daily stop")
-                            self.emit("info", f"risk budget: skip ${t['symbol']} — {reason}",
+                        if ok and fitted != ticket:
+                            ticket = fitted
+                            reason = budget_reason
+                            sizes["ticket"] = round(ticket, 2)
+                            self.emit("info", f"risk budget: {t['symbol']} {budget_reason}",
+                                      stage="risk")
+                        elif not ok:
+                            reason = budget_reason
+                            self.emit("info", f"risk budget: skip ${t['symbol']} \u2014 {reason}",
                                       stage="risk")
                 # the seats talk to each other before anything is filled
                 convo = dialogue.debate(t, f, ds, dev, sc, th.model_dump(), ok, ticket,

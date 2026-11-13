@@ -68,3 +68,16 @@ rate. If it does not, do NOT add it to the desk.
 - [x] RSI<35 verdict: 43 trades, 20.9% win, +6.2pp, PF 0.737 -> FAILS PF>=1.2, not wired
 - [x] INDICATOR-EVALUATION.md updated with 120-pool table + closed decision
 - [x] WINDOW=200/_snap() perf optimization committed
+
+# Fix open risk vs daily stop deadlock (screenshot: open risk $2.14 > $1.54 budget)
+
+- [x] Reproduce: open_risk 1.89 already > budget 1.54 -> every entry refused forever
+- [x] Fault 1: gate refused on cents instead of shrinking the ticket
+- [x] Fault 2: budget measured on live equity -> shrank as marks fell (procyclical)
+- [x] Fault 3: 1.5% x 6 slots = 9% risk vs 3% budget -> only 2 positions could ever fit
+- [x] Add risk_budget_usd() on day_start basis + per_trade_risk_usd() + fit_risk_budget()
+- [x] Wire into solana_agent gate; first ticket left to sizing layer (keeps caution cuts relative)
+- [x] risk_status(): expose risk_budget_usd / open_risk_usd / over_risk_budget
+- [x] Dashboard banner explains an over-budget book instead of failing silently
+- [x] 16 tests in tests/test_risk_budget.py; full suite 677 passed / 17 skipped
+- [x] verify-update.sh section 4e + RISK-BUDGET-FIX.md
