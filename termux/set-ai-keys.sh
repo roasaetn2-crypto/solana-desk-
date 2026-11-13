@@ -98,7 +98,7 @@ fi
 # two-bot back-and-forth and do not mind it running out sooner.
 if [ "${KEEP_QUOTA:-1}" = "1" ]; then
   grep -v -e '^BRAIN_PER_CYCLE=' -e '^BRAIN_OPINIONS=' -e '^BRAIN_DEBATES_PER_CYCLE=' \
-       -e '^BRAIN_MIN_INTERVAL_S=' -e '^BRAIN_CACHE_TTL_S=' "$ENV_FILE" > "$ENV_FILE.new" 2>/dev/null
+       -e '^BRAIN_MIN_INTERVAL_S=' -e '^BRAIN_CACHE_TTL_S=' -e '^BRAIN_ADVISE_ON=' "$ENV_FILE" > "$ENV_FILE.new" 2>/dev/null
   mv "$ENV_FILE.new" "$ENV_FILE"
   {
     echo "BRAIN_PER_CYCLE=1"
@@ -106,6 +106,7 @@ if [ "${KEEP_QUOTA:-1}" = "1" ]; then
     echo "BRAIN_DEBATES_PER_CYCLE=0"
     echo "BRAIN_MIN_INTERVAL_S=240"
     echo "BRAIN_CACHE_TTL_S=1800"
+    echo "BRAIN_ADVISE_ON=exit"
   } >> "$ENV_FILE"
 fi
 chmod 600 "$ENV_FILE"
@@ -145,5 +146,5 @@ echo
 echo "Look for \"keys_present\":true. Then reload http://127.0.0.1:$PORT/?v=2#ai"
 echo "The AI quota panel on the dashboard shows calls left per provider."
 echo
-echo "Quota profile: 1 coin, 1 opinion, no debate, 1 review / 4 min (~180 calls/day)."
+echo "Quota profile: AI on EXITS only, no debate, 1 review / 4 min."
 echo "Want the two-bot debate back?  KEEP_QUOTA=0 bash termux/set-ai-keys.sh - -"

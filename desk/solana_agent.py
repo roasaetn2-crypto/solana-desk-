@@ -27,7 +27,7 @@ from datetime import date, datetime, timezone
 import requests
 
 from config import AGENT, ENTRY, EXECUTION, EXITS, FOMO, PAPER, RISK
-from desk.brain_advisor import ADVISOR, should_advise
+from desk.brain_advisor import ADVISOR, should_advise, wants_entry, wants_exit
 from desk import (analyst, brain, chain, dexscreener, devcheck, dialogue, exits, fomo, goplus, gmgn,
                   guard, heartbeat, helius, meme, pumpportal, regime, risk, scanner,
                   signal_engine, signals)
@@ -859,6 +859,39 @@ class SolanaAgent:
         self._log_funnel(cycle)
         return {"cycle": cycle, "source": source, "stats": dict(self.stats)}
 
+    def _advise_exit(self, mint: str, pos: dict, q: dict | None, reason: str,
+                     hold_sig: dict | None = None) -> None:
+        """Ask the AI whether this exit is right, in a worker thread.
+
+        ADVISORY ONLY and it can never delay or block the sell: the rule already
+        decided, the order is already sent. The answer is emitted and journaled so
+        you can compare the AI's read against the rule over time. One provider,
+        one call, no debate — exits are rare, so this is cheap.
+        """
+        try:
+            if not ADVISOR.enabled() or not wants_exit() or mint.startswith("DEMO"):
+                return
+            sym = pos.get("symbol") or mint[:6]
+            summary = ADVISOR.summarize_exit(pos, q, reason, hold_sig)
+
+            def done(res):
+                if not res:
+                    return
+                why = "; ".join(res.get("reasons") or []) or "no reason given"
+                self.emit("brain", f"AI on exit ${sym}: {res['verdict']} "
+                                   f"{res['confidence']}% — {why}",
+                          symbol=sym, mint=mint, verdict=res.get("verdict"))
+                journal("brain_exit", mint=mint, symbol=sym, rule=reason,
+                        verdict=res.get("verdict"), confidence=res.get("confidence"),
+                        reasons=res.get("reasons"), provider=res.get("provider"))
+
+            def log(line: str):
+                self.emit("brain", line, symbol=sym, mint=mint)
+
+            ADVISOR.submit_exit(mint, summary, done, log)
+        except Exception:
+            pass
+
     def _advise(self, t: dict, f: dict, dev: dict, sc: dict, sec: dict, links: dict,
                 decision: dict, thesis=None) -> None:
         """Ask the AI second opinion about this coin, in a worker thread.
@@ -871,6 +904,9 @@ class SolanaAgent:
         """
         try:
             if not ADVISOR.enabled() or str(t.get("mint", "")).startswith("DEMO"):
+                return
+            # BRAIN_ADVISE_ON=exit (the default) spends the free tier on sells only.
+            if not wants_entry():
                 return
             if not should_advise(thesis):
                 return
@@ -1011,6 +1047,7 @@ class SolanaAgent:
             # no rule-based exit (TP / stop / trail / timeout) has fired yet. Rule-based
             # exits always take priority; this is the extra safety net. Configurable
             # off with signal.sell_on_bearish = false.
+            hold_sig = None
             if not sig and not mint.startswith("DEMO"):
                 try:
                     pos0 = self.broker.s["positions"][mint]
@@ -1041,6 +1078,8 @@ class SolanaAgent:
             if sig:
                 fraction, reason = sig
                 pos = self.broker.s["positions"][mint]
+                # advisory only, never blocks or delays the sell below
+                self._advise_exit(mint, pos, q, reason, hold_sig)
                 price = pos["last"]
                 entry = pos.get("entry")
                 snap = {"peak": pos.get("peak"), "opened": pos.get("opened"),

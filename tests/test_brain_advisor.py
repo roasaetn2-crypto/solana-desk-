@@ -562,7 +562,8 @@ class Advisory(unittest.TestCase):
         t.setUp() if hasattr(t, "setUp") else None
         fake = {"symbol": "GOOD", "verdict": verdict, "confidence": 99, "advisory_only": True,
                 "opinions": {}, "agreement": "agree"}
-        env = {"GEMINI_API_KEY": GKEY, "GROQ_API_KEY": QKEY}
+        # this test is about the ENTRY review path, which is off by default now
+        env = {"GEMINI_API_KEY": GKEY, "GROQ_API_KEY": QKEY, "BRAIN_ADVISE_ON": "entry"}
         with mock.patch.dict(os.environ, env), \
                 mock.patch.object(ADVISOR, "review", return_value=fake):
             ADVISOR.new_cycle()
@@ -893,3 +894,143 @@ class QuotaPayload(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ExitOnlyAdvice(unittest.TestCase):
+    """BRAIN_ADVISE_ON=exit: the free tier is spent on sells, not on every buy."""
+
+    def setUp(self):
+        self.env = mock.patch.dict(os.environ, {"GROQ_API_KEY": QKEY})
+        self.env.start()
+        self.addCleanup(self.env.stop)
+        os.environ.pop("BRAIN_ADVISE_ON", None)
+        self.adv = ba.Advisor()
+        for p in self.adv.providers():
+            p.rpm = 1000
+        self.addCleanup(self.adv._pool.shutdown, wait=True, cancel_futures=True)
+
+    def test_default_is_exit_only(self):
+        self.assertEqual(ba.advise_mode(), "exit")
+        self.assertTrue(ba.wants_exit())
+        self.assertFalse(ba.wants_entry())
+
+    def test_every_mode(self):
+        for mode, entry, exit_ in (("exit", False, True), ("entry", True, False),
+                                   ("both", True, True), ("off", False, False)):
+            with mock.patch.dict(os.environ, {"BRAIN_ADVISE_ON": mode}):
+                self.assertEqual(ba.wants_entry(), entry, mode)
+                self.assertEqual(ba.wants_exit(), exit_, mode)
+
+    def test_unknown_mode_falls_back_to_exit(self):
+        with mock.patch.dict(os.environ, {"BRAIN_ADVISE_ON": "garbage"}):
+            self.assertEqual(ba.advise_mode(), "exit")
+
+    def test_status_reports_the_mode(self):
+        self.assertEqual(self.adv.status()["advise_on"], "exit")
+
+    def test_summarize_exit_has_pnl_and_drawdown(self):
+        s = self.adv.summarize_exit(
+            {"symbol": "WIF", "entry": 1.0, "last": 0.8, "peak": 1.4, "horizon": "scalp"},
+            {"liquidity_usd": 50000}, "trailing stop")
+        self.assertEqual(s["pnl_pct"], -20.0)
+        self.assertEqual(s["drawdown_from_peak_pct"], -42.86)
+        self.assertEqual(s["exit_rule_that_fired"], "trailing stop")
+        self.assertEqual(s["liquidity_usd"], 50000)
+
+    def test_summarize_exit_survives_missing_numbers(self):
+        s = self.adv.summarize_exit({"symbol": "X"}, None, "")
+        self.assertIsNone(s["pnl_pct"])
+        self.assertIsNone(s["drawdown_from_peak_pct"])
+
+    def test_parse_exit_accepts_plain_sell(self):
+        self.assertEqual(ba.parse_exit('{"verdict":"sell","confidence":70}')["verdict"], "sell_now")
+        self.assertEqual(ba.parse_exit('{"verdict":"SELL-HALF","confidence":50}')["verdict"], "sell_half")
+        self.assertIsNone(ba.parse_exit('{"verdict":"buy","confidence":70}'))
+        self.assertIsNone(ba.parse_exit("nonsense"))
+
+    def test_review_exit_uses_one_provider_and_one_call(self):
+        body = {"choices": [{"message": {"content": json.dumps(
+            {"verdict": "sell_now", "confidence": 78, "reasons": ["deep drawdown"]})}}]}
+        calls = []
+
+        def post(url, headers=None, json=None, timeout=None):
+            calls.append(url)
+            return Resp(200, body)
+
+        summ = self.adv.summarize_exit({"symbol": "WIF", "entry": 1.0, "last": 0.8}, None, "stop")
+        with mock.patch.object(ba.requests, "post", post):
+            res = self.adv.review_exit("M1", summ)
+        self.assertEqual(res["verdict"], "sell_now")
+        self.assertEqual(res["provider"], "groq")
+        self.assertTrue(res["advisory_only"])
+        self.assertEqual(len(calls), 1)          # no pair, no debate
+
+    def test_review_exit_returns_none_without_keys(self):
+        os.environ.pop("GROQ_API_KEY", None)
+        self.assertIsNone(self.adv.review_exit("M1", {"symbol": "X"}))
+
+    def test_submit_exit_skips_when_advice_is_off(self):
+        with mock.patch.dict(os.environ, {"BRAIN_ADVISE_ON": "off"}):
+            self.assertEqual(self.adv.submit_exit("M1", {"symbol": "X"}, lambda r: None), "skipped")
+
+    def test_submit_exit_queues_and_never_blocks(self):
+        got = []
+        done = threading.Event()
+
+        def on_done(res):
+            got.append(res)
+            done.set()
+
+        with mock.patch.object(ba.requests, "post",
+                               lambda *a, **k: Resp(200, {"choices": [{"message": {"content": json.dumps(
+                                   {"verdict": "hold", "confidence": 60, "reasons": ["trend intact"]})}}]})):
+            self.assertEqual(self.adv.submit_exit("M9", {"symbol": "X"}, on_done), "queued")
+            self.assertTrue(done.wait(5))
+        self.assertEqual(got[0]["verdict"], "hold")
+
+    def test_agent_does_not_advise_entries_by_default(self):
+        """The whole point: a buy candidate must not spend a free-tier call."""
+        import desk.solana_agent as sa
+        self.assertFalse(ba.wants_entry())
+        self.assertTrue(hasattr(sa.SolanaAgent, "_advise_exit"))
+
+
+class ExitAdvisoryWiring(unittest.TestCase):
+    """_advise_exit must call the advisor, and must never touch a demo position."""
+
+    def _agent(self):
+        from desk.solana_agent import SolanaAgent
+        return SolanaAgent.__new__(SolanaAgent)
+
+    def test_it_submits_an_exit_review(self):
+        from desk.solana_agent import SolanaAgent
+        a = self._agent()
+        a.emit = lambda *x, **k: None
+        with mock.patch.dict(os.environ, {"GROQ_API_KEY": QKEY, "BRAIN_ADVISE_ON": "exit"}), \
+                mock.patch.object(ba.ADVISOR, "enabled", return_value=True), \
+                mock.patch.object(ba.ADVISOR, "submit_exit", return_value="queued") as sub:
+            SolanaAgent._advise_exit(a, "M1", {"symbol": "WIF", "entry": 1.0, "last": 0.9},
+                                     {"liquidity_usd": 1}, "trailing stop")
+        self.assertTrue(sub.called)
+        mint, summary = sub.call_args[0][0], sub.call_args[0][1]
+        self.assertEqual(mint, "M1")
+        self.assertEqual(summary["exit_rule_that_fired"], "trailing stop")
+
+    def test_demo_positions_are_never_sent(self):
+        from desk.solana_agent import SolanaAgent
+        a = self._agent()
+        a.emit = lambda *x, **k: None
+        with mock.patch.object(ba.ADVISOR, "enabled", return_value=True), \
+                mock.patch.object(ba.ADVISOR, "submit_exit") as sub:
+            SolanaAgent._advise_exit(a, "DEMO123", {"symbol": "D"}, None, "stop")
+        self.assertFalse(sub.called)
+
+    def test_off_mode_never_submits(self):
+        from desk.solana_agent import SolanaAgent
+        a = self._agent()
+        a.emit = lambda *x, **k: None
+        with mock.patch.dict(os.environ, {"BRAIN_ADVISE_ON": "off"}), \
+                mock.patch.object(ba.ADVISOR, "enabled", return_value=True), \
+                mock.patch.object(ba.ADVISOR, "submit_exit") as sub:
+            SolanaAgent._advise_exit(a, "M1", {"symbol": "W"}, None, "stop")
+        self.assertFalse(sub.called)

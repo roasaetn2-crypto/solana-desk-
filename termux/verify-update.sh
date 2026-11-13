@@ -56,6 +56,8 @@ grep -q "def quota"      desk/brain_advisor.py && ok "advisor reports per-provid
 grep -q "keys_cooling"   desk/brain_advisor.py && ok "per-key cooldown is reported"       || bad "desk/brain_advisor.py missing keys_cooling"
 grep -q "quotaBars"      web/index.html        && ok "dashboard has the AI quota panel"   || bad "web/index.html missing quota panel"
 grep -q "renderQuota"    web/app.js            && ok "dashboard renders quota bars"        || bad "web/app.js missing renderQuota"
+grep -q "BRAIN_ADVISE_ON" desk/brain_advisor.py && ok "AI advice is exit-only by default"   || bad "desk/brain_advisor.py missing advise mode"
+grep -q "_advise_exit"    desk/solana_agent.py  && ok "agent reviews exits with the AI"      || bad "desk/solana_agent.py missing _advise_exit"
 
 say ""
 say "=== 5. does the code import cleanly? ==="

@@ -14,6 +14,7 @@ Never proposable or changeable through this path (not in the registry, and refus
 from __future__ import annotations
 
 import json
+import os
 import re
 import threading
 import time
@@ -228,6 +229,15 @@ _R += [
     _num("meme.min_community_score", "Min community score", "Analyst", "int", _d(MEME, "min_community_score", int), 0, 90, "/100"),
     # loop
     _num("agent.cycle_seconds", "Scan cycle", "Loop", "int", _d(AGENT, "cycle_seconds", int), 20, 300, "s"),
+    # AI budget: where the free-tier calls are spent
+    Setting("brain.advise_on", "AI advice on", "AI", "choice",
+            lambda: (os.getenv("BRAIN_ADVISE_ON", "exit") or "exit").strip().lower(),
+            lambda v: os.environ.__setitem__("BRAIN_ADVISE_ON", str(v)),
+            choices=("exit", "entry", "both", "off"),
+            help="exit = only when a sell/exit rule fires (default, cheapest); "
+                 "entry = only on buy candidates; both = every candidate and every exit; "
+                 "off = never ask the AI, rules only. Takes effect immediately but is not "
+                 "saved to .env, so re-apply it after a restart."),
 ]
 _R += [
     # ---------- take-profit mode (operator-selectable) ----------

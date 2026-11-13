@@ -481,6 +481,29 @@ goes quiet when every key is exhausted. Duplicate keys are ignored, so a
 copy-paste mistake cannot inflate the budget. `/api/ai/status` and `/api/health`
 report `keys` and `used_today` per provider so you can see the rotation working.
 
+#### Spend the free tier on sells, not on every buy
+
+By default the AI now only advises **exits**. A buy candidate is already fully
+gated by rules (scanner, chain, dev, meme, analyst, risk), so asking a model
+about it spends quota on a decision the rules have already made. A sell is
+different: money is at risk and a second opinion is worth a call.
+
+```bash
+export BRAIN_ADVISE_ON=exit    # default: only when a sell/exit rule fires
+export BRAIN_ADVISE_ON=entry   # old behaviour: only on buy candidates
+export BRAIN_ADVISE_ON=both    # every candidate and every exit (most expensive)
+export BRAIN_ADVISE_ON=off     # never ask the AI, rules only
+```
+
+An exit review is deliberately cheap: **one provider, one call, no debate**. The
+rule has already fired and the order is already sent, so the answer can never
+delay or block the sell — it is logged as `AI on exit $SYM: sell_now 78% — ...`
+and journaled as `brain_exit` so you can compare the AI against the rule over
+time. Exits are rare, so this typically costs a handful of calls a day instead of
+hundreds.
+
+You can change this live from the dashboard: **AI advice on** under the AI group.
+
 Two other knobs cut burn without touching quality:
 
 ```bash
