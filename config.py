@@ -216,6 +216,27 @@ MEME = {
     "bands": {"strong": 70, "watch": 50},
 }
 
+# ---------- FOMO evidence seat (optional) ----------
+# fomoapi.io is an independent third-party bridge to fomo.family's coin pages.
+# It is OFF unless FOMO_API_KEY is in the environment: with no key every lookup
+# returns "unknown", no credits are spent, and the desk behaves exactly as it
+# did before. Nothing here can raise into the trading loop.
+FOMO = {
+    "enabled": True,               # master switch; still requires FOMO_API_KEY
+    # "signals" = warnings + devs (500 credits) on every candidate that gets this
+    # far. "thesis" = also score what traders wrote (+1,250 credits). At the free
+    # 250k/month tier that is ~500 coins vs ~140 coins, so signals is the default.
+    "level": "signals",
+    # A confident, strongly bearish thesis crowd is a veto, not a nudge. The
+    # crowd can only ever say "no" here; it can never say "yes" on its own.
+    "bearish_kill_score": 25,
+    "bearish_kill_confidence": ("medium", "high"),
+    # Bounded nudge to the meme community score, in points. Hard cap in code.
+    "max_nudge": 8,
+    # Only spend thesis credits on coins that already cleared every other gate.
+    "thesis_only_for_finalists": True,
+}
+
 # Timeframe must match how long you intend to hold (from the desk playbook card).
 HOLD_HORIZONS = [
     {"label": "fresh launch", "max_age_minutes": 60, "hold": "10-60 minutes",

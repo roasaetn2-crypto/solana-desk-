@@ -993,7 +993,15 @@ def quote_many(mints: list[str], session: requests.Session | None = None) -> dic
             "label": f"tokens/v1 quotes n={len(chunk)}",
             "kind": "ds_pairs",
         }
-        body, fresh = _fetch_endpoint(s, ep, now)
+        # The URL embeds the mint list, so this body must NOT go through the shared
+        # endpoint cache: _EP_CACHE is keyed by endpoint id alone, and caching a
+        # chunk of 30 mints under "ds:tokens-v1" served that same body to every
+        # later quote for 90s. The mints in the new request were absent from the
+        # cached body, _quote_from_pairs returned nothing, quote() returned None,
+        # and the desk rejected the entry as "no_confirm_quote" — 156 times in a
+        # row. Per-mint results are cached by _QUOTE_CACHE and _PAIR_CACHE below,
+        # which are correctly keyed, so nothing is lost by fetching live here.
+        body = _fetch_live(s, ep, now)
         if body is None:
             # DexScreener cooling / 429: price from Jupiter, then any stale quote
             jq = _jup_quotes(s, chunk, now)
@@ -1009,8 +1017,6 @@ def quote_many(mints: list[str], session: requests.Session | None = None) -> dic
             continue
         pairs = _pairs_from_body(body)
         _remember_pairs(pairs, now)
-        if fresh:
-            _store_cache("ds:tokens-v1", body, now)
         by_mint: dict[str, list] = {}
         for p in pairs:
             mint = ((p.get("baseToken") or {}).get("address")) or ""

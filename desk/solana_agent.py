@@ -26,9 +26,9 @@ from datetime import date, datetime, timezone
 
 import requests
 
-from config import AGENT, ENTRY, EXECUTION, EXITS, PAPER, RISK
+from config import AGENT, ENTRY, EXECUTION, EXITS, FOMO, PAPER, RISK
 from desk.brain_advisor import ADVISOR, should_advise
-from desk import (analyst, brain, chain, dexscreener, devcheck, dialogue, exits, goplus, gmgn,
+from desk import (analyst, brain, chain, dexscreener, devcheck, dialogue, exits, fomo, goplus, gmgn,
                   guard, heartbeat, helius, meme, pumpportal, regime, risk, scanner,
                   signals)
 from desk import chart as candle_chart
@@ -550,6 +550,21 @@ class SolanaAgent:
                 # seat 2b: DexScreener market view + dev/creator investigation
                 ds = dexscreener.facts(t["mint"], self.session)
                 dev = devcheck.investigate(t["mint"], f, self.session)
+
+                # seat 2b-ii: FOMO evidence (optional; no key = "unknown", no cost).
+                # One lookup, reused by the dev veto and the meme nudge below. It
+                # cannot raise and cannot block: a failure here is simply "unknown".
+                fomo_ev = None
+                if FOMO.get("enabled") and not t["mint"].startswith("DEMO"):
+                    try:
+                        lvl = FOMO.get("level", "signals")
+                        if lvl == "thesis" and FOMO.get("thesis_only_for_finalists"):
+                            lvl = "signals"   # thesis is bought later, at the last gate
+                        fomo_ev = fomo.token_evidence(t["mint"], lvl)
+                        devcheck.apply_fomo(dev, fomo_ev)
+                    except Exception:
+                        fomo_ev = None
+
                 if (k := devcheck.dev_kill(dev)):
                     self.bench.sit(t["mint"], k)
                     self.stats["dev_rejects"] += 1
@@ -605,7 +620,7 @@ class SolanaAgent:
                                  for k in ("x", "telegram", "website")}
                         links["x"] = links["x"] or ("https://x.com" if md["has_x"] else None)
 
-                sc = meme.scorecard(t, f, ds, dev)
+                sc = meme.scorecard(t, f, ds, dev, fomo_ev=fomo_ev)
                 if (k := meme.meme_kill(sc)):
                     self.bench.sit(t["mint"], k)
                     self.stats["meme_rejects"] += 1
@@ -699,6 +714,32 @@ class SolanaAgent:
                 if t["mint"].startswith("DEMO"):
                     self.emit("info", f"{t['symbol']}: demo pool, analysed but not filled")
                     continue
+
+                # seat 4b: FOMO thesis, bought only for finalists. Credits are real
+                # (1,250 a page), so this runs after every other gate has passed and
+                # only when the owner asked for the thesis level. A confident,
+                # strongly bearish crowd is a veto; a mildly positive one is not.
+                if (FOMO.get("enabled") and FOMO.get("level") == "thesis"
+                        and not t["mint"].startswith("DEMO")):
+                    try:
+                        ev2 = fomo.token_evidence(t["mint"], "thesis")
+                        if ev2.get("available"):
+                            fomo_ev = ev2
+                            devcheck.apply_fomo(dev, ev2)
+                            sc = meme.scorecard(t, f, ds, dev, fomo_ev=ev2)
+                            if "fomo_thesis_bearish" in (dev.get("hard_no") or []):
+                                self.bench.sit(t["mint"], "fomo_thesis_bearish")
+                                self.stats["dev_rejects"] += 1
+                                self.emit("reject", f"{t['symbol']}: FOMO crowd is "
+                                                    f"confidently bearish", stage="fomo",
+                                          reason="fomo_thesis_bearish",
+                                          symbol=t["symbol"], mint=t["mint"])
+                                journal("reject", stage="fomo", mint=t["mint"],
+                                        symbol=t["symbol"], reason="fomo_thesis_bearish",
+                                        fomo=ev2)
+                                continue
+                    except Exception:
+                        pass
 
                 # MERGE (old desk research.py): confirm price + liquidity on a second read before filling
                 buy_price = t["price_usd"]
@@ -1135,6 +1176,7 @@ class SolanaAgent:
                            "reconnects": pp["reconnects"], "error": pp.get("error")},
             "dexscreener_promo": {"status": "on"},
             "regime": {"status": "on", "tag": self.regime.get("tag")},
+            "fomo": fomo.status(),
         }
 
     def reset(self):

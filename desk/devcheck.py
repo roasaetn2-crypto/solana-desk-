@@ -19,7 +19,7 @@ import random
 
 import requests
 
-from config import MEME
+from config import FOMO, MEME
 
 RUGCHECK = "https://api.rugcheck.xyz/v1/tokens"
 HEADERS = {"Accept": "application/json", "User-Agent": "solana-trading-desk/1.0"}
@@ -259,3 +259,60 @@ def _finish(rep: dict, chain_facts: dict | None) -> dict:
 def dev_kill(rep: dict) -> str | None:
     """Hard evidence that the dev is the exit. First failure wins."""
     return rep["hard_no"][0] if rep.get("hard_no") else None
+
+
+def apply_fomo(rep: dict, ev: dict | None) -> dict:
+    """Fold the FOMO evidence seat into a finished dev report, in place.
+
+    Kept separate from investigate() on purpose: investigate() talks to RugCheck
+    and must keep working when FOMO is off, unaffordable, or down. This only
+    reads a dict that fomo.token_evidence() already produced, so it cannot
+    block, cannot spend credits, and cannot raise.
+
+    FOMO is allowed to add a hard veto (the coin page says you cannot sell, or
+    the deployer is dumping). It is never allowed to clear one.
+    """
+    if not ev:
+        return rep
+    rep["fomo"] = {
+        "available": bool(ev.get("available")),
+        "severe": bool(ev.get("severe")),
+        "warnings": [w.get("type") for w in (ev.get("warnings") or []) if w.get("type")],
+        "dev_pnl_usd": ev.get("dev_pnl_usd"),
+        "why": list(ev.get("why") or []),
+    }
+    if not ev.get("available"):
+        return rep
+
+    from desk import fomo as fomo_mod
+
+    reasons = rep.setdefault("reasons", [])
+    hard_no = rep.setdefault("hard_no", [])
+
+    k = fomo_mod.kill_reason(ev)
+    if k and k not in hard_no:
+        hard_no.append(k)
+        reasons.append(f"FOMO says the exit is closed ({k})")
+
+    # The deployer selling into his own launch is the classic rug tell.
+    dpnl = ev.get("dev_pnl_usd") or 0.0
+    if dpnl <= -500:
+        reasons.append(f"FOMO: deployer realised ${dpnl:,.0f} (dumping)")
+        if "fomo_dev_dumping" not in hard_no:
+            hard_no.append("fomo_dev_dumping")
+    elif dpnl > 0:
+        reasons.append(f"FOMO: deployer up ${dpnl:,.0f}")
+
+    th = ev.get("thesis") or {}
+    if th.get("available") and th.get("score") is not None:
+        reasons.append(f"FOMO theses {th['score']}/100 "
+                       f"({th.get('confidence')}, n={th.get('count')})")
+        if (th["score"] <= FOMO["bearish_kill_score"]
+                and th.get("confidence") in FOMO["bearish_kill_confidence"]):
+            if "fomo_thesis_bearish" not in hard_no:
+                hard_no.append("fomo_thesis_bearish")
+            reasons.append("FOMO crowd is confidently bearish")
+
+    rep["legit"] = rep.get("dev_score", 0) >= 55 and not hard_no
+    return rep
+

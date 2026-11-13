@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import re
 
-from config import CHAIN, HOLD_HORIZONS, MEME
+from config import CHAIN, FOMO, HOLD_HORIZONS, MEME
 
 
 def classify_narrative(symbol: str, name: str = "", website: str | None = None) -> dict:
@@ -88,7 +88,7 @@ def real_holder_count(facts: dict, dev: dict) -> int | None:
 
 
 def scorecard(token: dict, facts: dict, ds: dict, dev: dict,
-              narrative: dict | None = None) -> dict:
+              narrative: dict | None = None, fomo_ev: dict | None = None) -> dict:
     """Score the five value drivers 0-100 each, then weight them."""
     narrative = narrative or classify_narrative(
         token.get("symbol", ""), token.get("name", ""),
@@ -128,6 +128,23 @@ def scorecard(token: dict, facts: dict, ds: dict, dev: dict,
             c_why.append("few wallets doing many buys")
     if ds.get("boosts_active"):
         community += 5; c_why.append("paid boosts active")
+
+    # FOMO theses: what traders actually wrote about this coin, credibility
+    # weighted. A bounded nudge only -- capped in code at +/-8 points, and it
+    # moves `community` alone so the five weights still sum to 1.0. A chatty
+    # crowd must never be able to outvote the chain.
+    fomo_nudge = 0
+    if fomo_ev:
+        try:
+            from desk import fomo as fomo_mod
+            fomo_nudge, f_why = fomo_mod.thesis_modifier(fomo_ev)
+            cap = FOMO.get("max_nudge", 8)
+            fomo_nudge = max(-cap, min(cap, fomo_nudge))
+            if fomo_nudge:
+                community += fomo_nudge
+                c_why.extend(f_why)
+        except Exception:
+            fomo_nudge = 0
     community = _clamp(community)
 
     # ---------- dev legitimacy ----------
@@ -194,6 +211,7 @@ def scorecard(token: dict, facts: dict, ds: dict, dev: dict,
         "parts": {k: round(v) for k, v in parts.items()},
         "weights": MEME["weights"],
         "narrative": narrative,
+        "fomo_nudge": fomo_nudge,
         "reasons": {
             "community": c_why,
             "dev_legit": dev.get("reasons", []),
