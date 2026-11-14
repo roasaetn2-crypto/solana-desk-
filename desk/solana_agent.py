@@ -29,8 +29,8 @@ import requests
 from config import AGENT, ENTRY, EXECUTION, EXITS, FOMO, MEME, PAPER, RISK
 from desk.brain_advisor import ADVISOR, should_advise, wants_entry, wants_exit
 from desk import (analyst, brain, chain, dexscreener, devcheck, dialogue, exits, fomo, goplus, gmgn,
-                  groq_postmortem, groq_sizer, guard, heartbeat, helius, meme, pumpportal,
-                  regime, risk, scanner, signal_engine, signals)
+                  groq_postmortem, groq_sizer, guard, heartbeat, helius, meme, meme_tactics,
+                  pumpportal, regime, risk, scanner, signal_engine, signals)
 from desk import chart as candle_chart
 from desk import links as fomo_links
 from desk.age import created_at_of
@@ -1430,6 +1430,11 @@ class SolanaAgent:
                 # 30-trade bar is met, and the last report if one was produced.
                 # Reads two small files, never the network.
                 "groq_postmortem": groq_postmortem.status(),
+                # Which exit ladder is actually in force, and which source chose
+                # it. Env outranks config.py, so a stale BRAIN_EXIT_LADDER makes
+                # a config edit look like a no-op. Surfacing the source here is
+                # the only way to see that from the dashboard.
+                "exits": meme_tactics.ladder_info(),
                 "guard": {
                     "breaker": dict(self.breaker),
                     "regime": dict(self.regime),

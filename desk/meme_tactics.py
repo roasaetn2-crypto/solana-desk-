@@ -102,12 +102,39 @@ LADDERS = {
 DEFAULT_LADDER = "fast"
 
 
+def ladder_info() -> dict:
+    """The ladder in force *and* which source chose it.
+
+    Precedence is env -> config -> default, which means a stale
+    BRAIN_EXIT_LADDER silently outranks config.py. That is the single most
+    common reason a config edit appears to do nothing, so the desk reports the
+    winning source rather than just the value -- otherwise the only way to find
+    out is to read this function.
+    """
+    env_raw = os.getenv("BRAIN_EXIT_LADDER", "")
+    cfg_raw = MEME.get("exit_ladder", "")
+    if str(env_raw).strip():
+        source, raw = "env", env_raw
+    elif str(cfg_raw).strip():
+        source, raw = "config", cfg_raw
+    else:
+        source, raw = "default", DEFAULT_LADDER
+    name = str(raw).strip().lower()
+    known = name in LADDERS
+    return {
+        "name": name if known else DEFAULT_LADDER,
+        "requested": name,
+        "source": source,
+        "valid": known,
+        "fallback_used": not known,
+        "known": sorted(LADDERS),
+        "ladder": dict(LADDERS[name if known else DEFAULT_LADDER]),
+    }
+
+
 def active_ladder() -> dict:
-    """The ladder in force, resolved from config then env, falling back to fast."""
-    name = (os.getenv("BRAIN_EXIT_LADDER", "")
-            or MEME.get("exit_ladder", "")
-            or DEFAULT_LADDER)
-    return dict(LADDERS.get(str(name).strip().lower(), LADDERS[DEFAULT_LADDER]))
+    """The ladder in force, resolved from env then config, falling back to fast."""
+    return ladder_info()["ladder"]
 
 
 EXIT_OVERRIDES = dict(LADDERS[DEFAULT_LADDER])

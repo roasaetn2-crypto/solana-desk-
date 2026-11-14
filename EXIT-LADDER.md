@@ -45,7 +45,12 @@ python3 scripts/which_ladder.py
 
 It prints the ladder in force **and** which of the three sources won, and it
 works from any directory (it puts the repo root on `sys.path` itself), so it is
-safe to run from `~` on a phone:
+safe to run from `~` on a phone -- provided you have a clone there at all.
+
+If you do not, you do not need one. The same block is in `GET /api/state` under
+`"exits"`, and the dashboard header now carries an `exit:` pill that shows the
+ladder name and, on hover, the source plus the full geometry. An amber pill
+means an unknown name was requested and the desk fell back to `fast`.
 
 ```
 requested   : patient   (from config.py MEME['exit_ladder'])

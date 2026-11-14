@@ -1552,12 +1552,42 @@ function paintSync(ok) {
   }
 }
 
+// Which exit ladder is running, and who chose it. Env beats config.py, so a
+// stale BRAIN_EXIT_LADDER makes a config edit look like it did nothing. Showing
+// the source turns that silent override into a visible one.
+function renderExits(x) {
+  const pill = $("exitPill");
+  const txt = $("exitText");
+  if (!pill || !txt) return;
+  if (!x || !x.name) {
+    txt.textContent = "exit: \u2014";
+    pill.style.color = "var(--muted)";
+    return;
+  }
+  const L = x.ladder || {};
+  const tp1 = L.tp1_at ? Math.round((L.tp1_at - 1) * 100) + "%" : "?";
+  const tp2 = (L.tp2_at && L.tp2_at < 1e8) ? Math.round((L.tp2_at - 1) * 100) + "%" : "none";
+  const stop = L.stop_pct ? Math.round(L.stop_pct * 100) + "%" : "?";
+  const where = x.source === "env" ? "env BRAIN_EXIT_LADDER"
+    : x.source === "config" ? "config.py"
+      : "code default";
+  txt.textContent = "exit: " + x.name;
+  pill.title = "ladder in force: " + x.name + " (from " + where + ")"
+    + "\nstop -" + stop + "  \u00b7  TP1 +" + tp1 + " sell "
+    + Math.round((L.tp1_frac || 0) * 100) + "%  \u00b7  TP2 +" + tp2
+    + "  \u00b7  trail " + Math.round((L.trail_pct || 0) * 100) + "%";
+  // Amber when an unknown name was requested and we fell back: the desk is
+  // running something other than what was asked for, and that should be loud.
+  pill.style.color = x.fallback_used ? "var(--amber)" : "var(--green)";
+}
+
 async function refresh() {
   try {
     const s = await api("/api/state");
     render(s);
     renderGroq(s && s.groq_sizer);
     renderPostmortem(s && s.groq_postmortem);
+    renderExits(s && s.exits);
     paintSync(true);
     refreshBacktest(false);
     refreshQuota(false);
