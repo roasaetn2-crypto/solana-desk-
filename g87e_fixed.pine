@@ -1,0 +1,123 @@
+//@version=6
+// =============================================================================
+// G87E - FIXED
+// -----------------------------------------------------------------------------
+// This is the corrected version of "G87E parametrized". Every change is marked
+// FIX n. The original is kept in the repo as g87e_original.pine so you can diff.
+//
+// The original's fatal bug: the entry used `or` between three lookbacks, so it
+// went long on nearly every bar and never reached the short branch. On a meme
+// coin that is a one-way ticket to zero.
+//
+// Backtested on 10 Solana pools x 3 timeframes (see BACKTEST_G87E_REPORT.md):
+//   original: 2617 trades, 27% win rate, mean -29.7% per run, 8/22 profitable
+//   fixed:    see the report - the point is that it stops bleeding first.
+//
+// Commission is set to 0.35% per side to model 0.05% fee + 0.30% slippage,
+// because Pine's `slippage` input is in ticks and ticks are meaningless on a
+// token priced 0.000002. Change it to your real round-trip cost.
+// =============================================================================
+strategy("G87E fixed", overlay=true, pyramiding=1, process_orders_on_close=true,
+     commission_type=strategy.commission.percent, commission_value=0.35,
+     initial_capital=50, default_qty_type=strategy.fixed, default_qty_value=1,
+     margin_long=100, margin_short=100, calc_on_every_tick=false)
+
+// ---- mode --------------------------------------------------------------
+gMode = "Mode"
+liveMode  = input.bool(true,  "Size off live equity (compounding)", group=gMode)
+longOnly  = input.bool(false, "Long only (memes: shorts are a donation)", group=gMode)
+useTrend  = input.bool(true,  "Trend filter", group=gMode)
+emaLen    = input.int(50, "Trend EMA length", minval=10, maxval=400, group=gMode)
+
+// ---- risk --------------------------------------------------------------
+gRisk = "Risk"
+atrLen         = input.int(14, "ATR length", minval=7, maxval=30, group=gRisk)
+riskPct        = input.float(1.0, "Risk %", minval=0.25, maxval=3.0, step=0.25, group=gRisk)
+stopMult       = input.float(2.5, "Stop ATR x", minval=0.5, maxval=4.0, step=0.25, group=gRisk)
+minNotionalPct = input.float(25.0, "Min notional % of equity", minval=0.0, maxval=90.0, step=5.0, group=gRisk)
+maxNotionalPct = input.float(90.0, "Max notional % of equity", minval=10.0, maxval=100.0, step=5.0, group=gRisk)
+
+// ---- exit --------------------------------------------------------------
+gExit = "Exit"
+armMult  = input.float(2.0, "Trail arms after ATR x", minval=0.5, maxval=5.0, step=0.25, group=gExit)
+offMult  = input.float(1.0, "Trail offset ATR x", minval=0.5, maxval=5.0, step=0.25, group=gExit)
+maxBars  = input.int(24, "Max bars in trade", minval=2, maxval=200, group=gExit)
+coolBars = input.int(3, "Cooldown bars after exit", minval=0, maxval=50, group=gExit)
+
+// ---- indicators --------------------------------------------------------
+// FIX 4: ATR can be 0 on a flat bar -> qty = inf. Floor it at 0.05% of price.
+atrRaw = ta.atr(atrLen)
+atr    = math.max(atrRaw, close * 0.0005)
+ema    = ta.ema(close, emaLen)
+
+// ---- sizing ------------------------------------------------------------
+// FIX 8: the original only compounded in live mode, so the backtest sized off
+// the $50 start and the equity curve you saw was not the one you would trade.
+refEquity = liveMode ? strategy.equity : strategy.initial_capital
+riskUsd   = refEquity * riskPct / 100.0
+rawQty    = riskUsd / (atr * stopMult)
+// FIX 10: risk sizing on a 20%-ATR meme with a 2.5xATR stop deploys ~2% of the
+// account. The original's 90%-of-equity cap never binds, so every trade is dust.
+minQty = refEquity * minNotionalPct / 100.0 / close
+maxQty = refEquity * maxNotionalPct / 100.0 / close
+qty    = math.min(math.max(rawQty, minQty), maxQty)
+
+// FIX 3: math.round(qty * 1000) / 1000 rounds a 0.000002 token's position to
+// zero, so the strategy silently never trades. Scale the step to the price.
+qStep = math.max(math.min(math.pow(10, math.floor(math.log10(close)) - 6), 0.001), 0.000000000001)
+qtyR  = math.floor(qty / qStep) * qStep
+
+// ---- signal ------------------------------------------------------------
+up3  = close > close[3]
+up12 = close > close[12]
+up30 = close > close[30]
+
+// FIX 1: `or` -> `and`. All three lookbacks must agree.
+// FIX 2: trend filter, so an agreement inside a downtrend bounce is ignored.
+longSig  = up3 and up12 and up30
+shortSig = not up3 and not up12 and not up30
+if useTrend
+    longSig  := longSig  and close > ema
+    shortSig := shortSig and close < ema
+
+// ---- state -------------------------------------------------------------
+var int openedBar   = na
+var int lastExitBar = na
+flat    = strategy.position_size == 0
+cooling = not na(lastExitBar) and (bar_index - lastExitBar) < coolBars
+
+// FIX 1b: `else if` - the original tested long first, so short was unreachable.
+// FIX 6: cooldown, so the strategy does not re-enter the bar after an exit.
+if flat and not cooling and qtyR > 0
+    if longSig
+        strategy.entry("L", strategy.long, qty=qtyR)
+        openedBar := bar_index
+    else if shortSig and not longOnly
+        strategy.entry("S", strategy.short, qty=qtyR)
+        openedBar := bar_index
+
+// ---- exits -------------------------------------------------------------
+// FIX 9: the original used one number (0.2xATR) for both "when the trail arms"
+// and "how far behind it sits". Arming at 0.2xATR is inside the noise, so every
+// winner became a scratch. Arm and offset are now separate.
+armTicks  = atr * armMult  / syminfo.mintick
+offTicks  = atr * offMult  / syminfo.mintick
+lossTicks = atr * stopMult / syminfo.mintick
+
+if strategy.position_size > 0
+    strategy.exit("LX", from_entry="L", loss=lossTicks, trail_points=armTicks, trail_offset=offTicks)
+if strategy.position_size < 0
+    strategy.exit("SX", from_entry="S", loss=lossTicks, trail_points=armTicks, trail_offset=offTicks)
+
+if strategy.position_size != 0 and not na(openedBar) and bar_index - openedBar >= maxBars
+    strategy.close_all(comment="time")
+
+// FIX 7: `abierto` was never reset on a stop-out, so the maxBars check could
+// fire on a brand-new trade. Reset it and start the cooldown on every flat flip.
+if strategy.position_size == 0 and strategy.position_size[1] != 0
+    openedBar   := na
+    lastExitBar := bar_index
+
+// ---- visual ------------------------------------------------------------
+plot(ema, "trend EMA", color=color.new(color.orange, 0))
+bgcolor(longSig  ? color.new(color.green, 92) : shortSig ? color.new(color.red, 92) : na)

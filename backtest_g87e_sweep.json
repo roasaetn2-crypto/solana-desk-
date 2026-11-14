@@ -1,0 +1,2450 @@
+[
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -1.55,
+  "mean_return_pct": -10.74,
+  "worst_return_pct": -41.07,
+  "best_return_pct": 7.38,
+  "profitable_runs": 8,
+  "trades": 805,
+  "avg_max_dd_pct": 13.25
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -2.25,
+  "mean_return_pct": -11.6,
+  "worst_return_pct": -45.6,
+  "best_return_pct": 14.76,
+  "profitable_runs": 6,
+  "trades": 764,
+  "avg_max_dd_pct": 13.89
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -2.37,
+  "mean_return_pct": -12.84,
+  "worst_return_pct": -45.19,
+  "best_return_pct": 5.89,
+  "profitable_runs": 5,
+  "trades": 897,
+  "avg_max_dd_pct": 14.71
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -3.48,
+  "mean_return_pct": -11.95,
+  "worst_return_pct": -45.55,
+  "best_return_pct": 14.76,
+  "profitable_runs": 4,
+  "trades": 772,
+  "avg_max_dd_pct": 14.08
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -4.09,
+  "mean_return_pct": -11.68,
+  "worst_return_pct": -44.49,
+  "best_return_pct": 7.38,
+  "profitable_runs": 7,
+  "trades": 821,
+  "avg_max_dd_pct": 13.89
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -4.44,
+  "mean_return_pct": -16.07,
+  "worst_return_pct": -51.97,
+  "best_return_pct": 1.98,
+  "profitable_runs": 6,
+  "trades": 1137,
+  "avg_max_dd_pct": 17.47
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -4.76,
+  "mean_return_pct": -11.43,
+  "worst_return_pct": -42.31,
+  "best_return_pct": 17.28,
+  "profitable_runs": 5,
+  "trades": 729,
+  "avg_max_dd_pct": 13.66
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -5.05,
+  "mean_return_pct": -11.19,
+  "worst_return_pct": -39.9,
+  "best_return_pct": 17.28,
+  "profitable_runs": 5,
+  "trades": 714,
+  "avg_max_dd_pct": 13.52
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -5.05,
+  "mean_return_pct": -11.28,
+  "worst_return_pct": -41.49,
+  "best_return_pct": 17.28,
+  "profitable_runs": 5,
+  "trades": 724,
+  "avg_max_dd_pct": 13.6
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -5.41,
+  "mean_return_pct": -13.53,
+  "worst_return_pct": -50.14,
+  "best_return_pct": 14.76,
+  "profitable_runs": 4,
+  "trades": 841,
+  "avg_max_dd_pct": 15.45
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -5.6,
+  "mean_return_pct": -7.19,
+  "worst_return_pct": -30.69,
+  "best_return_pct": 17.28,
+  "profitable_runs": 6,
+  "trades": 363,
+  "avg_max_dd_pct": 9.05
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -5.68,
+  "mean_return_pct": -11.66,
+  "worst_return_pct": -42.4,
+  "best_return_pct": 17.28,
+  "profitable_runs": 5,
+  "trades": 738,
+  "avg_max_dd_pct": 13.84
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -5.69,
+  "mean_return_pct": -7.22,
+  "worst_return_pct": -30.69,
+  "best_return_pct": 17.28,
+  "profitable_runs": 6,
+  "trades": 365,
+  "avg_max_dd_pct": 9.08
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -5.72,
+  "mean_return_pct": -9.13,
+  "worst_return_pct": -32.83,
+  "best_return_pct": 11.81,
+  "profitable_runs": 5,
+  "trades": 484,
+  "avg_max_dd_pct": 10.69
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -5.97,
+  "mean_return_pct": -11.42,
+  "worst_return_pct": -39.99,
+  "best_return_pct": 17.28,
+  "profitable_runs": 5,
+  "trades": 721,
+  "avg_max_dd_pct": 13.59
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -5.97,
+  "mean_return_pct": -11.51,
+  "worst_return_pct": -42.25,
+  "best_return_pct": 17.28,
+  "profitable_runs": 5,
+  "trades": 732,
+  "avg_max_dd_pct": 13.72
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -6.09,
+  "mean_return_pct": -7.3,
+  "worst_return_pct": -29.51,
+  "best_return_pct": 17.28,
+  "profitable_runs": 5,
+  "trades": 361,
+  "avg_max_dd_pct": 9.13
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -6.14,
+  "mean_return_pct": -8.18,
+  "worst_return_pct": -30.11,
+  "best_return_pct": 14.76,
+  "profitable_runs": 5,
+  "trades": 405,
+  "avg_max_dd_pct": 9.93
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -6.14,
+  "mean_return_pct": -9.33,
+  "worst_return_pct": -33.8,
+  "best_return_pct": 11.81,
+  "profitable_runs": 5,
+  "trades": 495,
+  "avg_max_dd_pct": 10.89
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -6.24,
+  "mean_return_pct": -8.31,
+  "worst_return_pct": -32.07,
+  "best_return_pct": 14.52,
+  "profitable_runs": 6,
+  "trades": 460,
+  "avg_max_dd_pct": 10.21
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -6.24,
+  "mean_return_pct": -8.45,
+  "worst_return_pct": -32.07,
+  "best_return_pct": 14.52,
+  "profitable_runs": 6,
+  "trades": 462,
+  "avg_max_dd_pct": 10.29
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -6.29,
+  "mean_return_pct": -8.12,
+  "worst_return_pct": -30.56,
+  "best_return_pct": 14.76,
+  "profitable_runs": 5,
+  "trades": 415,
+  "avg_max_dd_pct": 9.87
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -6.36,
+  "mean_return_pct": -13.64,
+  "worst_return_pct": -50.11,
+  "best_return_pct": 14.76,
+  "profitable_runs": 3,
+  "trades": 850,
+  "avg_max_dd_pct": 15.52
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -6.39,
+  "mean_return_pct": -9.9,
+  "worst_return_pct": -30.63,
+  "best_return_pct": 30.14,
+  "profitable_runs": 5,
+  "trades": 460,
+  "avg_max_dd_pct": 12.96
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -6.39,
+  "mean_return_pct": -9.9,
+  "worst_return_pct": -30.63,
+  "best_return_pct": 30.14,
+  "profitable_runs": 5,
+  "trades": 460,
+  "avg_max_dd_pct": 12.96
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -6.41,
+  "mean_return_pct": -8.62,
+  "worst_return_pct": -27.57,
+  "best_return_pct": 6.18,
+  "profitable_runs": 6,
+  "trades": 466,
+  "avg_max_dd_pct": 10.04
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -6.57,
+  "mean_return_pct": -9.88,
+  "worst_return_pct": -30.65,
+  "best_return_pct": 30.14,
+  "profitable_runs": 5,
+  "trades": 459,
+  "avg_max_dd_pct": 12.94
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -6.63,
+  "mean_return_pct": -12.68,
+  "worst_return_pct": -48.34,
+  "best_return_pct": 14.76,
+  "profitable_runs": 4,
+  "trades": 806,
+  "avg_max_dd_pct": 14.69
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -6.94,
+  "mean_return_pct": -7.72,
+  "worst_return_pct": -30.17,
+  "best_return_pct": 7.38,
+  "profitable_runs": 7,
+  "trades": 414,
+  "avg_max_dd_pct": 9.52
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -7.07,
+  "mean_return_pct": -7.87,
+  "worst_return_pct": -28.77,
+  "best_return_pct": 17.28,
+  "profitable_runs": 5,
+  "trades": 389,
+  "avg_max_dd_pct": 9.69
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -7.1,
+  "mean_return_pct": -12.89,
+  "worst_return_pct": -48.3,
+  "best_return_pct": 14.76,
+  "profitable_runs": 3,
+  "trades": 815,
+  "avg_max_dd_pct": 14.79
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -7.24,
+  "mean_return_pct": -8.47,
+  "worst_return_pct": -32.33,
+  "best_return_pct": 14.52,
+  "profitable_runs": 6,
+  "trades": 460,
+  "avg_max_dd_pct": 10.35
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -7.26,
+  "mean_return_pct": -7.77,
+  "worst_return_pct": -28.77,
+  "best_return_pct": 17.28,
+  "profitable_runs": 5,
+  "trades": 386,
+  "avg_max_dd_pct": 9.59
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -7.26,
+  "mean_return_pct": -7.82,
+  "worst_return_pct": -26.32,
+  "best_return_pct": 17.28,
+  "profitable_runs": 4,
+  "trades": 383,
+  "avg_max_dd_pct": 9.64
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -7.29,
+  "mean_return_pct": -8.63,
+  "worst_return_pct": -33.07,
+  "best_return_pct": 11.81,
+  "profitable_runs": 7,
+  "trades": 471,
+  "avg_max_dd_pct": 10.31
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -7.31,
+  "mean_return_pct": -7.98,
+  "worst_return_pct": -27.02,
+  "best_return_pct": 7.51,
+  "profitable_runs": 7,
+  "trades": 435,
+  "avg_max_dd_pct": 9.73
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -7.36,
+  "mean_return_pct": -16.63,
+  "worst_return_pct": -51.72,
+  "best_return_pct": 2.02,
+  "profitable_runs": 5,
+  "trades": 1150,
+  "avg_max_dd_pct": 17.84
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -7.6,
+  "mean_return_pct": -7.63,
+  "worst_return_pct": -30.29,
+  "best_return_pct": 14.76,
+  "profitable_runs": 6,
+  "trades": 387,
+  "avg_max_dd_pct": 9.56
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -7.61,
+  "mean_return_pct": -8.77,
+  "worst_return_pct": -33.27,
+  "best_return_pct": 7.7,
+  "profitable_runs": 6,
+  "trades": 488,
+  "avg_max_dd_pct": 10.44
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -7.61,
+  "mean_return_pct": -12.76,
+  "worst_return_pct": -43.64,
+  "best_return_pct": 5.89,
+  "profitable_runs": 7,
+  "trades": 885,
+  "avg_max_dd_pct": 14.54
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -7.79,
+  "mean_return_pct": -13.86,
+  "worst_return_pct": -49.76,
+  "best_return_pct": 7.7,
+  "profitable_runs": 6,
+  "trades": 997,
+  "avg_max_dd_pct": 16.08
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -7.85,
+  "mean_return_pct": -10.57,
+  "worst_return_pct": -31.97,
+  "best_return_pct": 30.14,
+  "profitable_runs": 5,
+  "trades": 487,
+  "avg_max_dd_pct": 13.66
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -7.85,
+  "mean_return_pct": -10.57,
+  "worst_return_pct": -31.97,
+  "best_return_pct": 30.14,
+  "profitable_runs": 5,
+  "trades": 487,
+  "avg_max_dd_pct": 13.66
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -7.9,
+  "mean_return_pct": -9.33,
+  "worst_return_pct": -33.52,
+  "best_return_pct": 2.05,
+  "profitable_runs": 6,
+  "trades": 492,
+  "avg_max_dd_pct": 10.35
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -7.98,
+  "mean_return_pct": -8.79,
+  "worst_return_pct": -28.73,
+  "best_return_pct": 14.76,
+  "profitable_runs": 4,
+  "trades": 431,
+  "avg_max_dd_pct": 10.41
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -8.03,
+  "mean_return_pct": -10.56,
+  "worst_return_pct": -31.29,
+  "best_return_pct": 30.14,
+  "profitable_runs": 5,
+  "trades": 486,
+  "avg_max_dd_pct": 13.64
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -8.04,
+  "mean_return_pct": -15.53,
+  "worst_return_pct": -49.14,
+  "best_return_pct": 1.53,
+  "profitable_runs": 3,
+  "trades": 1017,
+  "avg_max_dd_pct": 16.56
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -8.06,
+  "mean_return_pct": -15.71,
+  "worst_return_pct": -53.28,
+  "best_return_pct": 11.81,
+  "profitable_runs": 4,
+  "trades": 1030,
+  "avg_max_dd_pct": 17.52
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -8.15,
+  "mean_return_pct": -15.29,
+  "worst_return_pct": -48.41,
+  "best_return_pct": 1.53,
+  "profitable_runs": 3,
+  "trades": 1006,
+  "avg_max_dd_pct": 16.4
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -8.28,
+  "mean_return_pct": -15.15,
+  "worst_return_pct": -53.23,
+  "best_return_pct": 11.81,
+  "profitable_runs": 4,
+  "trades": 1004,
+  "avg_max_dd_pct": 17.01
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -8.29,
+  "mean_return_pct": -9.23,
+  "worst_return_pct": -31.11,
+  "best_return_pct": 14.52,
+  "profitable_runs": 6,
+  "trades": 491,
+  "avg_max_dd_pct": 11.05
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -8.47,
+  "mean_return_pct": -9.73,
+  "worst_return_pct": -31.93,
+  "best_return_pct": 7.7,
+  "profitable_runs": 6,
+  "trades": 520,
+  "avg_max_dd_pct": 11.34
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -8.48,
+  "mean_return_pct": -9.07,
+  "worst_return_pct": -31.27,
+  "best_return_pct": 14.52,
+  "profitable_runs": 6,
+  "trades": 489,
+  "avg_max_dd_pct": 10.97
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -8.49,
+  "mean_return_pct": -11.76,
+  "worst_return_pct": -33.87,
+  "best_return_pct": 25.59,
+  "profitable_runs": 4,
+  "trades": 527,
+  "avg_max_dd_pct": 14.26
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -8.54,
+  "mean_return_pct": -8.21,
+  "worst_return_pct": -29.17,
+  "best_return_pct": 5.89,
+  "profitable_runs": 6,
+  "trades": 438,
+  "avg_max_dd_pct": 9.58
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -8.63,
+  "mean_return_pct": -11.11,
+  "worst_return_pct": -33.54,
+  "best_return_pct": 25.59,
+  "profitable_runs": 5,
+  "trades": 500,
+  "avg_max_dd_pct": 13.71
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -8.81,
+  "mean_return_pct": -14.37,
+  "worst_return_pct": -52.09,
+  "best_return_pct": 5.89,
+  "profitable_runs": 5,
+  "trades": 1050,
+  "avg_max_dd_pct": 16.22
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -8.81,
+  "mean_return_pct": -14.94,
+  "worst_return_pct": -52.95,
+  "best_return_pct": 5.89,
+  "profitable_runs": 6,
+  "trades": 1072,
+  "avg_max_dd_pct": 16.61
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -8.93,
+  "mean_return_pct": -12.21,
+  "worst_return_pct": -34.5,
+  "best_return_pct": 25.59,
+  "profitable_runs": 4,
+  "trades": 527,
+  "avg_max_dd_pct": 14.64
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -8.93,
+  "mean_return_pct": -12.92,
+  "worst_return_pct": -36.24,
+  "best_return_pct": 25.59,
+  "profitable_runs": 3,
+  "trades": 556,
+  "avg_max_dd_pct": 15.24
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -8.97,
+  "mean_return_pct": -9.47,
+  "worst_return_pct": -32.17,
+  "best_return_pct": 11.81,
+  "profitable_runs": 7,
+  "trades": 501,
+  "avg_max_dd_pct": 11.09
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -8.97,
+  "mean_return_pct": -12.5,
+  "worst_return_pct": -35.11,
+  "best_return_pct": 25.59,
+  "profitable_runs": 3,
+  "trades": 540,
+  "avg_max_dd_pct": 14.92
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -9.17,
+  "mean_return_pct": -8.89,
+  "worst_return_pct": -29.19,
+  "best_return_pct": 14.76,
+  "profitable_runs": 5,
+  "trades": 443,
+  "avg_max_dd_pct": 10.5
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -9.22,
+  "mean_return_pct": -9.22,
+  "worst_return_pct": -31.79,
+  "best_return_pct": 14.52,
+  "profitable_runs": 6,
+  "trades": 489,
+  "avg_max_dd_pct": 11.11
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -9.37,
+  "mean_return_pct": -8.06,
+  "worst_return_pct": -27.13,
+  "best_return_pct": 14.76,
+  "profitable_runs": 6,
+  "trades": 408,
+  "avg_max_dd_pct": 9.89
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -9.4,
+  "mean_return_pct": -10.21,
+  "worst_return_pct": -32.96,
+  "best_return_pct": 6.09,
+  "profitable_runs": 5,
+  "trades": 544,
+  "avg_max_dd_pct": 11.55
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -9.42,
+  "mean_return_pct": -11.55,
+  "worst_return_pct": -33.75,
+  "best_return_pct": 12.58,
+  "profitable_runs": 6,
+  "trades": 536,
+  "avg_max_dd_pct": 13.86
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -9.54,
+  "mean_return_pct": -9.36,
+  "worst_return_pct": -34.45,
+  "best_return_pct": 5.89,
+  "profitable_runs": 5,
+  "trades": 510,
+  "avg_max_dd_pct": 10.71
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 2.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -9.66,
+  "mean_return_pct": -10.15,
+  "worst_return_pct": -32.01,
+  "best_return_pct": 3.0,
+  "profitable_runs": 6,
+  "trades": 525,
+  "avg_max_dd_pct": 11.09
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -9.74,
+  "mean_return_pct": -14.19,
+  "worst_return_pct": -49.78,
+  "best_return_pct": 14.52,
+  "profitable_runs": 5,
+  "trades": 951,
+  "avg_max_dd_pct": 16.39
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -9.74,
+  "mean_return_pct": -14.78,
+  "worst_return_pct": -50.86,
+  "best_return_pct": 14.52,
+  "profitable_runs": 4,
+  "trades": 967,
+  "avg_max_dd_pct": 16.87
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -9.83,
+  "mean_return_pct": -13.28,
+  "worst_return_pct": -35.52,
+  "best_return_pct": 20.37,
+  "profitable_runs": 3,
+  "trades": 586,
+  "avg_max_dd_pct": 15.39
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -9.85,
+  "mean_return_pct": -12.61,
+  "worst_return_pct": -36.41,
+  "best_return_pct": 13.13,
+  "profitable_runs": 5,
+  "trades": 589,
+  "avg_max_dd_pct": 14.73
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -9.92,
+  "mean_return_pct": -10.37,
+  "worst_return_pct": -35.07,
+  "best_return_pct": 4.04,
+  "profitable_runs": 5,
+  "trades": 550,
+  "avg_max_dd_pct": 11.34
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -9.94,
+  "mean_return_pct": -11.9,
+  "worst_return_pct": -35.3,
+  "best_return_pct": 25.24,
+  "profitable_runs": 4,
+  "trades": 549,
+  "avg_max_dd_pct": 14.58
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -9.94,
+  "mean_return_pct": -11.9,
+  "worst_return_pct": -35.3,
+  "best_return_pct": 25.24,
+  "profitable_runs": 4,
+  "trades": 549,
+  "avg_max_dd_pct": 14.58
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -9.97,
+  "mean_return_pct": -12.22,
+  "worst_return_pct": -35.65,
+  "best_return_pct": 20.37,
+  "profitable_runs": 5,
+  "trades": 567,
+  "avg_max_dd_pct": 14.54
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -9.97,
+  "mean_return_pct": -14.04,
+  "worst_return_pct": -49.67,
+  "best_return_pct": 14.52,
+  "profitable_runs": 5,
+  "trades": 940,
+  "avg_max_dd_pct": 16.25
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -9.97,
+  "mean_return_pct": -14.57,
+  "worst_return_pct": -50.2,
+  "best_return_pct": 14.52,
+  "profitable_runs": 5,
+  "trades": 954,
+  "avg_max_dd_pct": 16.67
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -10.05,
+  "mean_return_pct": -11.14,
+  "worst_return_pct": -33.6,
+  "best_return_pct": 5.1,
+  "profitable_runs": 5,
+  "trades": 587,
+  "avg_max_dd_pct": 12.05
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -10.07,
+  "mean_return_pct": -13.51,
+  "worst_return_pct": -36.08,
+  "best_return_pct": 20.37,
+  "profitable_runs": 3,
+  "trades": 596,
+  "avg_max_dd_pct": 15.63
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -10.16,
+  "mean_return_pct": -13.37,
+  "worst_return_pct": -36.46,
+  "best_return_pct": 10.0,
+  "profitable_runs": 4,
+  "trades": 606,
+  "avg_max_dd_pct": 15.07
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -10.2,
+  "mean_return_pct": -10.23,
+  "worst_return_pct": -32.67,
+  "best_return_pct": 11.81,
+  "profitable_runs": 5,
+  "trades": 527,
+  "avg_max_dd_pct": 11.7
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -10.21,
+  "mean_return_pct": -14.18,
+  "worst_return_pct": -49.78,
+  "best_return_pct": 14.52,
+  "profitable_runs": 5,
+  "trades": 948,
+  "avg_max_dd_pct": 16.4
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -10.21,
+  "mean_return_pct": -14.66,
+  "worst_return_pct": -50.85,
+  "best_return_pct": 14.52,
+  "profitable_runs": 5,
+  "trades": 962,
+  "avg_max_dd_pct": 16.8
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -10.21,
+  "mean_return_pct": -15.82,
+  "worst_return_pct": -53.71,
+  "best_return_pct": 11.81,
+  "profitable_runs": 4,
+  "trades": 1022,
+  "avg_max_dd_pct": 17.52
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -10.26,
+  "mean_return_pct": -10.03,
+  "worst_return_pct": -33.04,
+  "best_return_pct": 11.81,
+  "profitable_runs": 5,
+  "trades": 515,
+  "avg_max_dd_pct": 11.49
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -10.34,
+  "mean_return_pct": -11.88,
+  "worst_return_pct": -35.31,
+  "best_return_pct": 25.24,
+  "profitable_runs": 4,
+  "trades": 548,
+  "avg_max_dd_pct": 14.56
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -10.62,
+  "mean_return_pct": -12.13,
+  "worst_return_pct": -34.35,
+  "best_return_pct": 12.58,
+  "profitable_runs": 6,
+  "trades": 563,
+  "avg_max_dd_pct": 14.36
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -10.77,
+  "mean_return_pct": -14.65,
+  "worst_return_pct": -51.47,
+  "best_return_pct": 7.7,
+  "profitable_runs": 6,
+  "trades": 1016,
+  "avg_max_dd_pct": 16.6
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -10.99,
+  "mean_return_pct": -13.26,
+  "worst_return_pct": -36.49,
+  "best_return_pct": 25.59,
+  "profitable_runs": 3,
+  "trades": 570,
+  "avg_max_dd_pct": 15.55
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -11.04,
+  "mean_return_pct": -16.36,
+  "worst_return_pct": -54.24,
+  "best_return_pct": 11.81,
+  "profitable_runs": 3,
+  "trades": 1048,
+  "avg_max_dd_pct": 17.98
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -11.18,
+  "mean_return_pct": -14.52,
+  "worst_return_pct": -51.69,
+  "best_return_pct": 11.81,
+  "profitable_runs": 5,
+  "trades": 973,
+  "avg_max_dd_pct": 16.61
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 2.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -11.63,
+  "mean_return_pct": -15.1,
+  "worst_return_pct": -52.71,
+  "best_return_pct": 11.81,
+  "profitable_runs": 6,
+  "trades": 987,
+  "avg_max_dd_pct": 17.04
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -11.73,
+  "mean_return_pct": -18.81,
+  "worst_return_pct": -55.26,
+  "best_return_pct": 30.14,
+  "profitable_runs": 4,
+  "trades": 1027,
+  "avg_max_dd_pct": 22.36
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -11.73,
+  "mean_return_pct": -18.81,
+  "worst_return_pct": -55.26,
+  "best_return_pct": 30.14,
+  "profitable_runs": 4,
+  "trades": 1027,
+  "avg_max_dd_pct": 22.36
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -12.03,
+  "mean_return_pct": -14.29,
+  "worst_return_pct": -37.81,
+  "best_return_pct": 4.12,
+  "profitable_runs": 5,
+  "trades": 633,
+  "avg_max_dd_pct": 15.51
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -12.16,
+  "mean_return_pct": -18.78,
+  "worst_return_pct": -54.61,
+  "best_return_pct": 30.14,
+  "profitable_runs": 4,
+  "trades": 1023,
+  "avg_max_dd_pct": 22.32
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -12.45,
+  "mean_return_pct": -22.16,
+  "worst_return_pct": -59.66,
+  "best_return_pct": 10.0,
+  "profitable_runs": 5,
+  "trades": 1269,
+  "avg_max_dd_pct": 24.42
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -12.66,
+  "mean_return_pct": -20.29,
+  "worst_return_pct": -57.01,
+  "best_return_pct": 12.58,
+  "profitable_runs": 6,
+  "trades": 1173,
+  "avg_max_dd_pct": 23.22
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -12.94,
+  "mean_return_pct": -18.77,
+  "worst_return_pct": -54.05,
+  "best_return_pct": 30.14,
+  "profitable_runs": 4,
+  "trades": 1012,
+  "avg_max_dd_pct": 22.13
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -12.94,
+  "mean_return_pct": -18.77,
+  "worst_return_pct": -54.05,
+  "best_return_pct": 30.14,
+  "profitable_runs": 4,
+  "trades": 1012,
+  "avg_max_dd_pct": 22.13
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -13.03,
+  "mean_return_pct": -14.98,
+  "worst_return_pct": -38.39,
+  "best_return_pct": 4.12,
+  "profitable_runs": 5,
+  "trades": 665,
+  "avg_max_dd_pct": 16.15
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -13.36,
+  "mean_return_pct": -18.61,
+  "worst_return_pct": -53.39,
+  "best_return_pct": 30.14,
+  "profitable_runs": 4,
+  "trades": 1005,
+  "avg_max_dd_pct": 21.98
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -13.53,
+  "mean_return_pct": -14.56,
+  "worst_return_pct": -37.82,
+  "best_return_pct": 4.12,
+  "profitable_runs": 5,
+  "trades": 653,
+  "avg_max_dd_pct": 15.71
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -13.64,
+  "mean_return_pct": -12.95,
+  "worst_return_pct": -35.04,
+  "best_return_pct": 10.0,
+  "profitable_runs": 5,
+  "trades": 574,
+  "avg_max_dd_pct": 14.51
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -13.68,
+  "mean_return_pct": -20.34,
+  "worst_return_pct": -56.6,
+  "best_return_pct": 25.59,
+  "profitable_runs": 3,
+  "trades": 1101,
+  "avg_max_dd_pct": 23.2
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -13.77,
+  "mean_return_pct": -13.63,
+  "worst_return_pct": -36.99,
+  "best_return_pct": 13.13,
+  "profitable_runs": 5,
+  "trades": 622,
+  "avg_max_dd_pct": 15.6
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -14.43,
+  "mean_return_pct": -14.46,
+  "worst_return_pct": -35.55,
+  "best_return_pct": 10.0,
+  "profitable_runs": 4,
+  "trades": 647,
+  "avg_max_dd_pct": 15.9
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": true
+  },
+  "median_return_pct": -14.65,
+  "mean_return_pct": -13.64,
+  "worst_return_pct": -34.95,
+  "best_return_pct": 10.0,
+  "profitable_runs": 5,
+  "trades": 613,
+  "avg_max_dd_pct": 15.09
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -14.79,
+  "mean_return_pct": -13.22,
+  "worst_return_pct": -36.24,
+  "best_return_pct": 20.37,
+  "profitable_runs": 4,
+  "trades": 599,
+  "avg_max_dd_pct": 15.38
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -14.95,
+  "mean_return_pct": -20.07,
+  "worst_return_pct": -55.94,
+  "best_return_pct": 12.58,
+  "profitable_runs": 5,
+  "trades": 1157,
+  "avg_max_dd_pct": 22.96
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -15.4,
+  "mean_return_pct": -20.06,
+  "worst_return_pct": -55.44,
+  "best_return_pct": 25.59,
+  "profitable_runs": 3,
+  "trades": 1083,
+  "avg_max_dd_pct": 22.89
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -16.04,
+  "mean_return_pct": -20.98,
+  "worst_return_pct": -60.1,
+  "best_return_pct": 25.59,
+  "profitable_runs": 3,
+  "trades": 1140,
+  "avg_max_dd_pct": 23.58
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -16.21,
+  "mean_return_pct": -12.77,
+  "worst_return_pct": -35.89,
+  "best_return_pct": 25.24,
+  "profitable_runs": 4,
+  "trades": 580,
+  "avg_max_dd_pct": 15.42
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -16.21,
+  "mean_return_pct": -12.77,
+  "worst_return_pct": -35.89,
+  "best_return_pct": 25.24,
+  "profitable_runs": 4,
+  "trades": 580,
+  "avg_max_dd_pct": 15.42
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -16.21,
+  "mean_return_pct": -15.37,
+  "worst_return_pct": -38.39,
+  "best_return_pct": 4.12,
+  "profitable_runs": 5,
+  "trades": 690,
+  "avg_max_dd_pct": 16.44
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -16.26,
+  "mean_return_pct": -12.74,
+  "worst_return_pct": -35.9,
+  "best_return_pct": 25.24,
+  "profitable_runs": 4,
+  "trades": 579,
+  "avg_max_dd_pct": 15.4
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -17.72,
+  "mean_return_pct": -21.34,
+  "worst_return_pct": -58.42,
+  "best_return_pct": 13.13,
+  "profitable_runs": 5,
+  "trades": 1272,
+  "avg_max_dd_pct": 23.93
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -17.75,
+  "mean_return_pct": -14.33,
+  "worst_return_pct": -36.11,
+  "best_return_pct": 20.37,
+  "profitable_runs": 3,
+  "trades": 619,
+  "avg_max_dd_pct": 16.26
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -18.6,
+  "mean_return_pct": -21.02,
+  "worst_return_pct": -58.58,
+  "best_return_pct": 25.59,
+  "profitable_runs": 3,
+  "trades": 1124,
+  "avg_max_dd_pct": 23.56
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": true,
+   "require_trend": false
+  },
+  "median_return_pct": -19.35,
+  "mean_return_pct": -14.6,
+  "worst_return_pct": -36.97,
+  "best_return_pct": 20.37,
+  "profitable_runs": 3,
+  "trades": 630,
+  "avg_max_dd_pct": 16.53
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -20.84,
+  "mean_return_pct": -21.98,
+  "worst_return_pct": -61.54,
+  "best_return_pct": 25.59,
+  "profitable_runs": 2,
+  "trades": 1183,
+  "avg_max_dd_pct": 24.53
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -21.07,
+  "mean_return_pct": -21.88,
+  "worst_return_pct": -59.46,
+  "best_return_pct": 25.59,
+  "profitable_runs": 2,
+  "trades": 1163,
+  "avg_max_dd_pct": 24.4
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -21.72,
+  "mean_return_pct": -21.57,
+  "worst_return_pct": -58.69,
+  "best_return_pct": 25.24,
+  "profitable_runs": 3,
+  "trades": 1202,
+  "avg_max_dd_pct": 24.33
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -21.72,
+  "mean_return_pct": -21.57,
+  "worst_return_pct": -58.69,
+  "best_return_pct": 25.24,
+  "profitable_runs": 3,
+  "trades": 1202,
+  "avg_max_dd_pct": 24.33
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -22.15,
+  "mean_return_pct": -21.47,
+  "worst_return_pct": -58.76,
+  "best_return_pct": 25.24,
+  "profitable_runs": 3,
+  "trades": 1197,
+  "avg_max_dd_pct": 24.22
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -22.33,
+  "mean_return_pct": -22.3,
+  "worst_return_pct": -57.27,
+  "best_return_pct": 10.0,
+  "profitable_runs": 5,
+  "trades": 1246,
+  "avg_max_dd_pct": 24.22
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -23.62,
+  "mean_return_pct": -23.1,
+  "worst_return_pct": -60.0,
+  "best_return_pct": 20.37,
+  "profitable_runs": 2,
+  "trades": 1269,
+  "avg_max_dd_pct": 25.25
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -23.93,
+  "mean_return_pct": -22.23,
+  "worst_return_pct": -58.31,
+  "best_return_pct": 20.37,
+  "profitable_runs": 3,
+  "trades": 1235,
+  "avg_max_dd_pct": 24.55
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -24.94,
+  "mean_return_pct": -22.96,
+  "worst_return_pct": -58.49,
+  "best_return_pct": 10.0,
+  "profitable_runs": 4,
+  "trades": 1337,
+  "avg_max_dd_pct": 24.63
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -24.94,
+  "mean_return_pct": -23.43,
+  "worst_return_pct": -60.91,
+  "best_return_pct": 10.0,
+  "profitable_runs": 4,
+  "trades": 1360,
+  "avg_max_dd_pct": 25.07
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -25.11,
+  "mean_return_pct": -22.23,
+  "worst_return_pct": -59.14,
+  "best_return_pct": 13.13,
+  "profitable_runs": 5,
+  "trades": 1294,
+  "avg_max_dd_pct": 24.57
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -25.73,
+  "mean_return_pct": -24.06,
+  "worst_return_pct": -60.91,
+  "best_return_pct": 20.37,
+  "profitable_runs": 2,
+  "trades": 1299,
+  "avg_max_dd_pct": 26.14
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -26.34,
+  "mean_return_pct": -22.17,
+  "worst_return_pct": -59.0,
+  "best_return_pct": 25.24,
+  "profitable_runs": 3,
+  "trades": 1222,
+  "avg_max_dd_pct": 24.9
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -26.34,
+  "mean_return_pct": -22.17,
+  "worst_return_pct": -59.0,
+  "best_return_pct": 25.24,
+  "profitable_runs": 3,
+  "trades": 1222,
+  "avg_max_dd_pct": 24.9
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -26.48,
+  "mean_return_pct": -25.69,
+  "worst_return_pct": -61.84,
+  "best_return_pct": 2.56,
+  "profitable_runs": 2,
+  "trades": 1406,
+  "avg_max_dd_pct": 26.56
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 3.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -26.59,
+  "mean_return_pct": -22.07,
+  "worst_return_pct": -57.57,
+  "best_return_pct": 25.24,
+  "profitable_runs": 3,
+  "trades": 1217,
+  "avg_max_dd_pct": 24.79
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 1.5,
+   "max_bars": 24,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -26.91,
+  "mean_return_pct": -25.31,
+  "worst_return_pct": -61.39,
+  "best_return_pct": 2.56,
+  "profitable_runs": 3,
+  "trades": 1380,
+  "avg_max_dd_pct": 26.25
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.5,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -27.74,
+  "mean_return_pct": -23.56,
+  "worst_return_pct": -61.89,
+  "best_return_pct": 20.37,
+  "profitable_runs": 2,
+  "trades": 1289,
+  "avg_max_dd_pct": 25.72
+ },
+ {
+  "params": {
+   "trail_arm_mult": 2.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -28.47,
+  "mean_return_pct": -22.88,
+  "worst_return_pct": -59.57,
+  "best_return_pct": 20.37,
+  "profitable_runs": 3,
+  "trades": 1255,
+  "avg_max_dd_pct": 25.25
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 2.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -30.88,
+  "mean_return_pct": -24.57,
+  "worst_return_pct": -63.32,
+  "best_return_pct": 20.37,
+  "profitable_runs": 2,
+  "trades": 1322,
+  "avg_max_dd_pct": 26.67
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": true
+  },
+  "median_return_pct": -31.16,
+  "mean_return_pct": -25.53,
+  "worst_return_pct": -61.87,
+  "best_return_pct": 2.56,
+  "profitable_runs": 4,
+  "trades": 1432,
+  "avg_max_dd_pct": 26.56
+ },
+ {
+  "params": {
+   "trail_arm_mult": 1.0,
+   "trail_offset_mult": 1.0,
+   "stop_mult": 1.5,
+   "max_bars": 12,
+   "long_only": false,
+   "require_trend": false
+  },
+  "median_return_pct": -31.16,
+  "mean_return_pct": -25.93,
+  "worst_return_pct": -62.86,
+  "best_return_pct": 2.56,
+  "profitable_runs": 3,
+  "trades": 1460,
+  "avg_max_dd_pct": 26.92
+ }
+]
