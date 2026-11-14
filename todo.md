@@ -73,8 +73,8 @@ Guide: medium.com/@gwrx2005/building-a-high-profit-cryptocurrency-trading-bot-wi
       -> desk/meme_tactics.py, exits.profile override, signal_engine.apply,
          agent high_20 fetch. All flags default OFF (costs 96% of trade freq).
 - [x] Add tests, keep suite green (766 passed, 17 skipped)
-- [ ] Commit + push
+- [x] Commit + push (779c621)
 
 ## Prove it
 - [x] Before/after table with real trade counts (MEME_TACTICS.md)
-- [ ] Report to user
+- [x] Report to user
