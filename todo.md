@@ -11,3 +11,13 @@
 - [x] tests updated + 3 regression tests (19 risk tests pass, 734 total pass)
 - [x] RISK-BUDGET-FIX.md v2 section
 - [x] Commit + push to roasaetn2-crypto/solana-desk-
+
+# Feature: tabbed dashboard (stop endless scrolling)
+
+## Done
+- [x] web/index.html: sticky Live / Control / Research tab bar + data-col tags
+- [x] web/styles.css: pill tabs, sticky bar, mobile rule shows only active column
+- [x] web/app.js: initDeskTabs() with localStorage persistence, arrow keys, count badges
+- [x] fix Research badge selector (decision rows now carry data-mint)
+- [x] verify: mobile shows exactly one column per tab, reload keeps tab, 737 tests pass
+- [x] Commit 41f0e48 + push to roasaetn2-crypto/solana-desk- main
