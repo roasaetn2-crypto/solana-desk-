@@ -78,6 +78,14 @@ from desk.intent import maybe_autostart  # noqa: E402
 
 restore_store()
 
+# When this process started. /api/health reports it so "the box slept" is a
+# measurement (uptime reset) rather than an inference from a slow first request.
+_BOOT = time.time()
+
+
+def _iso(t: float) -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(t))
+
 @asynccontextmanager
 async def _lifespan(app):
     # Feed is independent of the trading loop so a deploy is not "off" until Start.
@@ -332,6 +340,12 @@ def health():
     pp = pumpportal.health()
     return {
         "ok": True,
+        # How long this process has been alive. Render's free plan stops the
+        # container after ~15 min without inbound traffic, so a small uptime is
+        # proof the box slept (or was redeployed) rather than a guess about it.
+        "uptime_s": int(time.time() - _BOOT),
+        "booted_at": _iso(_BOOT),
+        "keepalive": keepalive.status(),
         "running": agent.running,
         "cycle": agent.cycle_no,
         "pumpportal": {
