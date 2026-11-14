@@ -290,6 +290,28 @@
           <div class="groq-list" id="groqList"></div>
         </div>
       </div>
+
+      <div class="panel" id="postmortemPanel">
+        <div class="panel-head">
+          <span class="icon">&#128300;</span><h2>Groq post-mortem</h2>
+          <span class="badge" id="pmBadge">WAITING</span>
+        </div>
+        <div class="panel-body">
+          <div class="tiny muted" id="pmLine">Offline: reads closed trades, asks what losers share. Never trades.</div>
+          <div class="bars" style="margin-top:10px">
+            <div class="bar-row">
+              <span class="lab">sample</span>
+              <span class="track"><i id="pmBar" style="width:0%;background:var(--blue)"></i></span>
+              <span class="num" id="pmNum">&mdash;</span>
+            </div>
+          </div>
+          <div class="pm-split" id="pmSplit"></div>
+          <div class="pm-verdict" id="pmVerdict"></div>
+          <div class="pm-traits" id="pmTraits"></div>
+          <div class="pm-next" id="pmNext"></div>
+          <div class="tiny muted" id="pmRun" style="margin-top:10px"></div>
+        </div>
+      </div>
     </section>
 
     <!-- CENTER: KPIs, positions, decisions, dialogue -->

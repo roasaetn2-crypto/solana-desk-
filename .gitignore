@@ -13,6 +13,8 @@ operator_intent.json
 desk_chat.json
 operator_settings.json
 proposals.json
+groq_postmortem.json
+groq_postmortem.json.tmp
 
 # python
 __pycache__/

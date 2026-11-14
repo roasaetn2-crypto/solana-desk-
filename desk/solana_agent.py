@@ -29,8 +29,8 @@ import requests
 from config import AGENT, ENTRY, EXECUTION, EXITS, FOMO, MEME, PAPER, RISK
 from desk.brain_advisor import ADVISOR, should_advise, wants_entry, wants_exit
 from desk import (analyst, brain, chain, dexscreener, devcheck, dialogue, exits, fomo, goplus, gmgn,
-                  groq_sizer, guard, heartbeat, helius, meme, pumpportal, regime, risk, scanner,
-                  signal_engine, signals)
+                  groq_postmortem, groq_sizer, guard, heartbeat, helius, meme, pumpportal,
+                  regime, risk, scanner, signal_engine, signals)
 from desk import chart as candle_chart
 from desk import links as fomo_links
 from desk.age import created_at_of
@@ -1426,6 +1426,10 @@ class SolanaAgent:
                 # Live view of the shrink-only Groq sizer: on/off, budget left,
                 # and the last dozen decisions. No network, so polling is free.
                 "groq_sizer": groq_sizer.status(),
+                # Offline post-mortem: how many closed trades exist, whether the
+                # 30-trade bar is met, and the last report if one was produced.
+                # Reads two small files, never the network.
+                "groq_postmortem": groq_postmortem.status(),
                 "guard": {
                     "breaker": dict(self.breaker),
                     "regime": dict(self.regime),

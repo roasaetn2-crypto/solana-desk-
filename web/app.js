@@ -1420,11 +1420,121 @@ function renderGroq(g) {
   }
 }
 
+// ---------- Groq post-mortem: offline pattern read over closed trades ----------
+// This panel never triggers a model call. It shows how far the sample is from
+// the 30-trade bar, and the last report if one exists. The run itself is a CLI
+// step (scripts/groq_postmortem.py) so a dashboard refresh can never burn quota.
+function pmTrait(t) {
+  const trait = (t && t.trait) || "\\u2014";
+  const ev = (t && t.evidence) || "";
+  const conf = (t && t.confidence) || "";
+  const cls = /high/i.test(conf) ? "high" : /med/i.test(conf) ? "med" : "low";
+  return `<div class="pm-trait ${cls}">
+    <div class="tt">${esc(trait)}<span class="cf">${esc(conf)}</span></div>
+    ${ev ? `<div class="te">${esc(ev)}</div>` : ""}
+  </div>`;
+}
+
+function renderPostmortem(g) {
+  const badge = $("pmBadge");
+  if (!badge) return;
+
+  const cases = Number((g && g.cases) || 0);
+  const need = Number((g && g.min_trades) || 30);
+  const ready = !!(g && g.ready);
+  const ok = !!(g && g.ok);
+  const on = !!(g && g.enabled);
+
+  const state = !on ? "OFF" : ok ? "REPORT" : ready ? "READY" : "WAITING";
+  badge.textContent = state;
+  badge.style.color = !on ? "var(--muted)"
+    : ok ? "var(--green)" : ready ? "var(--amber)" : "var(--muted)";
+
+  const pct = need ? Math.min(100, Math.round((cases / need) * 100)) : 0;
+  const bar = $("pmBar");
+  if (bar) {
+    bar.style.width = pct + "%";
+    bar.style.background = ok ? "var(--green)" : ready ? "var(--amber)" : "var(--blue)";
+  }
+  if ($("pmNum")) $("pmNum").textContent = cases + "/" + need;
+
+  const line = $("pmLine");
+  if (line) {
+    line.textContent = !on
+      ? "Off (" + ((g && g.reason) || "no GROQ_API_KEY") + "). Nothing is sent anywhere."
+      : ok
+        ? "Last report on " + ((g && g.ran_on) || 0) + " closed trades. A hypothesis, not an edge."
+        : ready
+          ? "Sample is large enough. Run scripts/groq_postmortem.py to produce a report."
+          : "Collecting: " + cases + " of " + need + " closed trades. Below the bar a model "
+            + "would just invent patterns.";
+  }
+
+  const split = $("pmSplit");
+  if (split) {
+    const w = g && g.wins, l = g && g.losses;
+    if (ok && w != null && l != null) {
+      const wr = g.win_rate != null ? Math.round(Number(g.win_rate) * 100) + "%" : "\\u2014";
+      split.innerHTML = `<span class="w">${w}W</span><span class="l">${l}L</span>`
+        + `<span class="wr">${wr} win</span>`;
+    } else {
+      split.innerHTML = "";
+    }
+  }
+
+  const v = $("pmVerdict");
+  if (v) {
+    if (ok && (g.verdict || g.null_warning)) {
+      v.innerHTML = (g.verdict ? `<div class="vd">${esc(g.verdict)}</div>` : "")
+        + (g.null_warning ? `<div class="nw">${esc(g.null_warning)}</div>` : "");
+    } else {
+      v.innerHTML = "";
+    }
+  }
+
+  const tr = $("pmTraits");
+  if (tr) {
+    if (!ok) {
+      tr.innerHTML = "";
+    } else {
+      const losers = g.loser_traits || [];
+      const winners = g.winner_traits || [];
+      tr.innerHTML =
+        `<div class="pm-group"><div class="gh lose">losers share</div>`
+        + (losers.length ? losers.map(pmTrait).join("")
+           : '<div class="tiny muted">no separating feature found</div>')
+        + `</div>`
+        + `<div class="pm-group"><div class="gh win">winners share</div>`
+        + (winners.length ? winners.map(pmTrait).join("")
+           : '<div class="tiny muted">no separating feature found</div>')
+        + `</div>`;
+    }
+  }
+
+  const nx = $("pmNext");
+  if (nx) {
+    nx.innerHTML = ok && g.next_test
+      ? `<div class="pm-group"><div class="gh next">next test</div>`
+        + `<div class="nt">${esc(g.next_test)}</div></div>`
+      : "";
+  }
+
+  const run = $("pmRun");
+  if (run) {
+    run.textContent = !on
+      ? ""
+      : ok
+        ? "Runs offline. Re-run: python3 scripts/groq_postmortem.py --force"
+        : "Runs offline, never on refresh: python3 scripts/groq_postmortem.py";
+  }
+}
+
 async function refresh() {
   try {
     const s = await api("/api/state");
     render(s);
     renderGroq(s && s.groq_sizer);
+    renderPostmortem(s && s.groq_postmortem);
     refreshBacktest(false);
     refreshQuota(false);
   } catch (e) {

@@ -895,6 +895,38 @@ body.desk-page { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); 
 .groq-row .src { font-size: 9.5px; text-transform: uppercase; letter-spacing: .4px;
   color: var(--muted-2); margin-left: auto; }
 
+/* ---------- Groq post-mortem (offline pattern read over closed trades) ---------- */
+.pm-split { display: flex; align-items: baseline; gap: 8px; margin-top: 10px;
+  font-family: var(--mono); font-size: 12px; }
+.pm-split .w { color: var(--green); font-weight: 600; }
+.pm-split .l { color: var(--red); font-weight: 600; }
+.pm-split .wr { color: var(--muted); margin-left: auto; font-size: 11px; }
+.pm-verdict { margin-top: 10px; }
+.pm-verdict .vd { font-size: 12.5px; line-height: 1.45; color: var(--fg); }
+.pm-verdict .nw { margin-top: 6px; font-size: 11px; line-height: 1.4; color: var(--amber);
+  border-left: 2px solid var(--amber); padding-left: 8px; }
+.pm-traits { display: flex; flex-direction: column; gap: 10px; margin-top: 12px;
+  max-height: 300px; overflow-y: auto; }
+.pm-group .gh { font-size: 9.5px; text-transform: uppercase; letter-spacing: .6px;
+  color: var(--muted-2); margin-bottom: 5px; }
+.pm-group .gh.lose { color: var(--red); }
+.pm-group .gh.win { color: var(--green); }
+.pm-group .gh.next { color: var(--blue); }
+.pm-trait { padding: 6px 9px; margin-bottom: 5px; border-radius: 8px;
+  background: var(--panel-2); border: 1px solid var(--border-soft);
+  border-left: 2px solid var(--border); }
+.pm-trait.high { border-left-color: var(--green); }
+.pm-trait.med { border-left-color: var(--amber); }
+.pm-trait.low { border-left-color: var(--muted-2); }
+.pm-trait .tt { display: flex; align-items: center; gap: 8px; font-size: 11.5px;
+  font-weight: 600; color: var(--fg); }
+.pm-trait .cf { margin-left: auto; font-size: 9px; font-weight: 400; text-transform: uppercase;
+  letter-spacing: .4px; color: var(--muted-2); }
+.pm-trait .te { font-size: 10.5px; color: var(--muted); line-height: 1.4; margin-top: 3px; }
+.pm-next .nt { font-size: 11.5px; line-height: 1.45; color: var(--fg);
+  padding: 7px 9px; border-radius: 8px; background: var(--panel-2);
+  border: 1px solid var(--border-soft); border-left: 2px solid var(--blue); }
+
 /* ---------- desk tabs: stop the endless scroll ---------- */
 .desk-tabs {
   position: sticky;

@@ -170,19 +170,30 @@ say ""
 say "=== 4e. whole-book risk budget (open risk vs daily stop) ==="
 if python -c "
 from desk.risk import Account, fit_risk_budget, risk_budget_usd
+from config import RISK
 a = Account(equity=51.33, day_pnl=-0.4, open_positions=3, realized_equity=51.33,
             cash=20.0, day_start_equity=51.33)
-assert abs(risk_budget_usd(a) - 1.54) < 0.01, risk_budget_usd(a)
+# The budget is max(day stop, what the sizer may deploy across all slots), so it
+# must never be smaller than max_risk_per_trade * equity * slots. A budget below
+# that deadlocks the desk: every later entry is refused for lack of room.
+slots = max(1, int(RISK.get('max_open_positions') or 1))
+full_book = RISK['max_risk_per_trade'] * 51.33 * slots
+day_stop = RISK['max_daily_loss_pct'] * 51.33
+want = max(day_stop, full_book)
+got = risk_budget_usd(a)
+assert abs(got - want) < 0.01, (got, want)
 ok, t, why = fit_risk_budget(1.40, 4.17, 0.06, a, 0.50)
-assert ok and t < 4.17, (ok, t, why)          # trims, does not refuse
-ok2, _, why2 = fit_risk_budget(1.89, 4.17, 0.06, a, 0.50)
-assert not ok2 and 'over its risk budget' in why2
+assert ok and t <= 4.17, (ok, t, why)         # a ticket that fits is approved
+ok2, t2, why2 = fit_risk_budget(4.50, 4.17, 0.06, a, 0.50)
+assert ok2 and t2 < 4.50 and 'trimmed' in why2, (ok2, t2, why2)   # trims, never refuses
+ok3, _, why3 = fit_risk_budget(got + 1.0, 4.17, 0.06, a, 0.50)
+assert not ok3 and 'over its risk budget' in why3, (ok3, why3)    # only refuses when already over
 " 2>/dev/null; then
   ok "risk budget: trims to fit, refuses only when the book is already over"
 else
   bad "risk budget gate failed -> python -m pytest tests/test_risk_budget.py"
 fi
-[ -f tests/test_risk_budget.py ] && ok "tests/test_risk_budget.py present (16 tests)" || bad "tests/test_risk_budget.py missing"
+[ -f tests/test_risk_budget.py ] && ok "tests/test_risk_budget.py present" || bad "tests/test_risk_budget.py missing"
 
 say ""
 say "=== 4f. Groq size sizer + the live-mode guard fix ==="
@@ -241,6 +252,36 @@ assert isinstance(s['recent'], list), s
   ok "groq_sizer.status() returns the panel contract (cap 1.00x, ring list)"
 else
   bad "groq_sizer.status() broken -> python -m pytest tests/test_groq_ui.py"
+fi
+
+say "=== 4h. Groq post-mortem: offline pattern read + dashboard panel ==="
+[ -f desk/groq_postmortem.py ] && ok "desk/groq_postmortem.py present" || bad "desk/groq_postmortem.py missing"
+[ -f scripts/groq_postmortem.py ] && ok "scripts/groq_postmortem.py present (the CLI)" || bad "scripts/groq_postmortem.py missing"
+grep -q 'BRAIN_POSTMORTEM_MIN_TRADES' desk/groq_postmortem.py && ok "the 30-trade honesty gate is configurable" || bad "groq_postmortem.py lost its MIN_TRADES gate"
+grep -q 'id="postmortemPanel"' web/index.html && ok "web/index.html has the post-mortem panel" || bad "web/index.html missing #postmortemPanel"
+for el in pmBadge pmLine pmBar pmNum pmSplit pmVerdict pmTraits pmNext pmRun; do
+  grep -q "id=\"$el\"" web/index.html || bad "web/index.html missing #$el"
+done
+ok "all 9 post-mortem panel ids present"
+grep -q "function renderPostmortem(" web/app.js && ok "web/app.js has renderPostmortem()" || bad "web/app.js missing renderPostmortem()"
+grep -q "renderPostmortem(s && s.groq_postmortem)" web/app.js && ok "renderPostmortem() is called from refresh()" || bad "renderPostmortem() never called -> panel stays empty forever"
+grep -q ".pm-trait" web/styles.css && ok "web/styles.css styles the trait cards" || bad "web/styles.css missing .pm-trait rules"
+grep -q '"groq_postmortem": groq_postmortem.status()' desk/solana_agent.py && ok "/api/state carries the groq_postmortem block" || bad "desk/solana_agent.py does not expose groq_postmortem"
+if python -c "
+from desk import groq_postmortem as p
+s = p.status()
+for k in ('enabled','min_trades','cases','ready','ok','loser_traits','winner_traits'):
+    assert k in s, k
+assert isinstance(s['loser_traits'], list), s
+" 2>/dev/null; then
+  ok "groq_postmortem.status() returns the panel contract"
+else
+  bad "groq_postmortem.status() broken -> python -m pytest tests/test_groq_postmortem.py"
+fi
+if python scripts/groq_postmortem.py --status >/dev/null 2>&1; then
+  ok "scripts/groq_postmortem.py --status runs"
+else
+  bad "scripts/groq_postmortem.py --status fails"
 fi
 
 say ""
