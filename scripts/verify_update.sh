@@ -103,6 +103,23 @@ else
 fi
 
 say ""
+say "== 4c. collector (grows the 6-48h candle band) =="
+if [ -f scripts/collector.py ]; then
+  ok "scripts/collector.py present"
+else
+  bad "scripts/collector.py missing"
+fi
+if [ -f termux/collector-loop.sh ]; then
+  ok "termux/collector-loop.sh present"
+else
+  bad "termux/collector-loop.sh missing"
+fi
+if command -v python3 >/dev/null 2>&1; then
+  python3 scripts/collector.py --status 2>/dev/null \
+    | tr -d '\n ' | sed 's/^/         /' && printf '\n'
+fi
+
+say ""
 say "== 5. live import (what the bot will actually use) =="
 if command -v python3 >/dev/null 2>&1; then
   python3 - <<'PY'

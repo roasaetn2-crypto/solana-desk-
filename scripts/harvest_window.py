@@ -1,19 +1,16 @@
 #!/usr/bin/env python3
 """Harvest pools in the desk's *tradeable age window* (6h .. 48h).
 
-Why this window:
-  * younger than ~6h  -> fewer than 70 five-minute bars, cannot backtest;
-  * older than 48h     -> the scan gate rejects it (max_age_hours = 48).
+SUPERSEDED 2026-11-15 -- use ``scripts/collector.py`` instead.
 
-The generic harvester walks ``new_pools`` but keeps everything; ``harvest_old``
-walks trending/pools and gets year-old majors. Neither is the desk's universe.
-``new_pools`` is ordered newest-first, so paging back reaches the 6-48h band.
-This script discovers many ``new_pools`` pages, keeps only the window, sorts
-oldest-first (most bars per request), and stops at ``--target`` usable pools.
+This script's premise was that ``new_pools`` is ordered newest-first, so paging
+back would reach the 6-48h band. That is false and was measured: eight pages
+returned 160 pools and **every one** was under 0.1 hours old. ``new_pools`` is a
+rolling ~6-minute feed, so paging walks minutes apart, never hours. This script
+therefore finds 0 pools and always will.
 
-Usage:
-    python scripts/harvest_window.py --target 50 --pages 14 --gap 7 \
-        --proxy http://127.0.0.1:18080 --store data/poolstore.json
+The collector fixes it by remembering pools while they are young and fetching
+them once they have aged into the band. Kept only as a record of the dead end.
 """
 from __future__ import annotations
 
