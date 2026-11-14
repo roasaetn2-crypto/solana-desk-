@@ -46,11 +46,19 @@ else
   bad "HEAD is BEHIND $WANT_COMMIT - run: git pull origin main"
 fi
 
-if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
-  bad "working tree has uncommitted edits:"
-  git status --short | sed 's/^/         /'
+DIRTY=$(git status --porcelain --untracked-files=no 2>/dev/null)
+if [ -n "$DIRTY" ]; then
+  bad "tracked files have uncommitted edits (this can mask a stale pull):"
+  printf '%s\n' "$DIRTY" | sed 's/^/         /'
 else
-  ok "working tree clean"
+  ok "no edits to tracked files"
+fi
+
+UNTRACKED=$(git status --porcelain 2>/dev/null | grep '^??' | wc -l | tr -d ' ')
+if [ "$UNTRACKED" -gt 0 ]; then
+  printf '  [note] %s untracked file(s) - runtime state, harmless:\n' "$UNTRACKED"
+  git status --porcelain 2>/dev/null | grep '^??' | sed 's/^?? /         /' | head -12
+  [ "$UNTRACKED" -gt 12 ] && printf '         ... and %s more\n' "$((UNTRACKED-12))"
 fi
 
 say ""
