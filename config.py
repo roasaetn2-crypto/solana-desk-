@@ -351,6 +351,12 @@ MEME = {
     # fully-gated population. scripts/shadow_report.py compares the two groups.
     "pullback_shadow": True,
     "pullback_min_drop": 0.20,       # must be >=20% below the 20-bar high (measured)
+    # Which exit ladder the pullback package uses: fast | patient | slow | single.
+    # scripts/ladder_replay.py measured all four on real candles with entries held
+    # constant (LADDER-REPLAY.md): win rate is within 1pt across every ladder at
+    # every stop width, but `patient` earns ~3x the expectancy of `fast`. Kept on
+    # "fast" so this key changes nothing until you choose to switch it.
+    "exit_ladder": "fast",
     "flash_pump_guard": False,       # rule C: skip entries right after a spike
     "flash_pump_pct": 0.25,          # a >25% 5m candle = do not chase
     "atr_stop": False,               # rule A: stop = clamp(k*ATR%, 8%, 60%)

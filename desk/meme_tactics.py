@@ -44,6 +44,8 @@ Everything here is pure: no I/O, no clock, no network.
 """
 from __future__ import annotations
 
+import os
+
 from config import MEME
 
 # The exact package that cleared the bar in scripts/winrate_lab.py on 120 pools
@@ -58,12 +60,57 @@ from config import MEME
 # "popped then reversed" trades into wins, and the 20% dip keeps losers small
 # enough that the fast ladder stays profitable.
 PULLBACK_DROP = 0.20
-EXIT_OVERRIDES = {
-    "stop_pct": 0.30,
-    "tp1_at": 1.25, "tp1_frac": 0.5,
-    "tp2_at": 1.6, "tp2_frac": 0.5,
-    "trail_pct": 0.15,
+
+# Named ladders. `fast` is the 2026-11-14 promotion (68.9% win on 120 pools that
+# turned out to be ~4.5 years old, no overlap with the fresh launches the desk
+# trades). `patient` is the 2x/3x geometry that preceded it.
+#
+# scripts/ladder_replay.py replays all three on real candles with entries held
+# constant. Result (see LADDER-REPLAY.md): win rate is identical to within 1pt
+# across every ladder at every stop width, but expectancy is NOT -- `patient`
+# earns roughly 3x `fast` at a 1.5% stop and ~2.9x at 30%. The promotion bought
+# no win rate and cost most of the expectancy.
+#
+# Default stays `fast` so this change alters no behaviour by itself. Flip it with
+# MEME["exit_ladder"] = "patient" in config.py (or BRAIN_EXIT_LADDER=patient).
+LADDERS = {
+    "fast": {
+        "stop_pct": 0.30,
+        "tp1_at": 1.25, "tp1_frac": 0.5,
+        "tp2_at": 1.6, "tp2_frac": 0.5,
+        "trail_pct": 0.15,
+    },
+    "patient": {
+        "stop_pct": 0.30,
+        "tp1_at": 2.0, "tp1_frac": 0.33,
+        "tp2_at": 3.0, "tp2_frac": 0.5,
+        "trail_pct": 0.20,
+    },
+    "slow": {
+        "stop_pct": 0.30,
+        "tp1_at": 1.5, "tp1_frac": 0.33,
+        "tp2_at": 2.0, "tp2_frac": 0.5,
+        "trail_pct": 0.20,
+    },
+    "single": {
+        "stop_pct": 0.30,
+        "tp1_at": 1.35, "tp1_frac": 0.5,
+        "tp2_at": 1e9, "tp2_frac": 0.0,
+        "trail_pct": 0.18,
+    },
 }
+DEFAULT_LADDER = "fast"
+
+
+def active_ladder() -> dict:
+    """The ladder in force, resolved from config then env, falling back to fast."""
+    name = (os.getenv("BRAIN_EXIT_LADDER", "")
+            or MEME.get("exit_ladder", "")
+            or DEFAULT_LADDER)
+    return dict(LADDERS.get(str(name).strip().lower(), LADDERS[DEFAULT_LADDER]))
+
+
+EXIT_OVERRIDES = dict(LADDERS[DEFAULT_LADDER])
 
 
 def _num(x):
@@ -171,7 +218,7 @@ def shadow(token: dict | None = None, facts: dict | None = None) -> dict | None:
 
 def exit_overrides() -> dict:
     """Exit ladder that goes with the pullback package (empty when off)."""
-    return dict(EXIT_OVERRIDES) if MEME.get("pullback_entry", False) else {}
+    return active_ladder() if MEME.get("pullback_entry", False) else {}
 
 
 def _price_plan(entry, tp: dict) -> dict:
