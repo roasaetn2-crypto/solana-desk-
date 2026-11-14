@@ -84,6 +84,25 @@ check_line '"trail_pct": 0.15'           'trail_pct 0.15'
 grep -n '"stop_pct"\|"tp1_at"\|"tp2_at"\|"trail_pct"' desk/meme_tactics.py | sed 's/^/         /'
 
 say ""
+say "== 4b. established lane (over-age pools, half size) =="
+if grep -q '"enabled": True' config.py && grep -q 'ESTABLISHED' config.py; then
+  ok "ESTABLISHED lane present and enabled"
+else
+  bad "ESTABLISHED lane missing or disabled in config.py"
+fi
+grep -n '"max_age_hours": 168\|"min_liquidity_usd": 50_000\|"size_scale": 0.5' config.py | sed 's/^/         /'
+if grep -q 'def established_ok' desk/scanner.py; then
+  ok "scanner.established_ok present"
+else
+  bad "scanner.established_ok missing"
+fi
+if grep -q 'def established_size_scale' desk/risk.py; then
+  ok "risk.established_size_scale present"
+else
+  bad "risk.established_size_scale missing"
+fi
+
+say ""
 say "== 5. live import (what the bot will actually use) =="
 if command -v python3 >/dev/null 2>&1; then
   python3 - <<'PY'
@@ -106,6 +125,23 @@ if flag is not True:
     ok = False
 if ov != want:
     print("  [FAIL] exit_overrides() does not match the promoted ladder")
+    ok = False
+try:
+    import config as _c
+    from desk import scanner as _sc, risk as _rk
+    lane = _c.ESTABLISHED.get("enabled")
+    print("  established lane =", lane, "scale", _c.ESTABLISHED.get("size_scale"))
+    over_age = _c.SCAN["max_age_hours"] * 60 + 60
+    if lane and _rk.established_size_scale(over_age) != _c.ESTABLISHED["size_scale"]:
+        print("  [FAIL] established lane does not halve an over-age ticket")
+        ok = False
+    if lane and not _sc.established_ok({"age_minutes": over_age,
+                                        "liquidity_usd": 100_000, "volume_h1": 50_000,
+                                        "buys_h1": 80, "sells_h1": 70}):
+        print("  [FAIL] established lane rejects a deep, live old pool")
+        ok = False
+except Exception as e:
+    print("  [FAIL] established lane check error: %r" % (e,))
     ok = False
 if ok:
     print("  [ OK ] runtime config matches the promoted package")

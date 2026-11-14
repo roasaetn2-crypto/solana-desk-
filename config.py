@@ -20,6 +20,31 @@ SCAN = {
     "min_sells_ratio_h1": 0.10,    # sells / buys. Below this nobody can sell = honeypot smell
 }
 
+# ---------- The "established" lane: pools older than SCAN["max_age_hours"] ----------
+# Why this exists. The pullback edge (20% dip + fast ladder) was measured on 120
+# real pools / 114,033 candles. Every one of them was older than 7 days. The
+# desk's own age gate is 48h, so the population that was measured and the
+# population the desk trades had ZERO overlap -- the measured 68.9% described
+# coins the desk would never buy.
+#
+# This lane closes that gap without simply raising max_age_hours (which would
+# let every dead 5-day-old launch through). An old pool only trades if it still
+# looks ALIVE: deeper liquidity, real hourly volume, real trade count. Those are
+# the same three facts the measurement relied on, and they are the reason a
+# week-old pool is worth trading at all.
+#
+# Size is deliberately halved. An old pool is a survivor, but it is also one
+# that has already had its launch move; the 20% dip there is a pullback in a
+# mature range, not a launch shakeout. Half size keeps a bad read cheap.
+ESTABLISHED = {
+    "enabled": True,
+    "max_age_hours": 168,          # 7 days. Beyond this the candles stop being a "range".
+    "min_liquidity_usd": 50_000,   # 16x the launch floor: an old pool must be deep
+    "min_volume_h1_usd": 20_000,   # 6x the launch floor: still actually trading
+    "min_trades_h1": 100,          # 3x the launch floor: not three bots circling
+    "size_scale": 0.5,             # half ticket vs the same setup on a fresh launch
+}
+
 # ---------- Scanner fetch (rate limits, cache, cooldown). Does not change filters. ----------
 SCAN_FETCH = {
     "gt_per_min": 10,              # well under GeckoTerminal's ~30/min public cap

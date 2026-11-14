@@ -39,13 +39,42 @@ The 10% pullback is *too loose*: it reaches 24 pools but win falls to 44.5%.
 
 ## The one honest caveat
 
-The 11-pool result uses **all-age** pools. With the desk's current scan gate
+The 11-pool result uses **all-age** pools. With the desk's original scan gate
 (age ≤ 48h) switched on, only **4–5** of the 120 pools survive, and the same
 config prints 76–81% win on those — but on 4 pools, which fails the independence
 bar. So the edge is real; what is missing is **enough tradeable-age pools**.
 
 That is a data problem, not a signal problem, and it is exactly what the
 collector fixes.
+
+**Update 2026-11-15 — the gap is now measured, and it is total.** Every one of
+the 110 store pools that carries a `created_at` is older than **7 days**; zero
+sit in the 6–48h band. So the population the edge was measured on and the
+population the desk traded had *no overlap at all*. The 68.9% described coins the
+desk would never buy. That is why the established lane below exists.
+
+## The established lane (2026-11-15)
+
+`config.ESTABLISHED` lets a pool past `SCAN["max_age_hours"]` trade **only if it
+still looks alive**: ≥$50k liquidity (16× the launch floor), ≥$20k hourly volume
+(6×), ≥100 hourly trades (3×), and no older than 7 days. Those that qualify get
+**half size** (`size_scale: 0.5`), because an old pool's 20% dip is a pullback in
+a mature range, not a launch shakeout, and a bad read there should cost less.
+
+Measured effect on the 120-pool store, scan gate on:
+
+| pullback | trades | pools | win | PF |
+|---------:|-------:|------:|----:|----:|
+| 0%   | 1049 | 10 | 25.4% | 0.85 |
+| 10%  | 101  | 5  | 62.4% | 2.63 |
+| 20%  | 38   | 4  | 81.6% | 5.73 |
+
+The lane lifts gate survivors from 4–5 to **10 pools**, but the 20% pullback is
+selective enough that only **4** of them actually fire in the sampled windows.
+So the lane fixes the *reachability* problem (old-but-alive pools can now enter
+the desk at all) but the pullback sample is still under the 10-pool bar. Honest
+reading: the edge is intact and now reachable, not yet independently confirmed on
+a live-population sample.
 
 ## What to do, in order
 
@@ -54,14 +83,17 @@ collector fixes.
    ladder in `desk/meme_tactics.py`.
 2. ~~**Gate entries on a 20% pullback**~~ — **DONE.** `MEME["pullback_entry"]`
    is now `True` in `config.py`.
-3. **Keep it shadow-measured until ≥10 tradeable-age pools clear the bar.** The
-   collector (`scripts/pool_harvest.py`) must run continuously: fresh launches
-   age *into* the 6–48h window, which is the population the desk actually trades.
-   `scripts/shadow_report.py` compares the gated population against the
-   counterfactual.
-4. **Revisit the 48h age cap.** The evidence shows the pullback edge also works
-   on older, liquid pools. Either raise `max_age_hours` or add an "established"
-   lane so the desk can trade both fresh launches and liquid survivors.
+3. ~~**Keep it shadow-measured until ≥10 tradeable-age pools clear the bar.**~~
+   **SUPERSEDED 2026-11-15 — do not follow this.** With `pullback_entry: True`
+   the tactic blocks at the *signal* stage: a chase becomes HOLD and never opens,
+   so there are no `shadow_pnl` rows for the blocked group and
+   `scripts/shadow_report.py` reports an empty comparison. The rule is live now;
+   the honest validation is live fills, not a shadow A/B.
+4. ~~**Revisit the 48h age cap.**~~ — **DONE 2026-11-15.** Implemented as the
+   established lane (`config.ESTABLISHED`, `desk/scanner.py:established_ok`),
+   *not* as a raised `max_age_hours`, so dead old launches stay out. Over-age
+   pools also size at half via `desk/risk.py:established_size_scale`. Pinned by
+   `tests/test_established_lane.py` (16 tests).
 
 ## Reproduce
 

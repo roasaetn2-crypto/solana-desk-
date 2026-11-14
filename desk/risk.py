@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import config
-from config import EXITS, PAPER, RISK
+from config import ESTABLISHED, EXITS, PAPER, RISK, SCAN
 
 
 @dataclass
@@ -243,15 +243,36 @@ def daily_override_active(mode: str | None, override_date: str | None, today: st
     return bool(override_date) and str(override_date) == str(today)
 
 
+def established_size_scale(age_minutes: float | None) -> float:
+    """Ticket multiplier for a pool past the launch age gate (1.0 = full size).
+
+    Returns ``ESTABLISHED["size_scale"]`` for an over-age pool when the lane is
+    on, else 1.0. Unknown age (None) sizes normally: refusing to guess is safer
+    than halving a fresh launch by accident.
+    """
+    if age_minutes is None or not ESTABLISHED.get("enabled", False):
+        return 1.0
+    if age_minutes <= SCAN["max_age_hours"] * 60:
+        return 1.0
+    return float(ESTABLISHED.get("size_scale", 1.0))
+
+
 def check_token_trade(thesis, account: Account, liquidity_usd: float,
                       now: datetime | None = None,
                       stop_pct: float | None = None,
-                      daily_override: bool = False) -> tuple[bool, float, str]:
+                      daily_override: bool = False,
+                      age_minutes: float | None = None) -> tuple[bool, float, str]:
     """Return (approved, ticket_usd, reason). stop_pct = the stop of the profile this trade will use.
 
     `daily_override` skips ONLY the daily-loss halt (paper, today, operator tapped
     Continue). Every other gate below still applies. check_live_trade has no
     such parameter: live can never bypass its daily loss limit.
+
+    `age_minutes` lets the sizing know the pool is in the established lane (an
+    over-age pool that still looks alive). Those get ``ESTABLISHED["size_scale"]``
+    of the normal ticket: an old pool's 20% dip is a pullback in a mature range,
+    not a launch shakeout, so a bad read there should cost less. None = unknown
+    age, which sizes normally rather than guessing.
     """
     if daily_loss_hit(account) and not daily_override:
         return False, 0.0, DAILY_LOSS_REASON
@@ -269,6 +290,11 @@ def check_token_trade(thesis, account: Account, liquidity_usd: float,
     by_size = RISK["max_position_pct"] * base
     by_pool = RISK["max_pool_share"] * liquidity_usd
     ticket = round(min(by_risk, by_size, by_pool), 2)
+    # Established lane: an over-age pool trades at a reduced ticket. Applied
+    # BEFORE the cash/floor caps so the halved size is what those caps judge.
+    scale = established_size_scale(age_minutes)
+    if scale < 1.0:
+        ticket = round(ticket * scale, 2)
     # Paper cash cap. max_position_pct is a per-position cap, not a total: six
     # positions at 25% of equity is 150% of the book, which drove paper cash to
     # -$50 and made the paper P&L meaningless. Cash is the fourth cap.

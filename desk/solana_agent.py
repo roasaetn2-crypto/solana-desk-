@@ -776,7 +776,8 @@ class SolanaAgent:
                                          if self.broker is self.paper else None))
                     ok, ticket, reason = check_token_trade(th, acct, t["liquidity_usd"],
                                                            stop_pct=stop,
-                                                           daily_override=self.daily_override_today())
+                                                           daily_override=self.daily_override_today(),
+                                                           age_minutes=t.get("age_minutes"))
                     sizes = {**sizing_breakdown(acct, t["liquidity_usd"], stop),
                              "horizon": horizon, "stop_pct": stop,
                              "sizing_base": round(acct.realized_equity, 2)}

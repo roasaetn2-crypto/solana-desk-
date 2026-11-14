@@ -23,7 +23,7 @@ from datetime import datetime
 
 import requests
 
-from config import SCAN, SCAN_FETCH
+from config import ESTABLISHED, SCAN, SCAN_FETCH
 
 log = logging.getLogger("desk.scanner")
 
@@ -648,7 +648,7 @@ def _absorb_jup(body, now: float, source: str = "jupiter") -> int:
     rows = body if isinstance(body, list) else []
     _remember_jup(rows, now)
     n = 0
-    max_age_min = SCAN["max_age_hours"] * 60
+    max_age_min = age_cut_minutes()
     for row in rows:
         t = _keep(parse_jup_token(row, source))
         # The trending lists are mostly months-old tokens; the age cut would reject them
@@ -740,7 +740,7 @@ def _absorb_gt(body: dict, now: float, age_cut: bool = False) -> int:
         return 0
     symbols = {i["id"]: i["attributes"].get("symbol", "?")
                for i in body.get("included", []) if i.get("type") == "token"}
-    max_age_min = SCAN["max_age_hours"] * 60
+    max_age_min = age_cut_minutes()
     n = 0
     for pool in body.get("data") or []:
         t = _keep(parse_pool(pool, symbols))
@@ -922,9 +922,42 @@ def new_tokens(session: requests.Session | None = None) -> list[dict]:
     return tokens
 
 
+def established_ok(t: dict) -> bool:
+    """Is an over-age pool still alive enough to trade in the established lane?
+
+    Only called for pools past ``SCAN["max_age_hours"]``. The floors are stricter
+    than the launch floors on purpose: age is being forgiven, so depth and real
+    activity have to earn it back. A dead 5-day-old launch fails all three.
+    """
+    if not ESTABLISHED.get("enabled", False):
+        return False
+    age = t.get("age_minutes")
+    if age is None or age > ESTABLISHED["max_age_hours"] * 60:
+        return False
+    return (t.get("liquidity_usd", 0) >= ESTABLISHED["min_liquidity_usd"]
+            and t.get("volume_h1", 0) >= ESTABLISHED["min_volume_h1_usd"]
+            and (t.get("buys_h1", 0) + t.get("sells_h1", 0)) >= ESTABLISHED["min_trades_h1"])
+
+
+def age_cut_minutes() -> float:
+    """The widest age (in minutes) that may ENTER the candidate pool.
+
+    The launch cut, widened to the established lane's cap when that lane is on.
+    Used by the feed absorbers so an old-but-alive pool is not dropped before
+    ``free_kill`` ever sees it -- otherwise the lane would be unreachable and the
+    desk would look like it was trading it while silently discarding every pool.
+    """
+    cut = SCAN["max_age_hours"] * 60
+    if ESTABLISHED.get("enabled", False):
+        cut = max(cut, ESTABLISHED["max_age_hours"] * 60)
+    return cut
+
+
 def free_kill(t: dict) -> str | None:
     """Pass one. Pure arithmetic on data we already hold. Returns the failed check or None."""
-    if not SCAN["min_age_minutes"] <= t["age_minutes"] <= SCAN["max_age_hours"] * 60:
+    if t["age_minutes"] < SCAN["min_age_minutes"]:
+        return "age"
+    if t["age_minutes"] > SCAN["max_age_hours"] * 60 and not established_ok(t):
         return "age"
     if t["liquidity_usd"] < SCAN["min_liquidity_usd"]:
         return "liquidity"

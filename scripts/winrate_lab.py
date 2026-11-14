@@ -121,8 +121,19 @@ def gate_ok(row, gate_set: str) -> bool:
     if chg1h is not None and chg1h * 100.0 > S["max_h1_change_pct"]:
         return False
     age = _age_min(a.get("created_at"), candles[i]["ts"])
-    if age is not None and not (S["min_age_minutes"] <= age <= S["max_age_hours"] * 60):
-        return False
+    if age is not None:
+        if age < S["min_age_minutes"]:
+            return False
+        if age > S["max_age_hours"] * 60:
+            # The established lane. Kept in lock-step with desk/scanner.free_kill
+            # by calling the same helper, so the lab can never measure a
+            # population the live desk would refuse (or vice versa).
+            from desk.scanner import established_ok
+            if not established_ok({"age_minutes": age, "liquidity_usd": liq,
+                                   "volume_h1": a.get("vol_h1"),
+                                   "buys_h1": a.get("buys_h1"),
+                                   "sells_h1": a.get("sells_h1")}):
+                return False
     if gate_set == "scan":
         return True
     buys, sells = _num(a.get("buys_h1")), _num(a.get("sells_h1"))
@@ -199,6 +210,7 @@ def build_rows(paths: list[dict]) -> list[dict]:
             if p["candles"] is r["candles"]:
                 r["pool_id"] = p.get("address") or p.get("name")
                 r["attrs"] = {"liq": p.get("liq"), "mcap": p.get("mcap"),
+                              "vol_h1": p.get("vol_h1"),
                               "buys_h1": p.get("buys_h1"),
                               "sells_h1": p.get("sells_h1"),
                               "buyers_h1": p.get("buyers_h1"),
@@ -208,18 +220,31 @@ def build_rows(paths: list[dict]) -> list[dict]:
 
 
 def precompute(rows: list[dict]) -> dict:
-    """For every row and every (plan, stop): the forward return once."""
+    """For every row and every (plan, stop): the forward return once.
+
+    The live pullback package is switched OFF for the duration. ``exit_rules.profile``
+    applies ``meme_tactics.exit_overrides()`` AFTER the caller's overrides, so with
+    the package live every plan in PLANS would be silently rewritten to the one
+    promoted ladder -- the sweep would print five identical rows and look like the
+    plans made no difference. The lab exists to compare plans, so it must own the
+    ladder it is testing.
+    """
     table: dict[tuple[str, float], list[float]] = {}
-    for plan_name, over in PLANS.items():
-        for stop in STOPS:
-            rets = []
-            for r in rows:
-                ov = dict(over)
-                ov["stop_pct"] = stop
-                prof = exit_rules.profile(r["horizon"], overrides=ov)
-                t = simulate(r["candles"], r["idx"], r["horizon"], prof=prof)
-                rets.append(t["ret_pct"] if t else 0.0)
-            table[(plan_name, stop)] = rets
+    saved = config.MEME.get("pullback_entry")
+    config.MEME["pullback_entry"] = False
+    try:
+        for plan_name, over in PLANS.items():
+            for stop in STOPS:
+                rets = []
+                for r in rows:
+                    ov = dict(over)
+                    ov["stop_pct"] = stop
+                    prof = exit_rules.profile(r["horizon"], overrides=ov)
+                    t = simulate(r["candles"], r["idx"], r["horizon"], prof=prof)
+                    rets.append(t["ret_pct"] if t else 0.0)
+                table[(plan_name, stop)] = rets
+    finally:
+        config.MEME["pullback_entry"] = saved
     return table
 
 
