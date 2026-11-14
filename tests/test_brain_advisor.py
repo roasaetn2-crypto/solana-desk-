@@ -562,7 +562,13 @@ class Advisory(unittest.TestCase):
         fake = {"symbol": "GOOD", "verdict": verdict, "confidence": 99, "advisory_only": True,
                 "opinions": {}, "agreement": "agree"}
         # this test is about the ENTRY review path, which is off by default now
-        env = {"GEMINI_API_KEY": GKEY, "GROQ_API_KEY": QKEY, "BRAIN_ADVISE_ON": "entry"}
+        # BRAIN_SIZER_ON=0: the sizer reads the same GROQ_API_KEY, so with a fake
+        # key it was making a REAL http call to api.groq.com on every run. That
+        # made `sizes` depend on the network: one run recorded "http_401", the
+        # next recorded "budget" once the daily counter tripped, and the
+        # buy/skip comparison failed. Offline and deterministic is the point.
+        env = {"GEMINI_API_KEY": GKEY, "GROQ_API_KEY": QKEY, "BRAIN_ADVISE_ON": "entry",
+               "BRAIN_SIZER_ON": "0"}
         with mock.patch.dict(os.environ, env), \
                 mock.patch.object(ADVISOR, "review", return_value=fake):
             ADVISOR.new_cycle()

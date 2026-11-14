@@ -71,7 +71,7 @@ from desk.ops import KILL_FILE, load_env
 # desk kept calling the slow default model. Import order is load-bearing here.
 load_env()
 
-from desk import devices, keepalive, meme_tactics, pumpportal  # noqa: E402
+from desk import devices, keepalive, meme_tactics, pumpportal, store  # noqa: E402
 from desk.solana_agent import SolanaAgent  # noqa: E402
 from desk.store import restore as restore_store  # noqa: E402
 from desk.intent import maybe_autostart  # noqa: E402
@@ -351,6 +351,10 @@ def health():
         # out whether the desk is running the config you just pushed. Geometry
         # only: no keys, no positions, nothing that changes state.
         "exits": meme_tactics.ladder_info(),
+        # Whether this *process* actually saw the Turso vars and built the
+        # schema. The Environment tab cannot tell you that; this can. Cheap:
+        # no network, just the result of the boot-time restore.
+        "store": store.status(),
         "running": agent.running,
         "cycle": agent.cycle_no,
         "pumpportal": {
@@ -365,6 +369,23 @@ def health():
         "ai": _ai_health(),
         "desk": _desk_health(),
     }
+
+
+@app.get("/api/store")
+def store_probe():
+    """One real Turso round trip: which tables exist, how many journal rows.
+
+    /api/health can only say the vars were seen by this process. This is the
+    call that proves the token is accepted and the schema is actually there --
+    an empty database and a working one are indistinguishable from the outside
+    without it. Unauthenticated for the same reason /api/health is: you cannot
+    check your own deployment if checking it requires the token you are trying
+    to verify. Table names and row counts only; no rows, no keys.
+
+    Cached for 30s inside store.probe() so this cannot be used to burn the
+    free tier's quota with a loop.
+    """
+    return JSONResponse(store.probe(), headers={"Cache-Control": "no-store, max-age=0"})
 
 
 def _desk_health() -> dict:

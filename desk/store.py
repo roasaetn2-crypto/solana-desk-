@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -23,6 +24,14 @@ from desk.ops import data_file
 
 _lock = threading.Lock()
 _ready = False
+# What the last boot-time restore did, and when. Reported by status() so
+# "persistence is on" is a measurement from the live box rather than a guess
+# made from the Environment tab. Cheap: no network, just the last result.
+_last: dict = {"at": None, "pulled": [], "pushed": [], "error": None}
+# probe() hits Turso, so it is cached: an unauthenticated endpoint that does a
+# round trip per call is a free way to burn someone else's quota.
+_probe_cache: dict = {"at": 0.0, "body": None}
+PROBE_TTL_S = 30.0
 # Injected in tests. Signature: (pipeline_url, token, payload) -> (status_code, body_dict)
 _poster: Callable[[str, str, dict], tuple[int, dict]] | None = None
 
@@ -190,9 +199,11 @@ def _ensure() -> bool:
 
 
 def reset_runtime() -> None:
-    """Tests only: drop the cached schema flag."""
+    """Tests only: drop the cached schema flag and the cached probe."""
     global _ready
     _ready = False
+    _probe_cache.update(at=0.0, body=None)
+    _last.update(at=None, pulled=[], pushed=[], error=None)
 
 
 def put_kv(key: str, value: str) -> None:
@@ -317,12 +328,14 @@ def restore() -> dict:
     """
     out = {"configured": configured() or _poster is not None, "pulled": [], "pushed": []}
     if not out["configured"]:
+        _last.update(at=time.time(), pulled=[], pushed=[], error="not configured")
         return out
     try:
         _ensure()
     except Exception as e:
         print(f"[desk] store: restore skipped ({_redact(str(e))})")
         out["error"] = "unavailable"
+        _last.update(at=time.time(), pulled=[], pushed=[], error="unavailable")
         return out
 
     # journal
@@ -358,7 +371,82 @@ def restore() -> dict:
               f"(pushed {', '.join(out['pushed']) or 'nothing'})")
     else:
         print("[desk] store: connected, no history to restore yet")
+    _last.update(at=time.time(), pulled=list(out["pulled"]),
+                 pushed=list(out["pushed"]), error=out.get("error"))
     return out
+
+
+def _host() -> str | None:
+    """The database host, never the full URL: the org slug is identifying."""
+    raw = database_url()
+    if not raw:
+        return None
+    try:
+        return urlparse(pipeline_url(raw)).hostname
+    except Exception:
+        return None
+
+
+def status() -> dict:
+    """Whether persistence is wired up, and what the boot restore managed.
+
+    No network. This answers the question the Environment tab cannot: the vars
+    are set, but did this *process* see them and did the schema get created?
+    `tables_ready` is the load-bearing field -- an empty database that was
+    never touched looks identical to a working one from the outside.
+    """
+    cfg = configured()
+    return {
+        "configured": cfg,
+        "host": _host(),
+        "token_present": bool(auth_token()),
+        "tables_ready": bool(_ready),
+        "last_restore_at": _last["at"],
+        "last_restore_error": _last["error"],
+        "pulled": list(_last["pulled"]),
+        "pushed": list(_last["pushed"]),
+        "journal_rows_local": _local_journal_rows(),
+    }
+
+
+def _local_journal_rows() -> int:
+    try:
+        p = data_file("journal.jsonl")
+        if not p.exists():
+            return 0
+        with p.open("r", encoding="utf-8") as f:
+            return sum(1 for line in f if line.strip())
+    except Exception:
+        return 0
+
+
+def probe() -> dict:
+    """One real round trip: which tables exist and how many journal rows.
+
+    This is the only call that proves the token is accepted *and* the schema is
+    there. Cached for PROBE_TTL_S because it is reachable without a token.
+    """
+    if not configured() and _poster is None:
+        return {"configured": False, "ok": False, "error": "not configured"}
+    now = time.time()
+    if _probe_cache["body"] is not None and now - _probe_cache["at"] < PROBE_TTL_S:
+        return {**_probe_cache["body"], "cached": True}
+    body: dict = {"configured": True, "host": _host(), "ok": False}
+    try:
+        names = [r["name"] for r in execute(
+            "select name from sqlite_master where type='table' order by name")["rows"]]
+        rows = None
+        try:
+            got = execute("select count(*) as n from journal")["rows"]
+            rows = got[0]["n"] if got else 0
+        except Exception:
+            rows = None  # table missing: schema not created yet
+        body.update(ok=True, tables=names, journal_rows_remote=rows,
+                    schema_ready=("journal" in names and "kv" in names))
+    except Exception as e:
+        body["error"] = _redact(str(e))
+    _probe_cache.update(at=now, body=body)
+    return {**body, "cached": False}
 
 
 def sync_kv_file(key: str, path: Path | None = None) -> None:
