@@ -10,8 +10,9 @@
 // coin that is a one-way ticket to zero.
 //
 // Backtested on 10 Solana pools x 3 timeframes (see BACKTEST_G87E_REPORT.md):
-//   original: 2617 trades, 27% win rate, mean -29.7% per run, 8/22 profitable
-//   fixed:    see the report - the point is that it stops bleeding first.
+//   original: 2658 trades, 27.9% win rate, mean -28.2% per run, 9/23 green
+//   fixed+tuned: 805 trades, 39.5% win rate, mean -8.1% per run (majors still
+//   have no edge; fresh memes +7.9% median). See BACKTEST_G87E_REPORT.md.
 //
 // Commission is set to 0.35% per side to model 0.05% fee + 0.30% slippage,
 // because Pine's `slippage` input is in ticks and ticks are meaningless on a

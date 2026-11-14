@@ -1,0 +1,32 @@
+//@version=6
+strategy("G87E parametrized", overlay=true, pyramiding=1, process_orders_on_close=true, commission_type=strategy.commission.percent, commission_value=0.05, initial_capital=50, default_qty_type=strategy.percent_of_equity, default_qty_value=100, margin_long=100, margin_short=100)
+
+liveMode = input.bool(false, "Live-modus (aan = qty o.b.v. actueel vermogen, uit = qty o.b.v. startkapitaal)", group="Modus")
+
+atrLen = input.int(14, "ATR Length", minval=7, maxval=30)
+riskPct = input.float(1.0, "Risk %", minval=0.25, maxval=3.0, step=0.25)
+stopMult = input.float(1.5, "Stop ATR Multiple", minval=0.5, maxval=4.0, step=0.25)
+trailMult = input.float(0.2, "Trail ATR Multiple", minval=0.1, maxval=2.0, step=0.1)
+maxBars = input.int(5, "Max Bars In Trade", minval=2, maxval=20)
+
+atr = ta.atr(atrLen)
+riesgo = riskPct / 100
+refEquity = (liveMode and barstate.isrealtime) ? strategy.equity : 50.0
+crudo = (refEquity * riesgo) / (atr * stopMult)
+tope = refEquity * 0.90 / close
+tam = math.round(math.min(crudo, tope) * 1000) / 1000
+
+var int abierto = na
+if (close > close[3] or close > close[12] or close > close[30]) and strategy.position_size == 0
+    strategy.entry("L", strategy.long, qty=tam)
+    abierto := bar_index
+if (close < close[3] or close < close[12] or close < close[30]) and strategy.position_size == 0
+    strategy.entry("S", strategy.short, qty=tam)
+    abierto := bar_index
+
+strategy.exit("LX", from_entry="L", loss=(atr*stopMult)/syminfo.mintick, trail_points=(atr*trailMult)/syminfo.mintick, trail_offset=(atr*trailMult)/syminfo.mintick)
+strategy.exit("SX", from_entry="S", loss=(atr*stopMult)/syminfo.mintick, trail_points=(atr*trailMult)/syminfo.mintick, trail_offset=(atr*trailMult)/syminfo.mintick)
+
+if strategy.position_size != 0 and not na(abierto) and bar_index - abierto >= maxBars
+    strategy.close_all()
+    abierto := na
