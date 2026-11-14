@@ -53,7 +53,7 @@ You can also use **Add to Home Screen** and it behaves like a real app (full
 screen, own icon, no browser bar).
 
 > **Full step-by-step, with screenshots-level detail and a troubleshooting
-> table: [ANDROID.md](ANDROID.md).** That file also covers running the desk on
+> table: [ANDROID.md](docs/guides/ANDROID.md).** That file also covers running the desk on
 > the phone itself with Termux, and reaching it from outside your Wi-Fi.
 
 > If the phone can't reach it, your laptop firewall is blocking port 8000.
@@ -199,4 +199,4 @@ yourself. If you never do that, there is no wallet and no code path that can mov
 real money. That is deliberate.
 
 For the full Android walkthrough — three routes, the Termux rust gotcha, and a
-troubleshooting table — see **[ANDROID.md](ANDROID.md)**.
+troubleshooting table — see **[ANDROID.md](docs/guides/ANDROID.md)**.

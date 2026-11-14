@@ -109,7 +109,7 @@ say ""
 say "=== 3. are the new files actually here? ==="
 for f in desk/signal_engine.py desk/signal_backtest.py \
          scripts/backtest_signals.py tests/test_signal_engine.py \
-         BACKTEST_SIGNALS_REPORT.md; do
+         docs/research/BACKTEST_SIGNALS_REPORT.md; do
   [ -f "$f" ] && ok "$f" || bad "$f"
 done
 
@@ -202,7 +202,7 @@ say ""
 say "=== 4f. Groq size sizer + the live-mode guard fix ==="
 [ -f desk/groq_sizer.py ] && ok "desk/groq_sizer.py present (shrink-only size multiplier)" || bad "desk/groq_sizer.py missing"
 [ -f tests/test_groq_sizer.py ] && ok "tests/test_groq_sizer.py present" || bad "tests/test_groq_sizer.py missing"
-[ -f GUARD-LIVE.md ] && ok "GUARD-LIVE.md present (the line-551 write-up)" || bad "GUARD-LIVE.md missing"
+[ -f docs/reference/GUARD-LIVE.md ] && ok "docs/reference/GUARD-LIVE.md present (the line-551 write-up)" || bad "docs/reference/GUARD-LIVE.md missing"
 grep -q "MAX_MULT = 1.00" desk/groq_sizer.py && ok "sizer is capped at 1.00x (can never grow a ticket)" || bad "desk/groq_sizer.py missing the 1.00x cap"
 grep -q "groq_sizer" desk/solana_agent.py && ok "agent calls the sizer" || bad "desk/solana_agent.py not wired to groq_sizer"
 # the line-551 fix: the old paper-only gate must be GONE

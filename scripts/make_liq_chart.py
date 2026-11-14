@@ -2,8 +2,9 @@ import json
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import _paths as _p  # noqa: E402
 
-tiers = json.load(open("liq_tiers.json"))
+tiers = json.loads(_p.read("liq_tiers.json").read_text())
 # add the true unfiltered baseline from the first run
 baseline = {"label": "No filter\n(all pools)", "win_rate": 13.0, "rug_pct": 81.0, "n": 100}
 rows = [baseline]
@@ -40,5 +41,5 @@ ax2.set_ylabel("rug %"); ax2.set_ylim(0, max(rug)*1.2)
 ax2.spines[["top","right"]].set_visible(False)
 
 plt.tight_layout(rect=[0,0,1,0.93])
-plt.savefig("liq_comparison.png", dpi=130, bbox_inches="tight")
+plt.savefig(_p.out("liq_comparison.png"), dpi=130, bbox_inches="tight")
 print("saved liq_comparison.png")

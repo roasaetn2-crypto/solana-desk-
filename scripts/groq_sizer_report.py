@@ -19,6 +19,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import _paths as _p  # noqa: E402
 
 from desk import groq_sizer  # noqa: E402
 
@@ -48,7 +49,7 @@ def main() -> int:
               f"Treat any pattern here as noise until they fill in.")
     print("\nconfig: BRAIN_SIZER_ON=0 disables the layer entirely.")
     print("        BRAIN_SIZER_BUDGET caps calls/day (default 40).")
-    json.dump(res, open("groq_sizer_report.json", "w"), indent=1)
+    json.dump(res, open(_p.out("groq_sizer_report.json"), "w"), indent=1)
     print("wrote groq_sizer_report.json")
     return 0
 

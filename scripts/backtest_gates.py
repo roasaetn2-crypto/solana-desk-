@@ -67,6 +67,7 @@ import requests
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+import _paths as _p  # noqa: E402  artifact paths from the repo root
 
 import config  # noqa: E402
 from desk import exits, meme  # noqa: E402
@@ -800,14 +801,14 @@ def main() -> int:
 
     pf = sub.add_parser("fetch", help="pull pools + OHLCV from GeckoTerminal")
     pf.add_argument("--pools", type=int, default=400)
-    pf.add_argument("--cache", default="backtest_cache.json")
+    pf.add_argument("--cache", default=_p.out("backtest_cache.json"))
     pf.add_argument("--append", action="store_true",
                     help="add to an existing cache instead of replacing it")
     pf.set_defaults(func=cmd_fetch)
 
     pr = sub.add_parser("run", help="replay the cache offline")
-    pr.add_argument("--cache", default="backtest_cache.json")
-    pr.add_argument("--out", default="backtest_gates.json")
+    pr.add_argument("--cache", default=_p.out("backtest_cache.json"))
+    pr.add_argument("--out", default=_p.out("backtest_gates.json"))
     pr.set_defaults(func=cmd_run)
 
     args = ap.parse_args()

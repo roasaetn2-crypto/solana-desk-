@@ -31,6 +31,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+import _paths as _p  # noqa: E402  artifact paths from the repo root
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from desk import exits as exit_rules  # noqa: E402
@@ -269,7 +270,7 @@ def main() -> int:
     ap.add_argument("--bar-minutes", type=int, default=5)
     ap.add_argument("--step", type=int, default=2)
     ap.add_argument("--offline", action="store_true")
-    ap.add_argument("--out", default="meme_tactics.json")
+    ap.add_argument("--out", default=_p.out("meme_tactics.json"))
     args = ap.parse_args()
 
     cache = ROOT / "data" / "indicator_paths.json"

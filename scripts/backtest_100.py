@@ -24,6 +24,7 @@ import requests
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+import _paths as _p  # noqa: E402  artifact paths from the repo root
 
 import config  # noqa: E402
 from desk import exits  # noqa: E402
@@ -139,7 +140,7 @@ def simulate_trade(candles: list[dict], horizon: str) -> dict | None:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--trades", type=int, default=100)
-    ap.add_argument("--out", default="backtest_100.json")
+    ap.add_argument("--out", default=_p.out("backtest_100.json"))
     ap.add_argument("--timeframe", default="minute")
     ap.add_argument("--aggregate", type=int, default=5)
     args = ap.parse_args()

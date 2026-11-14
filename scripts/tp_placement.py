@@ -19,6 +19,7 @@ import statistics as st
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import _paths as _p  # noqa: E402
 
 from desk import g87e  # noqa: E402
 
@@ -148,7 +149,7 @@ def main():
            "rungs": {f"{m}x": {"reach_pct": round(sum(1 for r in rows if r.get("mfe24", -999) >= (m-1)*100)/len(rows)*100, 2),
                                "survive_pct": round(sum(1 for r in rows if r.get("mfe24", -999) >= (m-1)*100 and not r.get("stopped24"))/len(rows)*100, 2)}
                      for m in RUNGS}}
-    json.dump(out, open("tp_placement.json", "w"), indent=1)
+    json.dump(out, open(_p.out("tp_placement.json"), "w"), indent=1)
     print("\nwrote tp_placement.json")
     return 0
 

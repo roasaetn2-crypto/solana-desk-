@@ -145,4 +145,4 @@ Tested `desk/guard.py` (real code, replayable) and a volume-expansion gate (prox
 | + both | **−8.75%** | −5.86% | 2/12 | −0.346% | **9.6%** |
 
 Every pool improved; ten of twelve are still negative. The gates cut the bleed by
-roughly two-thirds and do not create an edge. Full write-up: [`GUARD-G87E.md`](GUARD-G87E.md).
+roughly two-thirds and do not create an edge. Full write-up: [`GUARD-G87E.md`](../reference/GUARD-G87E.md).

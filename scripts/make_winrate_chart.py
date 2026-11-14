@@ -2,8 +2,9 @@ import json
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import _paths as _p  # noqa: E402
 
-d = json.load(open("winrate_lab.json"))
+d = json.loads(_p.read("winrate_lab.json").read_text())
 
 
 def find(g, pb, plan, stop):
@@ -75,5 +76,5 @@ fig.text(0.5, 0.01,
          "Survives dropping any single pool (worst 58.5% win, PF 2.71).",
          ha="center", fontsize=9, style="italic")
 plt.tight_layout(rect=[0, 0.04, 1, 0.96])
-plt.savefig("winrate_summary.png", dpi=150)
+plt.savefig(_p.out("winrate_summary.png"), dpi=150)
 print("wrote winrate_summary.png")

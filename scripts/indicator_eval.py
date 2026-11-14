@@ -20,6 +20,7 @@ import requests
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+import _paths as _p  # noqa: E402  artifact paths from the repo root
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from desk import indicator_backtest as ib  # noqa: E402
@@ -144,7 +145,7 @@ def main() -> int:
     ap.add_argument("--offline", action="store_true")
     ap.add_argument("--reuse", action="store_true",
                     help="reuse the cached real candle paths instead of re-fetching")
-    ap.add_argument("--out", default="indicator_eval.json")
+    ap.add_argument("--out", default=_p.out("indicator_eval.json"))
     args = ap.parse_args()
 
     cache = ROOT / "data" / "indicator_paths.json"

@@ -16,6 +16,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+import _paths as _p  # noqa: E402  artifact paths from the repo root
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from backtest_100 import fetch_ohlcv  # noqa: E402
@@ -24,11 +25,11 @@ from backtest_100 import fetch_ohlcv  # noqa: E402
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--min-liq", type=float, default=50000)
-    ap.add_argument("--cache", default="ohlcv_cache.json")
+    ap.add_argument("--cache", default=_p.out("ohlcv_cache.json"))
     ap.add_argument("--max-pools", type=int, default=140)
     args = ap.parse_args()
 
-    pools = json.load(open("pools_cache.json"))
+    pools = json.loads(_p.read("pools_cache.json").read_text())
     pools = [p for p in pools if (p.get("liquidity") or 0) >= args.min_liq]
     pools.sort(key=lambda p: -(p.get("liquidity") or 0))
     pools = pools[: args.max_pools]

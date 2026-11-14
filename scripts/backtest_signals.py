@@ -29,6 +29,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+import _paths as _p  # noqa: E402  artifact paths from the repo root
 
 import config  # noqa: E402
 from desk import signal_backtest  # noqa: E402
@@ -175,8 +176,8 @@ def print_report(report: dict, source: str) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--trades", type=int, default=120, help="number of candle paths")
-    ap.add_argument("--out", default="backtest_signals.json")
-    ap.add_argument("--chart", default="backtest_signals.svg")
+    ap.add_argument("--out", default=_p.out("backtest_signals.json"))
+    ap.add_argument("--chart", default=_p.out("backtest_signals.svg"))
     ap.add_argument("--timeframe", default="minute")
     ap.add_argument("--aggregate", type=int, default=5)
     ap.add_argument("--bar-minutes", type=int, default=5)

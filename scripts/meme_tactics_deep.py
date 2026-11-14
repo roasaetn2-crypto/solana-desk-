@@ -23,6 +23,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+import _paths as _p  # noqa: E402  artifact paths from the repo root
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from desk import exits as exit_rules  # noqa: E402
@@ -63,7 +64,7 @@ def sweep(base: list[dict], baseline: dict) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--step", type=int, default=2)
-    ap.add_argument("--out", default="meme_tactics_deep.json")
+    ap.add_argument("--out", default=_p.out("meme_tactics_deep.json"))
     args = ap.parse_args()
 
     cache = ROOT / "data" / "indicator_paths.json"

@@ -5,8 +5,9 @@ import statistics
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import _paths as _p  # noqa: E402
 
-d = json.load(open("backtest_100.json"))
+d = json.loads(_p.read("backtest_100.json").read_text())
 t = d["trades_detail"]
 cap = 1000.0
 rets = [min(x["ret_pct"], cap) for x in t]
@@ -67,6 +68,6 @@ fig.text(0.5, 0.01,
          ha="center", fontsize=9, color="#555")
 
 plt.tight_layout(rect=[0, 0.04, 1, 0.95])
-out = "backtest_100.png"
+out = _p.out("backtest_100.png")
 plt.savefig(out, dpi=130, bbox_inches="tight")
 print("saved", out)

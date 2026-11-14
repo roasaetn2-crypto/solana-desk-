@@ -474,7 +474,7 @@ Open `http://localhost:8000`.
 prefer those unless you know why you want uvicorn directly.
 
 **On a phone?** There's a full walkthrough with three routes, the Termux rust
-gotcha, and a troubleshooting table in **[ANDROID.md](ANDROID.md)**.
+gotcha, and a troubleshooting table in **[ANDROID.md](docs/guides/ANDROID.md)**.
 
 ## The brain: use a free AI
 
@@ -867,8 +867,16 @@ solana-desk/
 ├── config.py               every threshold in one place
 ├── requirements.txt
 ├── requirements-live.txt   solders + base58, only for real-money signing
+├── render.yaml             Render blueprint (free plan, self-pinger)
 ├── START-HERE.md           zero-assumptions launch guide
-├── ANDROID.md              phone walkthrough (laptop, Termux, tunnel)
+├── QUICKSTART.md           the short version
+├── docs/
+│   ├── INDEX.md            every doc, grouped by the question it answers
+│   ├── guides/             Android, Termux, Render deployment
+│   ├── reference/          exit ladders, gates, AI seats, why-no-entry
+│   ├── research/           backtests and win-rate measurements
+│   └── changelog/          what changed, and the build log
+├── research/               generated artifacts (JSON, PNG, Pine) — regenerable
 ├── desk/
 │   ├── scanner.py          Seat 1 — GeckoTerminal new pools, free cuts, quotes
 │   ├── chain.py            Seat 2 — Solana RPC facts, real-wallet concentration
@@ -884,6 +892,7 @@ solana-desk/
 │   ├── dialogue.py         seat-to-seat transcript (template or model)
 │   ├── devices.py          paired-device registry (hashed tokens)
 │   ├── ops.py              journal, bench, alerts, kill switch
+│   ├── store.py            optional Turso persistence + /api/store probe
 │   ├── links.py            FOMO URLs (always r=romsq, never shortened)
 │   ├── chart.py            ticket OHLC (ticks + cached GeckoTerminal)
 │   └── solana_agent.py     the autonomous Solana agent
@@ -893,9 +902,15 @@ solana-desk/
 │   ├── app.js              live 2s polling, controls, pipeline viz
 │   ├── assets/cat-pixel/    pixel mascot (idle/scan/win/loss/sleep/trader)
 │   └── assets/              icons
-└── tests/
-    └── test_desk.py        95 offline tests
+├── scripts/                analysis tools; artifacts land in research/
+├── termux/                 phone helpers (start/stop/verify/keys)
+└── tests/                  offline test suite
 ```
+
+Docs used to sit in the repo root — thirty-six of them, next to `app.py`.
+They are now under `docs/`, indexed in **[docs/INDEX.md](docs/INDEX.md)**.
+Generated backtest output used to sit in the root too; `scripts/_paths.py`
+now writes it to `research/` no matter which directory you run from.
 
 ---
 

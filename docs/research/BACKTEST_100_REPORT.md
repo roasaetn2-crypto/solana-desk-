@@ -13,7 +13,7 @@
 >
 > The corrected analysis, with entry gating and a settings sweep on 101 real
 > pools, is in **[`BACKTEST_GATES_REPORT.md`](BACKTEST_GATES_REPORT.md)** and
-> [`backtest_gates.png`](backtest_gates.png). Read that instead. Everything below
+> [`backtest_gates.png`](../../research/backtest_gates.png). Read that instead. Everything below
 > is kept only so the error is on the record.
 
 **Repo:** `roasaetn2-crypto/solana-desk-` · **Data:** real GeckoTerminal Solana pool OHLCV (5-min candles) · **Rules:** your own `desk/exits.py` + PAPER fees (1%) & slippage (2%)

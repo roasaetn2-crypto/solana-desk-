@@ -6,14 +6,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+import _paths as _p  # noqa: E402
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import config  # noqa: E402
 from backtest_100 import simulate_trade  # noqa: E402
 from datetime import datetime  # noqa: E402
 
-pools = {p["address"]: p for p in json.load(open("pools_cache.json"))}
-cache = json.load(open("ohlcv_cache.json"))
+pools = {p["address"]: p for p in json.loads(_p.read("pools_cache.json").read_text())}
+cache = json.loads(_p.read("ohlcv_cache.json").read_text())
 
 
 def horizon_for(pool, candles):
@@ -72,5 +73,5 @@ for t in tiers:
     label = f">= ${t:,}" if t else "all"
     print(f"{label:>14} {r['n']:>7} {r['win_rate']:>6} {r['median']:>9} {r['mean']:>8} {str(r['pf']):>5} {r['rug_pct']:>6}")
 
-json.dump(results, open("liq_tiers.json", "w"), indent=2)
+json.dump(results, open(_p.out("liq_tiers.json"), "w"), indent=2)
 print("\nsaved liq_tiers.json")
