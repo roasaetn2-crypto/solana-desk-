@@ -130,3 +130,16 @@ rate. If it does not, do NOT add it to the desk.
 - [x] Negative check: flag removed -> 4 failures; flag restored -> green
 - [x] Fixed a real flake: test_verdict_never_changes_the_decision polled 2.5s for a background verdict
 - [x] 731 passed, 17 skipped, three consecutive runs
+
+# Diagnosis: "book is over its risk budget" while the desk is winning
+
+- [x] Traced the message to `risk.fit_risk_budget` -> `open_risk_usd`
+- [x] Found defect 1: open risk is measured `qty x (last - stop)`, so a WINNER's
+      risk grows as price rises. A +100% position alone exceeds the whole budget.
+- [x] Found defect 2: the guard `0 < stop < last` makes any position trading
+      below its stop contribute $0.00, so a gapped loser looks risk-free.
+- [x] Reproduced both on the real ledger (SWJ +27.7%: gate $0.714 vs actual $0.371)
+- [x] `scripts/risk_budget_paradox.py`: per-position gate-vs-actual, phone-runnable
+- [ ] Fix: measure from entry (`qty x max(0, entry - stop)`), keep the mark-based
+      number as a separate give-back metric
+- [ ] Tests + backtest control before touching the gate
