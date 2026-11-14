@@ -35,9 +35,31 @@ BRAIN_EXIT_LADDER=patient python3 app.py
 Resolution order is **env → config → `fast`**. An unknown name falls back to
 `fast` rather than raising, so a typo can never leave the desk without exits.
 
+Because env outranks the file, "I edited `config.py` and nothing changed" almost
+always means a stale `BRAIN_EXIT_LADDER` is set in the shell or in the host's
+environment variables. Ask the desk instead of guessing:
+
+```bash
+python3 scripts/which_ladder.py
+```
+
+It prints the ladder in force **and** which of the three sources won, and it
+works from any directory (it puts the repo root on `sys.path` itself), so it is
+safe to run from `~` on a phone:
+
+```
+requested   : patient   (from config.py MEME['exit_ladder'])
+active ladder
+  stop      : -30%
+  TP1       : +100%  sell 33%
+  TP2       : +200%  sell 50%
+  trail     : 20% off the high
+```
+
 ## What does not change
 
-- The default is still `fast`. This commit is inert until you choose otherwise.
+- `config.py` now ships `"exit_ladder": "patient"`. The code default is still
+  `fast`, so an empty config falls back to the old behaviour.
 - `pullback_entry: False` still disables the whole package, ladder included.
 - Nothing about entry selection changes. That is deliberate: the measurement says
   the ladder is *not* where your win rate lives.
