@@ -34,6 +34,7 @@ import math
 from config import EXITS, SIGNAL
 from desk import exits as exit_rules
 from desk import meme_tactics
+from desk import social
 
 # Human labels for the security flags the desk already produces.
 _BLOCK_FLAGS = {
@@ -409,6 +410,10 @@ def evaluate(token: dict, facts: dict | None = None, links: dict | None = None,
     # memecoin tactics from the public guide: entry gates can only remove a
     # BUY, and the pullback package swaps in its measured exit ladder.
     sig = meme_tactics.apply(sig, t, f)
+    # social attention, ticker-keyed: recorded on every signal so it can be
+    # measured against realised P&L. Never changes the action unless the
+    # measurement has cleared the bar and SOCIAL["gate"] is on.
+    sig = social.apply(sig, t, f)
     sig["signal"] = _signal_text(t.get("symbol") or t.get("mint", "?"), sig)
     sig["prompt"] = _prompt_text(t.get("symbol") or t.get("mint", "?"), sig)
     return sig

@@ -1,0 +1,160 @@
+{
+  "bar": {
+    "min_trades": 30,
+    "min_pools": 10,
+    "min_win_lift": 0.05,
+    "min_pf": 1.2
+  },
+  "baseline": {
+    "trades": 3629,
+    "win_rate": 0.1538,
+    "profit_factor": 0.503,
+    "source": "indicator_eval_fresh.json"
+  },
+  "groups": {
+    "boost": {
+      "mints": 22,
+      "paths": 12,
+      "result": {
+        "trades": 686,
+        "win_rate": 0.1735,
+        "wins": 119,
+        "avg_ret_pct": -5.45,
+        "total_ret_pct": -3739.03,
+        "profit_factor": 0.532,
+        "pools": 12,
+        "per_pool": [
+          {
+            "name": "ANYq8tEL",
+            "trades": 44,
+            "win_rate": 0.2045,
+            "profit_factor": 0.861,
+            "avg_ret_pct": -3.025
+          },
+          {
+            "name": "Cx3onEtJ",
+            "trades": 5,
+            "win_rate": 0.0,
+            "profit_factor": 0.0,
+            "avg_ret_pct": -6.879
+          },
+          {
+            "name": "ExxzYBTt",
+            "trades": 101,
+            "win_rate": 0.1485,
+            "profit_factor": 0.283,
+            "avg_ret_pct": -5.696
+          },
+          {
+            "name": "DWsutTNJ",
+            "trades": 15,
+            "win_rate": 0.1333,
+            "profit_factor": 0.15,
+            "avg_ret_pct": -24.613
+          },
+          {
+            "name": "9cmXfuC2",
+            "trades": 24,
+            "win_rate": 0.0833,
+            "profit_factor": 0.086,
+            "avg_ret_pct": -21.236
+          },
+          {
+            "name": "2cfhWuib",
+            "trades": 20,
+            "win_rate": 0.2,
+            "profit_factor": 0.053,
+            "avg_ret_pct": -14.13
+          },
+          {
+            "name": "EjoWiu2P",
+            "trades": 8,
+            "win_rate": 0.125,
+            "profit_factor": 0.011,
+            "avg_ret_pct": -14.649
+          },
+          {
+            "name": "B2YpP21v",
+            "trades": 34,
+            "win_rate": 0.0,
+            "profit_factor": 0.0,
+            "avg_ret_pct": -26.666
+          },
+          {
+            "name": "HsprHxBR",
+            "trades": 183,
+            "win_rate": 0.2022,
+            "profit_factor": 0.256,
+            "avg_ret_pct": -6.423
+          },
+          {
+            "name": "NV2RYH95",
+            "trades": 109,
+            "win_rate": 0.0917,
+            "profit_factor": 0.216,
+            "avg_ret_pct": -8.39
+          },
+          {
+            "name": "8Xg89xT8",
+            "trades": 101,
+            "win_rate": 0.0495,
+            "profit_factor": 0.051,
+            "avg_ret_pct": -8.452
+          },
+          {
+            "name": "4W7BNgGs",
+            "trades": 42,
+            "win_rate": 0.8095,
+            "profit_factor": 10.43,
+            "avg_ret_pct": 50.777
+          }
+        ]
+      },
+      "verdict": "DO-NOT-ADD (win lift +2.0% < +5%; PF 0.532 < 1.20)"
+    },
+    "profile": {
+      "mints": 28,
+      "paths": 4,
+      "result": {
+        "trades": 70,
+        "win_rate": 0.5,
+        "wins": 35,
+        "avg_ret_pct": 18.732,
+        "total_ret_pct": 1311.25,
+        "profit_factor": 3.215,
+        "pools": 4,
+        "per_pool": [
+          {
+            "name": "22hXYVLh",
+            "trades": 25,
+            "win_rate": 0.36,
+            "profit_factor": 4.097,
+            "avg_ret_pct": 24.583
+          },
+          {
+            "name": "27oigFPt",
+            "trades": 14,
+            "win_rate": 0.7143,
+            "profit_factor": 13.624,
+            "avg_ret_pct": 44.126
+          },
+          {
+            "name": "DTvjmmYH",
+            "trades": 16,
+            "win_rate": 0.6875,
+            "profit_factor": 4.784,
+            "avg_ret_pct": 13.14
+          },
+          {
+            "name": "BRqhHDb5",
+            "trades": 15,
+            "win_rate": 0.3333,
+            "profit_factor": 0.546,
+            "avg_ret_pct": -8.754
+          }
+        ]
+      },
+      "verdict": "INSUFFICIENT (70 trades but only 4 independent pools, need 10)"
+    }
+  }
+}

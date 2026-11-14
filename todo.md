@@ -95,3 +95,26 @@ Guide: medium.com/@gwrx2005/building-a-high-profit-cryptocurrency-trading-bot-wi
 - [x] Smoke-run report on synthetic journal (PROMOTE path) + empty journal
 - [x] MEME_TACTICS.md section 6: what shadow mode does, how to read the verdict
 - [x] Commit + push
+
+# Task: Social reader (ticker-keyed attention, free, no keys)
+
+## Build
+- [x] desk/social.py: telegram previews + DexScreener boosts/profiles, no keys
+- [x] parse_telegram / ticker_pattern / count_mentions / score (pure, tested)
+- [x] config.py SOCIAL dict: enabled+shadow on, gate OFF, verified watchlist
+- [x] signal_engine: sig["social_pulse"] tagged on every evaluate()
+- [x] scripts/social_report.py: read any ticker by hand
+- [x] scripts/social_eval.py: measure attention vs forward returns
+
+## Measure (bar stated first: 30 trades, 10 pools, +5pp win, PF 1.20)
+- [x] boost group: 687 trades / 12 pools -> win 17.5% PF 0.539 -> DO-NOT-ADD
+- [x] profile group: 45 trades / 3 pools -> win 60.0% PF 2.850 -> INSUFFICIENT
+- [x] Caught my own error: first run said ADD on 3 pools. Added MIN_POOLS=10
+      to the bar so 3 coins cannot pass as 45 observations.
+- [x] Verdict: social gate stays OFF. It is a camera, not a gate.
+
+## Prove
+- [x] tests/test_social.py: 25 tests, all pass
+- [x] Full suite green: 798 passed, 17 skipped
+- [x] SOCIAL.md: sources, what works, the measurement, the honest limits
+- [x] Commit + push

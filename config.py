@@ -351,6 +351,33 @@ FOMO = {
     "thesis_only_for_finalists": True,
 }
 
+# ---------- social attention (ticker-keyed, free, no keys) ----------
+# The meme scorecard reads the token's NAME. This reads whether anyone is
+# talking about the TICKER right now. Sources: Telegram public previews
+# (t.me/s/<channel>) and DexScreener boosts/profiles. X/Twitter is not read --
+# no free tier, and scraping it breaks their terms.
+SOCIAL = {
+    "enabled": True,
+    # Record the pulse on every signal so it can be measured against realised
+    # P&L. This is a label, never a gate -- same rule as meme_tactics shadow.
+    "shadow": True,
+    # A dead pulse may only downgrade a BUY once the measurement clears the bar.
+    "gate": False,
+    "min_score": 10,
+    # Public channels with web preview enabled. Most big channels turn the
+    # preview off, so this list is the subset that actually works -- verified
+    # live, not guessed. The list is a watchlist, not an endorsement.
+    "channels": [
+        "binance_announcements",   # exchange listings: the loudest catalyst
+        "whale_alert",             # large transfers
+        "pumpfun",                 # new launches
+        "raydium",                 # Solana DEX pools
+    ],
+    "max_channels": 6,
+    "cache_s": 180,          # Telegram page cache
+    "dex_cache_s": 300,      # DexScreener boosts/profiles cache
+}
+
 # Timeframe must match how long you intend to hold (from the desk playbook card).
 HOLD_HORIZONS = [
     {"label": "fresh launch", "max_age_minutes": 60, "hold": "10-60 minutes",
