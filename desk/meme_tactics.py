@@ -119,6 +119,44 @@ def flags() -> dict:
     }
 
 
+def shadow_on() -> bool:
+    return bool(MEME.get("pullback_shadow", False))
+
+
+def shadow(token: dict | None = None, facts: dict | None = None) -> dict | None:
+    """What the pullback package WOULD have decided. Never blocks anything.
+
+    The package was measured on the *ungated* signal (15.4% baseline). The live
+    desk trades a fully-gated population where the gates already lift the win
+    rate to ~40%, so the +15pp may not survive the move. Rather than guess, the
+    desk records the pullback verdict on every candidate it actually trades and
+    compares the two groups once there are enough closed trades.
+
+    Returns None when shadow mode is off, otherwise:
+        {"would_block": bool, "why": str, "drop_pct": float|None,
+         "need_drop": float, "high_20": float|None}
+    """
+    if not shadow_on():
+        return None
+    t, f = token or {}, facts or {}
+    p = _num(t.get("price_usd"))
+    hi = _num(f.get("high_20", t.get("high_20")))
+    need = float(MEME.get("pullback_min_drop", PULLBACK_DROP))
+    if p is None or hi is None or hi <= 0 or p <= 0:
+        return {"would_block": False, "why": "unknown high", "drop_pct": None,
+                "need_drop": need, "high_20": hi}
+    off = 1.0 - p / hi
+    would = off < need
+    return {
+        "would_block": would,
+        "why": (f"at_high ({off*100:.1f}% below high, need {need*100:.0f}%)"
+                if would else f"pullback ({off*100:.1f}% below high)"),
+        "drop_pct": round(off, 4),
+        "need_drop": need,
+        "high_20": hi,
+    }
+
+
 def exit_overrides() -> dict:
     """Exit ladder that goes with the pullback package (empty when off)."""
     return dict(EXIT_OVERRIDES) if MEME.get("pullback_entry", False) else {}
@@ -144,6 +182,12 @@ def apply(sig: dict, token: dict | None = None, facts: dict | None = None) -> di
     signal chips.
     """
     t, f = token or {}, facts or {}
+    # Shadow verdict is recorded regardless of whether any tactic is enabled:
+    # it is a measurement, not a gate, so it must never change the outcome.
+    sh = shadow(t, f)
+    if sh is not None:
+        sig["tactic_shadow"] = sh
+
     on = flags()
     if not any(on.values()):
         return sig

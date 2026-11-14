@@ -78,3 +78,20 @@ Guide: medium.com/@gwrx2005/building-a-high-profit-cryptocurrency-trading-bot-wi
 ## Prove it
 - [x] Before/after table with real trade counts (MEME_TACTICS.md)
 - [x] Report to user
+
+# Task: Shadow mode (measure pullback on the real, gated book)
+
+## Build
+- [x] desk/meme_tactics.py: shadow_on() + shadow() -> would_block/why/drop_pct
+- [x] apply(): tag sig["tactic_shadow"] on every signal, never change action
+- [x] config.py: MEME["pullback_shadow"] = True (label only, not a gate)
+- [x] desk/solana_agent.py: fetch high_20 when shadow on; emit shadow=; count
+- [x] desk/broker.py: buy(meta=) stores verdict; sell() journals shadow_pnl row
+- [x] scripts/shadow_report.py: two-group table + 3-state verdict (bar stated first)
+
+## Prove
+- [x] tests/test_meme_tactics.py: 7 shadow tests (23 total in file) -> all pass
+- [x] Full suite green: 773 passed, 17 skipped
+- [x] Smoke-run report on synthetic journal (PROMOTE path) + empty journal
+- [x] MEME_TACTICS.md section 6: what shadow mode does, how to read the verdict
+- [x] Commit + push

@@ -14,6 +14,7 @@ from being quietly switched on, or the bar from being quietly moved.
 """
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -165,3 +166,95 @@ def test_atr_stop_is_clamped():
     assert meme_tactics.atr_stop_pct(0.001) == 0.08
     assert meme_tactics.atr_stop_pct(0.90) == 0.60
     assert meme_tactics.atr_stop_pct(None) is None
+
+
+# --------------------------------------------------------------------------- #
+# Shadow mode -- measure the rule on the real, gated population
+# --------------------------------------------------------------------------- #
+def test_shadow_is_none_when_off(monkeypatch):
+    from desk import meme_tactics
+    _with_flags(monkeypatch, pullback_shadow=False)
+    assert meme_tactics.shadow({"price_usd": 100.0}, {"high_20": 100.0}) is None
+
+
+def test_shadow_flags_a_chase_without_blocking(monkeypatch):
+    """A shadow verdict is a label, never a gate: action must not change."""
+    from desk import meme_tactics
+    _with_flags(monkeypatch, pullback_shadow=True, pullback_entry=False)
+    sh = meme_tactics.shadow({"price_usd": 100.0}, {"high_20": 100.0})
+    assert sh["would_block"] is True
+    assert sh["drop_pct"] == 0.0
+    out = meme_tactics.apply(_sig(), {"price_usd": 100.0}, {"high_20": 100.0})
+    assert out["action"] == "BUY"                     # still buys
+    assert out["tactic_shadow"]["would_block"] is True  # but is tagged
+
+
+def test_shadow_clears_a_real_dip(monkeypatch):
+    from desk import meme_tactics
+    _with_flags(monkeypatch, pullback_shadow=True)
+    sh = meme_tactics.shadow({"price_usd": 75.0}, {"high_20": 100.0})
+    assert sh["would_block"] is False
+    assert abs(sh["drop_pct"] - 0.25) < 1e-9
+
+
+def test_shadow_is_neutral_when_the_high_is_unknown(monkeypatch):
+    from desk import meme_tactics
+    _with_flags(monkeypatch, pullback_shadow=True)
+    sh = meme_tactics.shadow({"price_usd": 100.0}, {})
+    assert sh["would_block"] is False
+    assert sh["drop_pct"] is None
+    assert sh["why"] == "unknown high"
+
+
+def test_broker_journals_shadow_pnl_on_close(monkeypatch, tmp_path):
+    """A tagged BUY must leave a shadow_pnl row when it closes."""
+    monkeypatch.setenv("DESK_DATA_DIR", str(tmp_path))
+    from desk.broker import PaperBroker
+    b = PaperBroker(tmp_path / "ledger.json")
+    b.buy("MINT1", "MEME", 50.0, 1.0, horizon="scalp",
+          meta={"shadow_block": True, "shadow_why": "at_high", "shadow_drop": 0.02})
+    assert b.s["positions"]["MINT1"]["shadow_block"] is True
+    b.sell("MINT1", 1.0, 2.0, "take_profit")
+    rows = [json.loads(l) for l in (tmp_path / "journal.jsonl").read_text().splitlines() if l.strip()]
+    sh = [r for r in rows if r.get("kind") == "shadow_pnl"]
+    assert len(sh) == 1
+    assert sh[0]["shadow_block"] is True
+    assert sh[0]["shadow_why"] == "at_high"
+    assert sh[0]["pnl_usd"] > 0
+
+
+def test_shadow_report_reads_and_verdicts(monkeypatch, tmp_path):
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import shadow_report as sr
+
+    j = tmp_path / "journal.jsonl"
+    rows = []
+    for i in range(25):                       # allowed: wins
+        rows.append({"kind": "shadow_pnl", "shadow_block": False, "pnl_usd": 10.0})
+    for i in range(25):                       # blocked: losses
+        rows.append({"kind": "shadow_pnl", "shadow_block": True, "pnl_usd": -5.0})
+    rows.append({"kind": "signal", "action": "BUY"})   # ignored
+    j.write_text("\n".join(json.dumps(r) for r in rows))
+
+    loaded = sr.load_rows(j)
+    assert len(loaded) == 50
+    out = sr.report(loaded, source=str(j))
+    assert out["allowed"]["trades"] == 25
+    assert out["blocked"]["trades"] == 25
+    assert out["verdict"].startswith("PROMOTE TO GATE")
+
+
+def test_shadow_report_keeps_waiting_below_the_bar():
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import shadow_report as sr
+    few = {"trades": 5, "wins": 4, "win_rate": 0.8, "avg_pnl": 1.0,
+           "total_pnl": 5.0, "profit_factor": 4.0}
+    many = {"trades": 30, "wins": 5, "win_rate": 0.1, "avg_pnl": -1.0,
+            "total_pnl": -30.0, "profit_factor": 0.2}
+    assert sr.verdict(few, many).startswith("KEEP SHADOWING")
+    # both groups past the trade bar, but allowed is worse on both axes
+    worse = {"trades": 25, "wins": 5, "win_rate": 0.20, "avg_pnl": -0.5,
+             "total_pnl": -12.5, "profit_factor": 0.4}
+    better = {"trades": 25, "wins": 15, "win_rate": 0.60, "avg_pnl": 0.8,
+              "total_pnl": 20.0, "profit_factor": 1.9}
+    assert sr.verdict(better, worse).startswith("DELETE THE RULE")

@@ -210,7 +210,8 @@ class PaperBroker:
 
     # ---------- orders ----------
     def buy(self, mint: str, symbol: str, ticket_usd: float, price: float,
-            horizon: str = "swing", groq_mult: float | None = None) -> dict:
+            horizon: str = "swing", groq_mult: float | None = None,
+            meta: dict | None = None) -> dict:
         fill = price * (1 + PAPER["slippage_pct"])
         fee = ticket_usd * PAPER["fee_pct"]
         qty = (ticket_usd - fee) / fill
@@ -223,6 +224,10 @@ class PaperBroker:
             # against the multiplier that sized it. That join is the only way to
             # ever answer whether the model has ranking skill (groq_sizer.buckets).
             self.s["positions"][mint]["groq_mult"] = float(groq_mult)
+        if meta:
+            # Measurement tags (e.g. the pullback shadow verdict). Kept on the
+            # position so the close path can journal realised P&L against them.
+            self.s["positions"][mint].update(meta)
         exits.init_state(self.s["positions"][mint], horizon)
         self._save()
         return {"side": "buy", "mint": mint, "symbol": symbol, "qty": qty, "fill": fill,
@@ -287,6 +292,21 @@ class PaperBroker:
                     from desk.ops import journal
                     journal("groq_sizer_pnl", mint=mint, symbol=p.get("symbol"),
                             mult=float(p["groq_mult"]), pnl_usd=pnl, reason=reason,
+                            ticket_usd=p.get("cost"), entry=p.get("entry"),
+                            opened=p.get("opened"), closed=time.time())
+                except Exception:
+                    pass
+            if p.get("shadow_block") is not None:
+                # The shadow measurement: realised P&L tagged with what the
+                # pullback rule would have done. scripts/shadow_report.py reads
+                # these rows. Nothing here can change a trade -- it is a label.
+                try:
+                    from desk.ops import journal
+                    journal("shadow_pnl", mint=mint, symbol=p.get("symbol"),
+                            shadow_block=bool(p["shadow_block"]),
+                            shadow_why=p.get("shadow_why"),
+                            shadow_drop=p.get("shadow_drop"),
+                            pnl_usd=pnl, reason=reason,
                             ticket_usd=p.get("cost"), entry=p.get("entry"),
                             opened=p.get("opened"), closed=time.time())
                 except Exception:

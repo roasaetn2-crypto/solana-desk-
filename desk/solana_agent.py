@@ -120,7 +120,7 @@ class SolanaAgent:
         self.stats = {"cycles": 0, "seen": 0, "free_rejects": 0, "chain_rejects": 0,
                       "dev_rejects": 0, "meme_rejects": 0, "analyst_calls": 0,
                       "risk_rejects": 0, "sec_rejects": 0, "guard_rejects": 0, "floor_rejects": 0,
-                      "signal_rejects": 0,
+                      "signal_rejects": 0, "shadow_blocks": 0,
                       "entries": 0, "exits": 0, "dialogues": 0,
                       "errors": 0}
         self.equity_curve: deque = deque(maxlen=equity_curve.MAX_POINTS)
@@ -670,7 +670,8 @@ class SolanaAgent:
                 # when the operator switched the tactic on, so the default desk
                 # costs nothing extra and the rate-limited chart feed is not
                 # touched. Unknown high = neutral (never a veto).
-                if MEME.get("pullback_entry") and not t["mint"].startswith("DEMO"):
+                if (MEME.get("pullback_entry") or MEME.get("pullback_shadow")) \
+                        and not t["mint"].startswith("DEMO"):
                     try:
                         cs = candle_chart.series(t["mint"], session=self.session)
                         highs = [c.get("high") for c in (cs.get("candles") or [])[-20:]
@@ -847,7 +848,10 @@ class SolanaAgent:
                 self.emit("signal", sig["signal"], symbol=t["symbol"], mint=t["mint"],
                           action=sig["action"], direction=sig["direction"],
                           confidence=sig["confidence"], win_probability=sig["win_probability"],
-                          prompt=sig["prompt"])
+                          prompt=sig["prompt"], shadow=sig.get("tactic_shadow"))
+                sh = sig.get("tactic_shadow")
+                if sh and sh.get("would_block") and sig.get("action") == "BUY":
+                    self.stats["shadow_blocks"] += 1
 
                 if not ok:
                     self.stats["risk_rejects"] += 1
@@ -953,9 +957,15 @@ class SolanaAgent:
                       f"mcap ${t['mcap_usd']:,.0f} liq ${t['liquidity_usd']:,.0f}\n"
                       f"red flags: {flags}\nhttps://dexscreener.com/solana/{t['mint']}")
                 try:
-                    fill = self.broker.buy(t["mint"], t["symbol"], ticket, buy_price,
-                                           horizon=sizes.get("horizon", "swing"),
-                                           groq_mult=(sizes.get("guard", {}).get("groq") or {}).get("mult"))
+                    _sh = sig.get("tactic_shadow")
+                    fill = self.broker.buy(
+                        t["mint"], t["symbol"], ticket, buy_price,
+                        horizon=sizes.get("horizon", "swing"),
+                        groq_mult=(sizes.get("guard", {}).get("groq") or {}).get("mult"),
+                        meta=({"shadow_block": bool(_sh.get("would_block")),
+                               "shadow_why": _sh.get("why"),
+                               "shadow_drop": _sh.get("drop_pct")}
+                              if _sh else None))
                 except live_mod.LiveError as e:
                     self.stats["errors"] += 1
                     self.emit("error", f"{t['symbol']}: live order refused \u2014 {e}",

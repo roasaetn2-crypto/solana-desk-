@@ -156,15 +156,60 @@ number you cannot reproduce is not a number you get to quote.
 
 ---
 
-## 6. Reproduce it
+## 6. Shadow mode: measure pullback on the trades you actually take
+
+Everything above was measured on the **ungated** signal. The live desk trades a
+gated population where the existing ladder already wins ~40% of the time, and we
+could not afford the ~600 pools needed to test pullback there. Rather than guess,
+the desk now measures it on the real book, for free, without blocking anything.
+
+`MEME["pullback_shadow"]` is **on by default** and is a *label, not a gate*:
+
+- On every candidate the desk evaluates, `desk/meme_tactics.py::shadow()` records
+  whether the 20%-from-20-bar-high rule **would** have blocked it, and why.
+- When the desk actually buys, that verdict rides along as position metadata
+  (`shadow_block`, `shadow_why`, `shadow_drop`).
+- When the position closes, `desk/broker.py` journals a `shadow_pnl` row with the
+  realised P&L tagged by that verdict. **No trade is ever blocked by shadow mode.**
+- `scripts/shadow_report.py` splits the closed trades into two real groups and
+  applies the same strict bar the rest of the repo uses.
+
+```bash
+python3 scripts/shadow_report.py            # reads ./journal.jsonl
+```
+
+It prints two rows and a verdict:
+
+| group | meaning |
+|---|---|
+| `blocked` | trades pullback would have refused (it judged them chases) |
+| `allowed` | trades pullback would have taken |
+
+The verdict has exactly three honest outcomes, stated before the data is read:
+
+- **KEEP SHADOWING** — fewer than 20 closed trades in either group, or the gap is
+  not decisive. Wait for more data.
+- **PROMOTE TO GATE** — `allowed` beats `blocked` by ≥10pp win rate **and** ≥0.30
+  profit factor on ≥20 trades each. Then set `MEME["pullback_entry"] = True`.
+- **DELETE THE RULE** — `allowed` is no better than `blocked` on both axes. Stop
+  thinking about it.
+
+This is the one number nobody has: pullback's win rate on *your* fully-gated
+entries. It costs nothing to collect, because the rule is only ever watching.
+
+---
+
+## 7. Reproduce it
 
 ```bash
 python3 scripts/indicator_eval.py --pools 60 --out indicator_eval_fresh.json
 python3 scripts/meme_tactics_eval.py --pools 60 --out meme_tactics.json
 python3 scripts/meme_tactics_deep.py --out meme_tactics_deep.json
 python3 -m pytest tests/test_meme_tactics.py -q
+python3 scripts/shadow_report.py --journal journal.jsonl
 ```
 
 Artifacts: `indicator_eval_fresh.json`, `meme_tactics.json`,
-`meme_tactics_deep.json`, `data/indicator_paths.json` (the 60-pool candle
+`meme_tactics_deep.json`, `shadow_report.json` (once shadow trades close),
+`data/indicator_paths.json` (the 60-pool candle
 cache these runs share).

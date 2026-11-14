@@ -316,6 +316,11 @@ MEME = {
     # MEME_TACTICS.md for the numbers. Flip a flag only if the measurement says
     # it clears the bar (>=30 trades, +5pp win rate, PF >= 1.2).
     "pullback_entry": False,         # rule B: refuse to buy the top of the range
+    # Shadow mode: record what the pullback rule WOULD have decided on every
+    # candidate the desk actually trades, without blocking a single entry. The
+    # package was measured on the ungated signal; this measures it on the real,
+    # fully-gated population. scripts/shadow_report.py compares the two groups.
+    "pullback_shadow": True,
     "pullback_min_drop": 0.20,       # must be >=20% below the 20-bar high (measured)
     "flash_pump_guard": False,       # rule C: skip entries right after a spike
     "flash_pump_pct": 0.25,          # a >25% 5m candle = do not chase
