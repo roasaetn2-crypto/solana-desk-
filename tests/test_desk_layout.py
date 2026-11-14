@@ -85,3 +85,29 @@ def test_ladder_thresholds_come_from_the_desk() -> None:
     # and it must be cached before the cards render, not after
     body = j.split("function render(s) {", 1)[1]
     assert body.index("EXIT_LADDER = s.exits.ladder") < body.index("const pos = b.positions")
+
+
+def css() -> str:
+    return (WEB / "styles.css").read_text(encoding="utf-8")
+
+
+def test_the_cat_is_never_hidden() -> None:
+    """The mascot is the desk's identity, and it lives top-left in the header.
+
+    A phone-layout pass once set `.cat-dock { display: none }` to buy vertical
+    room. It bought it by deleting the one piece of character on the screen the
+    trader stares at all day. The cat shrinks on a phone; it never leaves.
+    """
+    c = css()
+    assert "display: none" not in c.split(".cat-dock")[1].split("}")[0], (
+        "the cat dock must never be display:none"
+    )
+    # And it must still be the first thing in the brand block.
+    h = html()
+    assert at(h, 'class="cat-dock"') < at(h, 'class="titles"')
+
+
+def test_the_cat_has_a_phone_size() -> None:
+    """Phones get a smaller cat, not a missing one."""
+    c = css()
+    assert ".topbar .mascot-wrap { --cat:" in c
