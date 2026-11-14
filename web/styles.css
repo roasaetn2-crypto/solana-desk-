@@ -476,7 +476,10 @@ td .num.bad  { color: var(--red); }
 
 .cat-dock { flex: none; }
 .mascot-wrap {
-  --cat: 192px;
+  /* A 192px cat pinned to the top of a trading desk is 20% of a laptop screen
+     spent on an animation. At 72px it still reads as the desk's mascot and
+     still changes mood, but the header stops competing with the book. */
+  --cat: 72px;
   position: relative;
   width: var(--cat);
   height: var(--cat);
@@ -1003,4 +1006,84 @@ body.desk-page { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); 
   display: inline-grid;
   place-items: center;
   line-height: 1;
+}
+
+/* ---------- position exit ladder ---------- */
+/* A scalper's question is never "what is my P&L", it is "which rung have I
+   cleared and how far is the next one". The ladder in force comes from
+   /api/state, the hit state from the position's own `stage`. */
+.ladder { display: flex; flex-wrap: wrap; gap: 5px; margin: 9px 0 5px; }
+.rung {
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.2px;
+  padding: 3px 8px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--panel-2); color: var(--muted);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.rung b { color: var(--text); font-weight: 700; }
+.rung.hit { color: #04110b; background: var(--green); border-color: transparent; }
+.rung.hit b { color: #04110b; }
+.rung.next { color: var(--amber); border-color: rgba(255, 159, 10, 0.4); background: var(--amber-dim); }
+.rung.next b { color: var(--amber); }
+.rung.trail { color: var(--blue); border-color: rgba(10, 132, 255, 0.35); background: var(--blue-dim); }
+.rung.trail b { color: var(--blue); }
+.ladder-meta {
+  display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 6px;
+  font-size: 10.5px; color: var(--muted-2); font-variant-numeric: tabular-nums;
+}
+.ladder-meta .nx { color: var(--text); font-weight: 600; }
+
+/* ---------- folded reference panels ---------- */
+/* The sizer is off and the post-mortem is an offline report. Both stay in the
+   DOM (their ids are live) but start closed so they stop pushing controls down. */
+.panel.fold > summary {
+  cursor: pointer; list-style: none; user-select: none;
+}
+.panel.fold > summary::-webkit-details-marker { display: none; }
+.panel.fold > summary::after {
+  content: ""; margin-left: 8px; width: 7px; height: 7px; flex: none;
+  border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted);
+  transform: rotate(45deg) translateY(-2px); transition: transform 0.15s ease;
+}
+.panel.fold[open] > summary::after { transform: rotate(-135deg) translateY(-2px); }
+.panel.fold > summary:hover h2 { color: var(--text); }
+
+/* ---------- phone: one sticky bar, and the book first ---------- */
+/* Before this, the header AND the tab bar were both sticky, so roughly a
+   quarter of a phone screen was permanently chrome, and the tab bar only
+   appeared after the hero, backtest, agents and activity had scrolled past.
+   Now the header scrolls away and the tab bar is the only pinned element. */
+@media (max-width: 760px) {
+  .topbar { position: static; padding: 8px 12px 6px; gap: 6px; align-items: center; }
+  .cat-dock { display: none; }
+  .brand { width: auto; }
+  .titles .title { font-size: 14px; }
+  .titles .sub { font-size: 9px; letter-spacing: 0.5px; }
+  .speech { display: none; }
+  .pill { font-size: 10.5px; padding: 3px 8px; gap: 5px; }
+  #lockPill { display: none; }
+  .controls { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+  .controls .btn { padding: 8px 2px; font-size: 10.5px; border-radius: 10px; }
+  .desk-tabs { top: 0; }
+  .hero { padding: 2px 4px 8px; }
+  .hero-equity { font-size: 40px; letter-spacing: -1.2px; }
+  .hero-pnl { font-size: 13px; margin-bottom: 8px; }
+  .equity-chart-wrap { height: 120px; }
+}
+
+/* The equity curve now lives in the Live column beside the panels, so it gets
+   the same surface as them instead of floating as a full-bleed section. */
+.col-center .hero {
+  background: linear-gradient(180deg, var(--panel), var(--bg-2));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px 12px;
+  max-width: none;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
+}
+
+/* On a wide screen all three columns are on show, so the tab bar is just a set
+   of jump links. Pinning it as well as the header cost 200px of a laptop screen
+   for no navigation benefit. On a phone it stays pinned: there it IS the nav. */
+@media (min-width: 901px) {
+  .desk-tabs { position: static; }
 }

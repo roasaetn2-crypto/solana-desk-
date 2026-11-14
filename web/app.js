@@ -1,7 +1,12 @@
 const $ = (id) => document.getElementById(id);
 
-const fmtMoney = (n, d = 2) =>
-  "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmtMoney = (n, d = 2) => {
+  // "-$0.02", never "$-0.02": the sign belongs to the currency, and on a P&L
+  // strip the minus has to be the first thing the eye lands on.
+  const v = Number(n || 0);
+  const body = Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+  return (v < 0 ? "-$" : "$") + body;
+};
 const fmtNum = (n) => Number(n || 0).toLocaleString("en-US");
 const fmtPct = (n) => (Number(n || 0) >= 0 ? "+" : "") + Number(n || 0).toFixed(2) + "%";
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -23,6 +28,62 @@ function priceFmt(p) {
   if (n < 0.0001) return n.toExponential(2);
   if (n < 1) return n.toFixed(6);
   return n.toFixed(4);
+}
+
+// The exit ladder in force, from /api/state. A position card needs the rung
+// thresholds to say which ones it has cleared and how far the next one is --
+// that is the only number a scalper acts on, and it is not on the position row.
+let EXIT_LADDER = null;
+
+function ladderHtml(p) {
+  const L = EXIT_LADDER || {};
+  const entry = Number(p.entry) || 0;
+  const last = Number(p.last) || 0;
+  if (!entry || !last) return "";
+  const mult = last / entry;              // where the trade is, in entry multiples
+  const stage = Number(p.stage) || 0;
+  const tp1 = Number(L.tp1_at) || 0;
+  const tp2 = Number(L.tp2_at) || 0;
+  const hasTp2 = tp2 > 0 && tp2 < 1e8;
+  const hit1 = stage >= 1 || !!p.half_taken;
+  const hit2 = stage >= 2;
+  const nextIsTp2 = hit1 && !hit2 && hasTp2;
+
+  const rung = (label, at, hit, live) => {
+    if (!at) return "";
+    const cls = hit ? "hit" : live ? "next" : "";
+    return `<span class="rung ${cls}">${label} <b>${at.toFixed(2)}x</b>${hit ? " \u2713" : ""}</span>`;
+  };
+  const rungs = [
+    rung("TP1", tp1, hit1, !hit1),
+    hasTp2 ? rung("TP2", tp2, hit2, nextIsTp2) : "",
+    // the trail only exists once TP1 has banked a half
+    hit1 && L.trail_pct
+      ? `<span class="rung trail">trail <b>${Math.round(L.trail_pct * 100)}%</b></span>`
+      : "",
+  ].join("");
+
+  // What can take you out next, and how far away it is. Positive = still above.
+  let next = "";
+  if (!hit1 && tp1) next = `to TP1 ${fmtPct((tp1 / mult - 1) * 100)}`;
+  else if (nextIsTp2) next = `to TP2 ${fmtPct((tp2 / mult - 1) * 100)}`;
+  else if (hit1) next = "runner \u00b7 trail armed";
+
+  const stop = Number(p.stop_price) || 0;
+  const peak = Number(p.peak) || 0;
+  const bits = [];
+  if (stop) {
+    bits.push(`stop ${priceFmt(stop)}`);
+    // Distance, not a return: the stop sits BELOW the mark, and printing the
+    // signed number made a healthy -30% cushion read like an open loss.
+    bits.push(`to stop ${Math.abs((stop / last - 1) * 100).toFixed(1)}%`);
+  }
+  // A peak equal to entry is noise; only show a high-water mark once it moved.
+  if (peak && entry && peak / entry > 1.005) bits.push(`peak ${(peak / entry).toFixed(2)}x`);
+
+  return `<div class="ladder">${rungs}</div>` +
+    `<div class="ladder-meta">${next ? `<span class="nx">${next}</span>` : ""}` +
+    `${bits.map((b) => `<span>${b}</span>`).join("")}</div>`;
 }
 
 
@@ -894,6 +955,8 @@ function render(s) {
   const b = s.broker || {};
   const st = s.stats || {};
   const cfg = s.config || {};
+  // Cache the ladder before the cards render: they read it to mark rungs.
+  if (s.exits && s.exits.ladder) EXIT_LADDER = s.exits.ladder;
   renderMode(s);
   renderRisk(s);
 
@@ -1061,6 +1124,7 @@ function render(s) {
             <span>Cost <b>${fmtMoney(p.cost)}</b></span>
             <span>Held <b>${heldFor(p.opened)}</b></span>
           </div>
+          ${ladderHtml(p)}
           ${tokenMetaHtml(p)}
           <div class="tf-tabs">${tabsHtml(p.mint, tabs, tf)}</div>
           <canvas class="candle-chart" width="640" height="220"></canvas>

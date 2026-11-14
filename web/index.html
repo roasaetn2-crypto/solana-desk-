@@ -106,54 +106,9 @@
 
 
 
-  <section class="hero" id="hero">
-    <div class="hero-equity" id="heroEquity">$20.00</div>
-    <div class="hero-pnl" id="heroPnl">
-      <span class="pnl-usd" id="heroPnlUsd">$0.00</span>
-      <span class="pnl-pct" id="heroPnlPct">0.00%</span>
-      <span class="chip" id="heroMult" hidden>1.00x</span>
-      <span class="chip realized" id="heroRealized" hidden></span>
-    </div>
-    <div class="equity-chart-wrap">
-      <canvas class="equity-chart" id="equityChart" width="824" height="280"></canvas>
-      <div class="equity-labels" id="equityLabels"></div>
-    </div>
-    <div class="tf-tabs equity-tabs" id="equityTabs">
-      <button type="button" data-tf="LIVE" class="on" aria-selected="true">LIVE</button>
-      <button type="button" data-tf="1H">1H</button>
-      <button type="button" data-tf="4H">4H</button>
-      <button type="button" data-tf="1D">1D</button>
-      <button type="button" data-tf="1W">1W</button>
-      <button type="button" data-tf="ALL">ALL</button>
-    </div>
-  </section>
 
-  <section class="board-sec" id="backtestSec">
-    <div class="board-head">
-      <h2>Backtest</h2>
-      <span class="badge" id="backtestBadge">read only</span>
-    </div>
-    <div class="bt-note" id="backtestNote">Replays recorded tickets against other gate settings. Never changes the live desk.</div>
-    <div class="bt-wrap" id="backtestBody"><div class="empty">Loading…</div></div>
-  </section>
 
-  <section class="board-sec" id="agentsSec">
-    <div class="board-head">
-      <h2>Agents</h2>
-      <span class="badge" id="agentsRunning">0 running</span>
-    </div>
-    <div class="agents-grid" id="agentsGrid"></div>
-  </section>
 
-  <section class="board-sec" id="activitySec">
-    <div class="board-head">
-      <h2>Activity</h2>
-      <span class="badge" id="activityCount">0 trades</span>
-    </div>
-    <div class="activity-feed" id="activityFeed"><div class="empty">No trades yet.</div></div>
-  </section>
-
-  <canvas id="confetti" class="confetti" hidden></canvas>
 
   <nav class="desk-tabs" id="deskTabs" role="tablist" aria-label="Desk sections">
     <button class="desk-tab is-active" type="button" role="tab" aria-selected="true"
@@ -164,10 +119,42 @@
             data-tab="research"><span class="ico">⌕</span><span>Research</span></button>
   </nav>
 
+  <canvas id="confetti" class="confetti" hidden></canvas>
+
+
   <main class="layout" id="deskLayout" data-tab="live">
 
     <!-- LEFT: pipeline + agent stats + playbook -->
     <section class="col col-left" data-col="control" role="tabpanel" aria-label="Control">
+
+      <div class="panel" id="execPanel">
+        <div class="panel-head"><span class="icon">🔀</span><h2>Execution mode</h2><span class="badge" id="modeBadge">PAPER</span></div>
+        <div class="panel-body">
+          <div class="tiny muted" id="modeBlurb">Paper fills only. No key, no signing, no real money can move.</div>
+          <div class="stat-grid" style="margin-top:10px">
+            <div class="stat"><div class="k">Wallet</div><div class="v" id="modeWallet" style="font-size:12px">—</div></div>
+            <div class="stat"><div class="k">Live P&L</div><div class="v" id="modeLivePnl">$0.00</div></div>
+            <div class="stat"><div class="k">Per trade cap</div><div class="v" id="capTrade">—</div></div>
+            <div class="stat"><div class="k">Total cap</div><div class="v" id="capNotional">—</div></div>
+          </div>
+          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn" id="btnPaper">Use paper</button>
+            <button class="btn danger" id="btnArm">Arm live…</button>
+          </div>
+          <div id="armBox" style="display:none;margin-top:10px">
+            <div class="tiny" style="color:var(--amber);margin-bottom:6px">Real money. Type the phrase exactly as shown, then confirm.</div>
+            <div class="tiny muted" id="armPhraseHint" style="margin-bottom:6px;font-family:var(--mono)">—</div>
+            <input id="armPhrase" placeholder="type the phrase" autocomplete="off" spellcheck="false"
+                   style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--border);background:var(--bg-2);color:var(--text);font-family:var(--mono);font-size:13px" />
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <button class="btn danger" id="btnArmGo">Arm live</button>
+              <button class="btn" id="btnArmCancel">Cancel</button>
+            </div>
+          </div>
+          <div class="tiny" id="modeMsg" style="margin-top:8px"></div>
+        </div>
+      </div>
+
       <div class="panel">
         <div class="panel-head">
           <span class="icon">🛰️</span>
@@ -213,34 +200,6 @@
         </div>
       </div>
 
-      <div class="panel" id="execPanel">
-        <div class="panel-head"><span class="icon">🔀</span><h2>Execution mode</h2><span class="badge" id="modeBadge">PAPER</span></div>
-        <div class="panel-body">
-          <div class="tiny muted" id="modeBlurb">Paper fills only. No key, no signing, no real money can move.</div>
-          <div class="stat-grid" style="margin-top:10px">
-            <div class="stat"><div class="k">Wallet</div><div class="v" id="modeWallet" style="font-size:12px">—</div></div>
-            <div class="stat"><div class="k">Live P&L</div><div class="v" id="modeLivePnl">$0.00</div></div>
-            <div class="stat"><div class="k">Per trade cap</div><div class="v" id="capTrade">—</div></div>
-            <div class="stat"><div class="k">Total cap</div><div class="v" id="capNotional">—</div></div>
-          </div>
-          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn" id="btnPaper">Use paper</button>
-            <button class="btn danger" id="btnArm">Arm live…</button>
-          </div>
-          <div id="armBox" style="display:none;margin-top:10px">
-            <div class="tiny" style="color:var(--amber);margin-bottom:6px">Real money. Type the phrase exactly as shown, then confirm.</div>
-            <div class="tiny muted" id="armPhraseHint" style="margin-bottom:6px;font-family:var(--mono)">—</div>
-            <input id="armPhrase" placeholder="type the phrase" autocomplete="off" spellcheck="false"
-                   style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--border);background:var(--bg-2);color:var(--text);font-family:var(--mono);font-size:13px" />
-            <div style="display:flex;gap:8px;margin-top:8px">
-              <button class="btn danger" id="btnArmGo">Arm live</button>
-              <button class="btn" id="btnArmCancel">Cancel</button>
-            </div>
-          </div>
-          <div class="tiny" id="modeMsg" style="margin-top:8px"></div>
-        </div>
-      </div>
-
       <div class="panel">
         <div class="panel-head"><span class="icon">📊</span><h2>Agent stats</h2></div>
         <div class="panel-body">
@@ -274,11 +233,11 @@
         </div>
       </div>
 
-      <div class="panel" id="groqPanel">
-        <div class="panel-head">
+      <details class="panel fold" id="groqPanel">
+        <summary class="panel-head">
           <span class="icon">🧠</span><h2>Groq sizer</h2>
           <span class="badge" id="groqBadge">OFF</span>
-        </div>
+        </summary>
         <div class="panel-body">
           <div class="tiny muted" id="groqLine">Shrink-only: can cut a ticket, never grow or block one.</div>
           <div class="bars" style="margin-top:10px">
@@ -291,13 +250,13 @@
           <div class="tiny muted" style="margin-top:8px" id="groqSummary">No calls yet.</div>
           <div class="groq-list" id="groqList"></div>
         </div>
-      </div>
+      </details>
 
-      <div class="panel" id="postmortemPanel">
-        <div class="panel-head">
+      <details class="panel fold" id="postmortemPanel">
+        <summary class="panel-head">
           <span class="icon">&#128300;</span><h2>Groq post-mortem</h2>
           <span class="badge" id="pmBadge">WAITING</span>
-        </div>
+        </summary>
         <div class="panel-body">
           <div class="tiny muted" id="pmLine">Offline: reads closed trades, asks what losers share. Never trades.</div>
           <div class="bars" style="margin-top:10px">
@@ -313,7 +272,7 @@
           <div class="pm-next" id="pmNext"></div>
           <div class="tiny muted" id="pmRun" style="margin-top:10px"></div>
         </div>
-      </div>
+      </details>
     </section>
 
     <!-- CENTER: KPIs, positions, decisions, dialogue -->
@@ -337,6 +296,14 @@
         </div>
       </div>
 
+
+      <div class="panel">
+        <div class="panel-head"><span class="icon">💼</span><h2>Open positions</h2><span class="badge" id="posBadge">0</span></div>
+        <div class="panel-body" style="padding: 12px 10px">
+          <div class="pos-cards" id="posCards"><div class="empty">No open positions. Start the agent.</div></div>
+        </div>
+      </div>
+
       <div class="buy-banner" id="buyBanner" hidden>
         <div class="buy-banner-copy">
           <div class="k">Latest paper buy</div>
@@ -350,12 +317,27 @@
         <a class="btn-fomo" id="buyBannerLink" target="_blank" rel="noopener noreferrer" hidden>Buy on FOMO</a>
       </div>
 
-      <div class="panel">
-        <div class="panel-head"><span class="icon">💼</span><h2>Open positions</h2><span class="badge" id="posBadge">0</span></div>
-        <div class="panel-body" style="padding: 12px 10px">
-          <div class="pos-cards" id="posCards"><div class="empty">No open positions. Start the agent.</div></div>
+      <section class="hero" id="hero">
+        <div class="hero-equity" id="heroEquity">$20.00</div>
+        <div class="hero-pnl" id="heroPnl">
+          <span class="pnl-usd" id="heroPnlUsd">$0.00</span>
+          <span class="pnl-pct" id="heroPnlPct">0.00%</span>
+          <span class="chip" id="heroMult" hidden>1.00x</span>
+          <span class="chip realized" id="heroRealized" hidden></span>
         </div>
-      </div>
+        <div class="equity-chart-wrap">
+          <canvas class="equity-chart" id="equityChart" width="824" height="280"></canvas>
+          <div class="equity-labels" id="equityLabels"></div>
+        </div>
+        <div class="tf-tabs equity-tabs" id="equityTabs">
+          <button type="button" data-tf="LIVE" class="on" aria-selected="true">LIVE</button>
+          <button type="button" data-tf="1H">1H</button>
+          <button type="button" data-tf="4H">4H</button>
+          <button type="button" data-tf="1D">1D</button>
+          <button type="button" data-tf="1W">1W</button>
+          <button type="button" data-tf="ALL">ALL</button>
+        </div>
+      </section>
 
       <div class="panel">
         <div class="panel-head"><span class="icon">🧠</span><h2>Recent decisions</h2><span class="badge" id="decBadge">0</span></div>
@@ -430,6 +412,31 @@
       </div>
     </section>
   </main>
+
+  <section class="board-sec" id="backtestSec">
+    <div class="board-head">
+      <h2>Backtest</h2>
+      <span class="badge" id="backtestBadge">read only</span>
+    </div>
+    <div class="bt-note" id="backtestNote">Replays recorded tickets against other gate settings. Never changes the live desk.</div>
+    <div class="bt-wrap" id="backtestBody"><div class="empty">Loading…</div></div>
+  </section>
+
+  <section class="board-sec" id="agentsSec">
+    <div class="board-head">
+      <h2>Agents</h2>
+      <span class="badge" id="agentsRunning">0 running</span>
+    </div>
+    <div class="agents-grid" id="agentsGrid"></div>
+  </section>
+
+  <section class="board-sec" id="activitySec">
+    <div class="board-head">
+      <h2>Activity</h2>
+      <span class="badge" id="activityCount">0 trades</span>
+    </div>
+    <div class="activity-feed" id="activityFeed"><div class="empty">No trades yet.</div></div>
+  </section>
 
   <div class="toast" id="toast"></div>
   <button class="ai-fab" id="aiFab" type="button" aria-label="Open Desk AI chat">
