@@ -20,7 +20,7 @@ from desk import analyst, brain, chain, helius, live, meme, scanner             
 from desk.solana_agent import SolanaAgent                                          # noqa: E402
 from legacy_book import legacy_book  # noqa: E402
 from desk.broker import PaperBroker                           # noqa: E402
-from config import PAPER, RISK                         # noqa: E402
+from config import PAPER, RISK, MEME                   # noqa: E402
 from desk.risk import (Account, check_live_trade, check_token_trade,  # noqa: E402
                        live_sizing_breakdown, sizing_breakdown)
 
@@ -206,6 +206,9 @@ class Untrusted(unittest.TestCase):
 
 class PaperExits(unittest.TestCase):
     def setUp(self):
+        # These pin the BASE ladder; the pullback package ships its own ladder.
+        _p = mock.patch.dict(MEME, {"pullback_entry": False})
+        _p.start(); self.addCleanup(_p.stop)
         self.dir = tempfile.mkdtemp()
         self.b = PaperBroker(Path(self.dir) / "ledger.json")
         self.b.buy("M", "TEST", 20, 1.0)          # fills at 1.02 after slippage

@@ -139,6 +139,11 @@ class ConcentrationFallback(unittest.TestCase):
 
 # ---------- fix 3: runner after TP1 ----------
 class Runner(unittest.TestCase):
+    def setUp(self):
+        # Base-ladder/runner mechanics; keep the pullback package out of the way.
+        _p = mock.patch.dict(config.MEME, {"pullback_entry": False})
+        _p.start(); self.addCleanup(_p.stop)
+
     def pos(self, horizon="swing"):
         p = {"entry": 1.0, "opened": 0.0}
         exits.init_state(p, horizon)

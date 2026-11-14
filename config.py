@@ -311,11 +311,15 @@ MEME = {
     # score -> verdict bands for the meme scorecard
     "bands": {"strong": 70, "watch": 50},
     # ---------- memecoin entry tactics (from the public "meme bot" guide) ----------
-    # These are OFF by default. They were measured on real GeckoTerminal candles
-    # by scripts/meme_tactics_eval.py and scripts/backtest_gates.py; see
-    # MEME_TACTICS.md for the numbers. Flip a flag only if the measurement says
-    # it clears the bar (>=30 trades, +5pp win rate, PF >= 1.2).
-    "pullback_entry": False,         # rule B: refuse to buy the top of the range
+    # These were measured on real GeckoTerminal candles by scripts/meme_tactics_eval.py,
+    # scripts/backtest_gates.py and (the decisive run) scripts/winrate_lab.py on 120
+    # pools / 114,033 candles. See RECOMMENDATION.md and MEME_TACTICS.md for the numbers.
+    # Flip a flag only if the measurement says it clears the bar
+    # (>=30 trades, >=10 pools, +5pp win rate, PF >= 1.2).
+    "pullback_entry": True,          # rule B: refuse to buy the top of the range.
+                                     # PROMOTED 2026-11-14: 20% dip + fast ladder + 30%
+                                     # stop -> n=74, 11 pools, 68.9% win, PF 3.75
+                                     # (leave-one-pool-out worst 58.5% / 2.71).
     # Shadow mode: record what the pullback rule WOULD have decided on every
     # candidate the desk actually trades, without blocking a single entry. The
     # package was measured on the ungated signal; this measures it on the real,

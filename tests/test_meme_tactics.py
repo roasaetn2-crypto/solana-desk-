@@ -26,10 +26,16 @@ import config  # noqa: E402
 from backtest_gates import flash_ok, pullback_ok  # noqa: E402
 
 
-def test_tactics_ship_disabled():
-    """No memecoin tactic may be on by default."""
-    for key in ("pullback_entry", "flash_pump_guard", "atr_stop", "vol_ceiling"):
-        assert config.MEME[key] is False, f"{key} must default to False"
+def test_only_the_measured_winner_ships_on():
+    """A tactic may ship ON only if a measurement cleared the bar.
+
+    The pullback package was promoted 2026-11-14 after scripts/winrate_lab.py
+    cleared all four bars on 120 pools (68.9% win, PF 3.75, 11 pools). The other
+    three tactics never cleared it, so they must stay off.
+    """
+    assert config.MEME["pullback_entry"] is True
+    for key in ("flash_pump_guard", "atr_stop", "vol_ceiling"):
+        assert config.MEME[key] is False, f"{key} never cleared the bar; keep it off"
 
 
 def test_pullback_gate_blocks_the_top():
@@ -125,8 +131,8 @@ def test_pullback_gate_lets_a_deep_dip_through_and_swaps_the_ladder(monkeypatch)
     out = meme_tactics.apply(_sig(), {"price_usd": 75.0}, {"high_20": 100.0})
     assert out["action"] == "BUY"
     assert out["take_profit"]["stop_pct"] == 0.30
-    assert out["take_profit"]["tp1_at"] == 2.0
-    assert out["take_profit"]["tp2_at"] == 3.0
+    assert out["take_profit"]["tp1_at"] == 1.25
+    assert out["take_profit"]["tp2_at"] == 1.6
 
 
 def test_pullback_gate_is_neutral_when_the_high_is_unknown(monkeypatch):
@@ -157,7 +163,8 @@ def test_exit_overrides_only_apply_when_the_package_is_on(monkeypatch):
     assert meme_tactics.exit_overrides() == {}
     assert exits.profile("scalp")["tp1_at"] == 1.5
     _with_flags(monkeypatch, pullback_entry=True)
-    assert exits.profile("scalp")["tp1_at"] == 2.0
+    assert exits.profile("scalp")["tp1_at"] == 1.25
+    assert exits.profile("scalp")["tp2_at"] == 1.6
     assert exits.profile("scalp")["stop_pct"] == 0.30
 
 

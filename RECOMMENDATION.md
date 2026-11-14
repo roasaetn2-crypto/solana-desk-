@@ -49,14 +49,16 @@ collector fixes.
 
 ## What to do, in order
 
-1. **Promote the exit ladder** — 1.25× (sell half) → 1.6× (sell rest) → 15%
-   trail, hard stop 30% — as a scalp profile. It is strictly better than the
-   current default on this data and costs nothing to try in shadow.
-2. **Gate entries on a 20% pullback** (already implemented as the pullback
-   package, currently off by default). Turn it on in shadow.
-3. **Keep it shadow until ≥10 tradeable-age pools clear the bar.** The collector
-   (`scripts/pool_harvest.py`) must run continuously: fresh launches age *into*
-   the 6–48h window, which is the population the desk actually trades.
+1. ~~**Promote the exit ladder**~~ — **DONE 2026-11-14.** The fast ladder
+   (1.25× half → 1.6× rest → 15% trail, 30% stop) is now the pullback package's
+   ladder in `desk/meme_tactics.py`.
+2. ~~**Gate entries on a 20% pullback**~~ — **DONE.** `MEME["pullback_entry"]`
+   is now `True` in `config.py`.
+3. **Keep it shadow-measured until ≥10 tradeable-age pools clear the bar.** The
+   collector (`scripts/pool_harvest.py`) must run continuously: fresh launches
+   age *into* the 6–48h window, which is the population the desk actually trades.
+   `scripts/shadow_report.py` compares the gated population against the
+   counterfactual.
 4. **Revisit the 48h age cap.** The evidence shows the pullback edge also works
    on older, liquid pools. Either raise `max_age_hours` or add an "established"
    lane so the desk can trade both fresh launches and liquid survivors.

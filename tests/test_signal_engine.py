@@ -167,11 +167,13 @@ class TestSettingsRegistered:
 
     def test_exits_profile_honors_tp_plan(self):
         from desk import exits
-        with mock.patch.dict(config.EXITS, {"take_profit_mode": "single"}):
+        with mock.patch.dict(config.EXITS, {"take_profit_mode": "single"}), \
+             mock.patch.dict(config.MEME, {"pullback_entry": False}):
             pr = exits.profile("scalp")
             assert pr["tp2_frac"] == 0.0
             assert pr["tp1_at"] == config.EXITS["single"]["tp_at"]
-        with mock.patch.dict(config.EXITS, {"take_profit_mode": "global"}):
+        with mock.patch.dict(config.EXITS, {"take_profit_mode": "global"}), \
+             mock.patch.dict(config.MEME, {"pullback_entry": False}):
             pr = exits.profile("scalp")
             assert pr["tp1_at"] == config.EXITS["global"]["tp1_at"]
 

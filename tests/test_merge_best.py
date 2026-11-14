@@ -25,6 +25,11 @@ def thesis(**kw):
 
 
 class Exits(unittest.TestCase):
+    def setUp(self):
+        # Base-ladder mechanics; keep the pullback package out of the way.
+        _p = mock.patch.dict(config.MEME, {"pullback_entry": False})
+        _p.start(); self.addCleanup(_p.stop)
+
     def mk(self, horizon):
         b = PaperBroker(Path(tempfile.mkdtemp()) / "l.json")
         b.buy("M", "T", 100, 1.0, horizon=horizon)

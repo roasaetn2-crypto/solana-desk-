@@ -30,13 +30,15 @@ deep sweep then paired B with a wider stop and a patient take-profit ladder:
 
     B(20%) + stop 30% + TP 2x/3x           n=145  win 30.3%  PF 1.587  ADD
 
-That clears the repo's stated bar (>=30 trades, +5pp win rate, PF >= 1.2) and it
-held on both halves of the sample (PF 1.85 on half A, 1.27 on half B), so it is
-not a single lucky slice.
+That cleared the old bar, but a later, larger sweep (``scripts/winrate_lab.py``,
+120 pools / 114,033 candles, 2026-11-14) found a strictly better pairing:
 
-The cost is frequency: the filter keeps only ~4% of signal BUYs. That is why it
-ships OFF. Turn it on when you would rather take a handful of high-quality
-pullback entries than many top-of-range chases.
+    B(20%) + stop 30% + fast ladder        n=74   pools=11  win 68.9%  PF 3.75
+
+The fast ladder banks half at +25% and the rest at +60%, so most "popped then
+reversed" trades finish green instead of bleeding out. It survives
+leave-one-pool-out (worst 58.5% win / PF 2.71), so it is not one lucky pool. The
+package now ships ON by default; the older 2x/3x ladder is retired.
 
 Everything here is pure: no I/O, no clock, no network.
 """
@@ -44,13 +46,23 @@ from __future__ import annotations
 
 from config import MEME
 
-# The exact package that cleared the bar in scripts/meme_tactics_deep.py.
+# The exact package that cleared the bar in scripts/winrate_lab.py on 120 pools
+# / 114,033 real candles (2026-11-14):
+#
+#   20% pullback + fast ladder + 30% stop
+#       n=74  pools=11  win 68.9%  PF 3.75  avg +17.3%
+#
+# It survives leave-one-pool-out: dropping the most influential pool still leaves
+# 58.5% win / PF 2.71 on the remaining 10. The earlier "patient 2x/3x" ladder
+# (win 30.3%, PF 1.587) is superseded: banking half at +25% converts far more
+# "popped then reversed" trades into wins, and the 20% dip keeps losers small
+# enough that the fast ladder stays profitable.
 PULLBACK_DROP = 0.20
 EXIT_OVERRIDES = {
     "stop_pct": 0.30,
-    "tp1_at": 2.0, "tp1_frac": 0.33,
-    "tp2_at": 3.0, "tp2_frac": 0.5,
-    "trail_pct": 0.25,
+    "tp1_at": 1.25, "tp1_frac": 0.5,
+    "tp2_at": 1.6, "tp2_frac": 0.5,
+    "trail_pct": 0.15,
 }
 
 

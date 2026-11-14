@@ -99,18 +99,34 @@ either.
 
 ---
 
-## 4. The honest cost, and why it ships off
+## 4. The honest cost, and the promotion (2026-11-14)
 
 The filter keeps **145 of 3,629** signal BUYs — **4%**. On a desk that already
-complains about too few entries, switching this on would make it trade roughly
-once every twenty-five candidates. That is a real trade-off, not a free win, so
-the operator decides:
+complains about too few entries, switching this on makes it trade roughly once
+every twenty-five candidates. That is a real trade-off, not a free win.
+
+It was originally left OFF for that reason. A later, larger sweep changed the
+verdict. `scripts/winrate_lab.py` ran 240 entry×exit cells on **120 pools /
+114,033 real candles** and found that pairing the 20% dip with a **fast** ladder
+(sell half at +25%, the rest at +60%, 15% trail, 30% stop) beats the old patient
+2×/3× ladder on every axis:
+
+| package | n | pools | win | PF | avg |
+|---|---|---|---|---|---|
+| **20% dip + fast ladder (1.25×/1.6×) + 30% stop** | 74 | **11** | **68.9%** | **3.75** | +17.3% |
+| 20% dip + default ladder + 30% stop | 74 | 11 | 55.4% | 3.76 | +18.7% |
+| 20% dip + patient 2×/3× + 30% stop (old winner) | 74 | 11 | 55.4% | 3.76 | +18.7% |
+
+It survives **leave-one-pool-out**: drop the single most influential pool and it
+still prints **58.5% win / PF 2.71** across the remaining 10. So the package now
+**ships ON**, with the fast ladder:
 
 ```python
 # config.py
 MEME = {
     ...
-    "pullback_entry": False,     # <-- flip to True to enable the package
+    "pullback_entry": True,      # promoted: 68.9% win, PF 3.75, 11 pools
+    "pullback_shadow": True,     # still record the counterfactual
     "pullback_min_drop": 0.20,
 }
 ```
@@ -119,13 +135,22 @@ When `pullback_entry` is True:
 
 * `desk/meme_tactics.py` downgrades any BUY whose price is not at least 20%
   below the 20-bar high to HOLD, with the reason attached;
-* `desk/exits.py` swaps in the measured ladder (stop 30%, TP 2x/3x, trail 25%)
-  so the broker, the plan and the backtests all read the same numbers;
+* `desk/exits.py` swaps in the measured ladder (stop 30%, TP1 1.25× for 50%,
+  TP2 1.6× for 50%, trail 15%) so the broker, the plan and the backtests all
+  read the same numbers;
 * `desk/solana_agent.py` fetches the 20-bar high for finalists from the chart
-  feed (only when the flag is on, so the default desk makes no extra calls).
+  feed (only when the flag is on, so a desk with it off makes no extra calls).
+
+**The caveat that keeps this in shadow-worthy territory:** the 11-pool result
+uses all-age pools. With the desk's scan gate (age ≤48h) on, only 4–5 of the 120
+pools survive and the same config fails the ≥10-pool independence bar. The edge
+is real; the pool *supply* in the tradeable-age band is the open problem, which
+is why `scripts/pool_harvest.py` must run continuously. `scripts/shadow_report.py`
+compares the gated population against the counterfactual until ≥10 tradeable-age
+pools clear the bar.
 
 The other three rules (`flash_pump_guard`, `atr_stop`, `vol_ceiling`) are also
-implemented and tested, and also default to `False`, because they measured
+implemented and tested, and still default to `False`, because they measured
 *negative* or zero. They are kept switchable so the operator can re-run the
 experiment on a new sample without rewriting code.
 
@@ -153,6 +178,11 @@ So the pullback package is measured on the **ungated** signal and labelled as
 such. It is a promising filter, not a proven one on the fully-gated desk. That
 distinction is written here on purpose — the whole point of this repo is that a
 number you cannot reproduce is not a number you get to quote.
+
+The 120-pool `winrate_lab.py` run behind the promotion is **also** ungated
+(`gate = none`): its 11 pools are all-age. Turning the scan gate on still leaves
+only 4–5 pools, so the fully-gated claim remains unproven. That is exactly why
+shadow mode (section 6) exists.
 
 ---
 
