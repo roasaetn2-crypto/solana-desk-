@@ -113,3 +113,27 @@ The three numbers to change before anything else: `trail_arm_mult` up from 0.2 t
 ## Honest limits
 
 5m/15m/1h bars, up to 1000 per pool. This cannot model the liquidity you actually eat, MEV, failed transactions, or the fact that a fresh pump.fun coin's 5m candles are often one wallet. Treat the absolute returns as a sanity check on the logic, not a forecast. The comparison between variants is the trustworthy part: same data, same costs, same execution, one variable changed at a time.
+
+---
+
+## Update: the fresh-meme result did not survive an unbiased sample
+
+Everything above is measured on pools drawn from the top of GeckoTerminal's
+volume ranking - coins that had already run 200-1700%. That is survivorship
+bias. Re-running the tuned config on a mid-rank sample with **no performance
+filter** (pages 2-10, liquidity 15k-300k, volume >= 25k, age >= 2 days) gives:
+
+| | Unbiased (9 meme pools) | Original (11 fresh memes) |
+|---|---:|---:|
+| median return | **-22.50%** | +7.90% |
+| mean return | -20.60% | +7.51% |
+| profitable runs | **0 / 9** | 8 / 11 |
+
+One pool (BIG/TTWO) went up **1017%** and the strategy still lost 32.7% on it.
+The +7.9% was the coin selection, not the signal. Full write-up:
+[`SURVIVORSHIP-G87E.md`](SURVIVORSHIP-G87E.md), data in
+`backtest_g87e_survivorship.json`.
+
+**Conclusion: do not ship the G87E entry.** The exits are fine; the entry has no
+information. The next honest test is the same unbiased sample with the desk's
+existing guards (`desk/signals.py`, `desk/guard.py`) as the entry gate.
