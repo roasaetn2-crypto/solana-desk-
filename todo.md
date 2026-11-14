@@ -81,3 +81,21 @@ rate. If it does not, do NOT add it to the desk.
 - [x] Dashboard banner explains an over-budget book instead of failing silently
 - [x] 16 tests in tests/test_risk_budget.py; full suite 677 passed / 17 skipped
 - [x] verify-update.sh section 4e + RISK-BUDGET-FIX.md
+
+# Fix line 551 — the guard only guarded the simulator
+
+- [x] Diagnose: `if self.mode != "live":` gated regime + circuit_breaker -> breaker never ran for real money
+- [x] Diagnose (worse): `_caution()` called only in the paper `else:` branch -> live fill skipped security/regime/breaker/Jupiter cuts + checklist
+- [x] Diagnose: checklist item `("paper mode", paper_only)` was backwards -> would fail every live fill
+- [x] Hoist regime read + circuit_breaker out of the paper-only gate (regime try/except -> UNKNOWN)
+- [x] Call `_caution()` in the live branch; pass `max_ticket=caps["max_trade"]`
+- [x] `_caution` gains keyword-only `max_ticket` override; paper keeps %-of-equity cap
+- [x] Checklist item -> `("mode: paper, or live is armed", paper_only or live_armed)`
+- [x] `LiveBroker.buy` accepts `groq_mult` (agent passes it; live would TypeError) and stores it
+- [x] `LiveBroker.sell` journals `groq_sizer_pnl` so measurement works on real fills
+- [x] "price confirmed on a second read" appended in both modes
+- [x] Tests: breaker trips in live mode; LiveBroker.buy signature; checklist armed/not-armed; source tripwire
+- [x] Full suite: 717 passed, 17 skipped
+- [x] Control backtest A unchanged: 644 trades / 12 pools / -23.25% median / 27.9% win
+- [x] GUARD-LIVE.md written
+- [x] Commit + push (76d8afe)
