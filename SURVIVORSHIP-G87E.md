@@ -128,3 +128,21 @@ drawdowns, trade counts, buy-and-hold for the same window).
 > return HTTP 401. That caps a single pass at ~12 qualifying pools from the
 > mid-rank band. The sample is small, but 0/9 green with a −22.5% median is not
 > a small-sample accident — it is the same sign as the zero-cost autopsy.
+
+---
+
+## Follow-up: the desk's own guards, on this same sample
+
+Tested `desk/guard.py` (real code, replayable) and a volume-expansion gate (proxy for
+`desk/signals.py`, which is live-network only and cannot be backtested) on these exact
+12 pools:
+
+| Variant | Median | Mean | Green | Avg trade | Avg DD |
+|---|---:|---:|---:|---:|---:|
+| control | −23.25% | −23.12% | 0/12 | −0.893% | 24.9% |
+| + breaker | −12.71% | −13.68% | 0/12 | −0.761% | 15.4% |
+| + volgate | −13.54% | −10.40% | 2/12 | −0.369% | 14.6% |
+| + both | **−8.75%** | −5.86% | 2/12 | −0.346% | **9.6%** |
+
+Every pool improved; ten of twelve are still negative. The gates cut the bleed by
+roughly two-thirds and do not create an edge. Full write-up: [`GUARD-G87E.md`](GUARD-G87E.md).

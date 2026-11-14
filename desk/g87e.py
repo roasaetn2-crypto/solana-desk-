@@ -227,6 +227,8 @@ class Result:
     fees_paid: float = 0.0
     max_dd_pct: float = 0.0
     exposure_pct: float = 0.0
+    blocked: int = 0
+    halved: int = 0
 
     def stats(self) -> dict:
         wins = [t for t in self.trades if t.pnl > 0]
@@ -254,13 +256,24 @@ class Result:
             "max_dd_pct": round(self.max_dd_pct, 2),
             "fees_paid": round(self.fees_paid, 2),
             "exposure_pct": round(self.exposure_pct, 2),
+            "blocked": self.blocked,
+            "halved": self.halved,
             "best_trade_pct": round(max((t.pnl_pct for t in self.trades), default=0.0), 2),
             "worst_trade_pct": round(min((t.pnl_pct for t in self.trades), default=0.0), 2),
         }
 
 
-def backtest(candles: list[dict], cfg: Config) -> Result:
-    """Bar-by-bar replay. One position at a time, no pyramiding."""
+def backtest(candles: list[dict], cfg: Config, gate=None) -> Result:
+    """Bar-by-bar replay. One position at a time, no pyramiding.
+
+    ``gate`` is an optional callable ``gate(i, row, ctx) -> float`` returning a
+    size multiplier for a would-be entry: 0.0 blocks the trade, 0.5 halves it,
+    1.0 leaves it alone. It may only *tighten* — a value above 1.0 is clamped.
+    ``ctx`` carries ``{"equity", "trades", "ts", "blocked", "halved"}`` so a
+    gate can implement streak breakers and count what it stopped. This is how
+    the desk's discipline layer (``desk/guard.py``) is tested against history
+    without forking the execution model.
+    """
     sig = signals(candles, cfg)
     equity = cfg.initial_capital
     res = Result(variant=cfg.variant, start_equity=equity, end_equity=equity)
@@ -352,6 +365,26 @@ def backtest(candles: list[dict], cfg: Config) -> Result:
                 else:
                     side = "long" if row["long"] else "short"
                     a = row["atr"]
+                    # optional discipline gate: 0 blocks, 0.5 halves, 1 passes
+                    gmult = 1.0
+                    if gate is not None:
+                        ctx = {"equity": equity, "trades": res.trades, "ts": ts,
+                               "blocked": res.blocked, "halved": res.halved,
+                               "candles": candles, "i": i}
+                        try:
+                            gmult = float(gate(i, row, ctx))
+                        except Exception:  # noqa: BLE001 - a gate must never crash a run
+                            gmult = 1.0
+                        gmult = max(0.0, min(1.0, gmult))
+                        if gmult <= 0.0:
+                            res.blocked += 1
+                            gmult = 0.0
+                        elif gmult < 1.0:
+                            res.halved += 1
+                    if gmult <= 0.0:
+                        res.equity.append(equity)
+                        res.equity_ts.append(ts)
+                        continue
                     # recompute qty off live equity when compounding
                     if cfg.compounding:
                         risk_usd = equity * (cfg.risk_pct / 100.0)
@@ -361,10 +394,11 @@ def backtest(candles: list[dict], cfg: Config) -> Result:
                         if cfg.min_notional_pct > 0:
                             q = max(q, equity * cfg.min_notional_pct / price)
                             q = min(q, cap)
+                        q *= gmult
                         step = _qty_step(price)
                         q = math.floor(q / step) * step
                     else:
-                        q = row["qty"]
+                        q = row["qty"] * gmult
                     if q <= 0:
                         pass
                     else:
