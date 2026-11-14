@@ -1094,7 +1094,7 @@ function render(s) {
         ? `${esc(sgAct || "\u2014")}${sg.confidence != null ? " " + Math.round(sg.confidence) + "%" : ""}${sg.win_probability != null ? " \u00b7 win " + Math.round(sg.win_probability * 100) + "%" : ""}`
         : "\u2014";
       const sgTitle = sg && sg.prompt ? esc(sg.prompt) : "";
-      return `<tr>
+      return `<tr data-mint="${esc(d.mint || "")}">
         <td><span class="sym">${esc(d.symbol)}</span>${tokenMetaHtml(d)}</td>
         <td><span class="tag ${sgCls}" title="${sgTitle}">${sgTxt}</span></td>
         <td><span class="tag ${tag}">${esc(label)}</span></td>
@@ -1517,3 +1517,73 @@ refreshBacktest(true);
 setInterval(refresh, 2000);
 setInterval(() => refreshBacktest(false), 60000);
 setInterval(tickAges, 1000);
+
+/* ---------- desk tabs: Control / Live / Research ---------- */
+(function initDeskTabs() {
+  const bar = document.getElementById("deskTabs");
+  const layout = document.getElementById("deskLayout");
+  if (!bar || !layout) return;
+
+  const KEY = "desk.tab";
+  const tabs = Array.from(bar.querySelectorAll(".desk-tab"));
+  const cols = { control: ".col-left", live: ".col-center", research: ".col-right" };
+  const narrow = () => window.matchMedia("(max-width: 900px)").matches;
+
+  function activate(name, { scroll = true } = {}) {
+    if (!cols[name]) name = "live";
+    layout.dataset.tab = name;
+    tabs.forEach((t) => {
+      const on = t.dataset.tab === name;
+      t.classList.toggle("is-active", on);
+      t.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    try { localStorage.setItem(KEY, name); } catch (e) {}
+    if (scroll) {
+      if (narrow()) {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        const el = layout.querySelector(cols[name]);
+        if (el) {
+          const y = el.getBoundingClientRect().top + window.scrollY - 110;
+          window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+        }
+      }
+    }
+  }
+
+  tabs.forEach((t) => {
+    t.addEventListener("click", () => activate(t.dataset.tab));
+    // left/right arrow keys move between tabs
+    t.addEventListener("keydown", (e) => {
+      const i = tabs.indexOf(t);
+      if (e.key === "ArrowRight") { e.preventDefault(); tabs[(i + 1) % tabs.length].focus(); }
+      if (e.key === "ArrowLeft") { e.preventDefault(); tabs[(i - 1 + tabs.length) % tabs.length].focus(); }
+    });
+  });
+
+  let saved = null;
+  try { saved = localStorage.getItem(KEY); } catch (e) {}
+  activate(saved || "live", { scroll: false });
+
+  // badge: open positions on the Live tab, decisions on Research
+  function setBadge(name, n) {
+    const t = tabs.find((x) => x.dataset.tab === name);
+    if (!t) return;
+    let b = t.querySelector(".tab-badge");
+    if (!n) { if (b) b.remove(); return; }
+    if (!b) { b = document.createElement("span"); b.className = "tab-badge"; t.appendChild(b); }
+    b.textContent = n > 99 ? "99+" : String(n);
+  }
+  function syncBadges() {
+    const pos = document.querySelectorAll("#posCards .pos-card").length;
+    const dec = document.querySelectorAll("#decBody tr[data-mint]").length;
+    setBadge("live", pos);
+    setBadge("research", dec);
+  }
+  const mo = new MutationObserver(syncBadges);
+  ["posCards", "decBody"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) mo.observe(el, { childList: true });
+  });
+  syncBadges();
+})();

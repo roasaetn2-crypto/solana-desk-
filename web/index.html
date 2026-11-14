@@ -153,10 +153,19 @@
 
   <canvas id="confetti" class="confetti" hidden></canvas>
 
-  <main class="layout">
+  <nav class="desk-tabs" id="deskTabs" role="tablist" aria-label="Desk sections">
+    <button class="desk-tab is-active" type="button" role="tab" aria-selected="true"
+            data-tab="live"><span class="ico">◉</span><span>Live</span></button>
+    <button class="desk-tab" type="button" role="tab" aria-selected="false"
+            data-tab="control"><span class="ico">⚙</span><span>Control</span></button>
+    <button class="desk-tab" type="button" role="tab" aria-selected="false"
+            data-tab="research"><span class="ico">⌕</span><span>Research</span></button>
+  </nav>
+
+  <main class="layout" id="deskLayout" data-tab="live">
 
     <!-- LEFT: pipeline + agent stats + playbook -->
-    <section class="col col-left">
+    <section class="col col-left" data-col="control" role="tabpanel" aria-label="Control">
       <div class="panel">
         <div class="panel-head">
           <span class="icon">🛰️</span>
@@ -284,7 +293,7 @@
     </section>
 
     <!-- CENTER: KPIs, positions, decisions, dialogue -->
-    <section class="col col-center">
+    <section class="col col-center" data-col="live" role="tabpanel" aria-label="Live">
       <div class="kpis">
         <div class="kpi" style="--accent: var(--green)">
           <div class="k">Equity</div><div class="v" id="kEquity">$20.00</div>
@@ -350,7 +359,7 @@
     </section>
 
     <!-- RIGHT: scorecard, dev report, thesis, rules -->
-    <section class="col col-right">
+    <section class="col col-right" data-col="research" role="tabpanel" aria-label="Research">
       <div class="panel">
         <div class="panel-head"><span class="icon">🪙</span><h2>Meme value scorecard</h2><span class="badge" id="memeBadge">—</span></div>
         <div class="panel-body">
@@ -449,7 +458,7 @@
     </div>
   </section>
 
-  <script src="/static/app.js?v=20261113a"></script>
+  <script src="/static/app.js?v=20261114tabs"></script>
   <script src="/static/ai-chat.js?v=20261112d"></script>
 </body>
 </html>
