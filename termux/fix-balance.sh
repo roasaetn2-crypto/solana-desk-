@@ -13,7 +13,10 @@
 # resets the book to the config bankroll (that is what Reset does).
 set -u
 
-DESK_DIR="${DESK_DIR:-$HOME/solana-desk}"
+# Resolve the checkout by looking for config.py, not by guessing its name:
+# the repo is `solana-desk-` but these scripts used to assume `solana-desk`.
+source "$(dirname "$0")/lib-deskdir.sh"
+DESK_DIR="$(desk_dir)" || { desk_dir_hint; exit 1; }
 PORT="${PORT:-8000}"
 
 cd "$DESK_DIR" || { echo "FAIL: no desk dir at $DESK_DIR"; exit 1; }

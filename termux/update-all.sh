@@ -12,7 +12,10 @@
 #   5. restart + health check   -> verify the new code is actually running
 set -u
 
-DESK_DIR="${DESK_DIR:-$HOME/solana-desk}"
+# Resolve the checkout by looking for config.py, not by guessing its name:
+# the repo is `solana-desk-` but these scripts used to assume `solana-desk`.
+source "$(dirname "$0")/lib-deskdir.sh"
+DESK_DIR="$(desk_dir)" || { desk_dir_hint; exit 1; }
 PORT="${PORT:-8000}"
 AMOUNT="${1:-}"
 

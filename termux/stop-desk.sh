@@ -7,7 +7,10 @@
 # one 2s later; that is the "I stopped it and it came back" bug.
 set -u
 
-DESK_DIR="${DESK_DIR:-$HOME/solana-desk}"
+# Resolve the checkout by looking for config.py, not by guessing its name:
+# the repo is `solana-desk-` but these scripts used to assume `solana-desk`.
+source "$(dirname "$0")/lib-deskdir.sh"
+DESK_DIR="$(desk_dir)" || { desk_dir_hint; exit 1; }
 LOCKDIR="$DESK_DIR/.supervisor.lock"
 
 cd "$DESK_DIR" 2>/dev/null || true

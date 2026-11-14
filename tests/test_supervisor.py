@@ -107,6 +107,13 @@ KEYS = ROOT / "termux" / "set-ai-keys.sh"
 def _route(tmp_path, *args):
     """Run set-ai-keys.sh against a scratch .env and return the keys it wrote."""
     (tmp_path / "termux").mkdir()
+    # A real checkout is identified by config.py + app.py, and the helper scripts
+    # resolve the checkout through termux/lib-deskdir.sh. Both have to be here or
+    # the script correctly refuses to run in a directory that is not a desk.
+    (tmp_path / "config.py").write_text("MEME = {}\n")
+    (tmp_path / "app.py").write_text("# app\n")
+    (tmp_path / "termux" / "lib-deskdir.sh").write_text(
+        _text(ROOT / "termux" / "lib-deskdir.sh"))
     # A stub supervisor, and a copy of the script whose health poll does not
     # actually wait 40 seconds.
     (tmp_path / "termux" / "start-desk.sh").write_text("#!/bin/bash\ntrue\n")

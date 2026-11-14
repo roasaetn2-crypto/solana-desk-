@@ -15,7 +15,10 @@
 # Stop it with:  bash ~/solana-desk/termux/stop-desk.sh
 set -u
 
-DESK_DIR="${DESK_DIR:-$HOME/solana-desk}"
+# Resolve the checkout by looking for config.py, not by guessing its name:
+# the repo is `solana-desk-` but these scripts used to assume `solana-desk`.
+source "$(dirname "$0")/lib-deskdir.sh"
+DESK_DIR="$(desk_dir)" || { desk_dir_hint; exit 1; }
 KEY_FILE="$HOME/.desk_key"
 LOG="$DESK_DIR/desk.log"
 PORT="${PORT:-8000}"
