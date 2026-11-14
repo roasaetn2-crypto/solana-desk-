@@ -81,6 +81,10 @@ body {
   white-space: nowrap;
 }
 .pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted-2); }
+/* The sync pill is the page's heartbeat: green means the last poll landed,
+   red means the desk is unreachable and what you see is stale. */
+#syncPill { font-variant-numeric: tabular-nums; }
+#syncPill .dot { background: currentColor; }
 .pill.live { color: var(--green); border-color: rgba(46,229,157,0.35); background: var(--green-dim); }
 .pill.live .dot { background: var(--green); animation: pulse 1.8s infinite; }
 .pill.paused { color: var(--amber); border-color: rgba(255,181,71,0.3); background: var(--amber-dim); }

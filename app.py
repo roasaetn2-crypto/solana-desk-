@@ -55,6 +55,7 @@ from contextlib import asynccontextmanager
 import hashlib
 import hmac
 import os
+import re
 import time
 from pathlib import Path
 
@@ -96,6 +97,26 @@ agent = SolanaAgent()
 
 WEB = Path(__file__).parent / "web"
 app.mount("/static", StaticFiles(directory=WEB), name="static")
+
+
+def _asset_version() -> str:
+    """A cache-buster derived from the files themselves.
+
+    The `?v=` strings in index.html used to be hand-edited, which meant every
+    deploy shipped new HTML pointing at an OLD app.js: the browser served the
+    cached script and new panels silently never appeared. Hashing the actual
+    bytes makes a stale version impossible -- if the file changes, the URL
+    changes, and the browser is forced to fetch it.
+    """
+    h = hashlib.sha256()
+    for name in ("app.js", "styles.css"):
+        f = WEB / name
+        try:
+            st = f.stat()
+            h.update(f"{name}:{st.st_size}:{int(st.st_mtime)}".encode())
+        except OSError:
+            h.update(f"{name}:missing".encode())
+    return h.hexdigest()[:10]
 
 SESSION_COOKIE = "desk_session"
 DEVICE_COOKIE = "desk_device"
@@ -251,7 +272,22 @@ def api_revoke(device_id: str):
 
 @app.get("/")
 def index():
-    return FileResponse(WEB / "index.html")
+    """Serve the shell with a live cache-buster and no-cache so a pull is visible."""
+    try:
+        html = (WEB / "index.html").read_text(encoding="utf-8")
+    except OSError:
+        return HTMLResponse("<h1>web/index.html missing</h1>", status_code=500)
+    v = _asset_version()
+    # Rewrite whatever version the file happens to carry with the real one.
+    html = re.sub(r'(/static/(?:app\.js|styles\.css))\?v=[^"\']*', rf"\1?v={v}", html)
+    return HTMLResponse(
+        html,
+        headers={
+            # Revalidate every load. Costs a 304, never a stale panel.
+            "Cache-Control": "no-cache, must-revalidate",
+            "X-Desk-Assets": v,
+        },
+    )
 
 
 @app.get("/api/state")
@@ -264,7 +300,9 @@ def state(request: Request):
         "device": dev["name"] if dev else None,
         "paired_devices": devices.count(),
     }
-    return JSONResponse(snap)
+    # The dashboard polls this every 2s. A cached copy would freeze the whole
+    # page on an old snapshot while the desk keeps trading underneath it.
+    return JSONResponse(snap, headers={"Cache-Control": "no-store, max-age=0"})
 
 
 @app.get("/api/chart")

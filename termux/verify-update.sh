@@ -285,6 +285,25 @@ else
 fi
 
 say ""
+say "=== 4i. the dashboard can never show a stale page ==="
+grep -q "def _asset_version" app.py && ok "app.py derives the asset version from the files" || bad "app.py missing _asset_version() -> a pull can leave an old app.js cached"
+grep -q 'X-Desk-Assets' app.py && ok "the served shell carries X-Desk-Assets" || bad "app.py does not expose the asset version"
+grep -q 'no-cache, must-revalidate' app.py && ok "index.html is served no-cache" || bad "index.html is cacheable -> a pull may not be visible"
+grep -q 'no-store, max-age=0' app.py && ok "/api/state is served no-store" || bad "/api/state is cacheable -> the page can freeze on an old snapshot"
+grep -q 'cache: "no-store"' web/app.js && ok "the browser fetch bypasses its own cache" || bad "web/app.js fetch may serve from disk cache"
+grep -q "function paintSync" web/app.js && ok "the sync pill heartbeat is wired" || bad "web/app.js missing paintSync()"
+grep -q 'id="syncPill"' web/index.html && ok "the sync pill is in the topbar" || bad "web/index.html missing #syncPill"
+[ -f tests/test_asset_cache.py ] && ok "tests/test_asset_cache.py present" || bad "tests/test_asset_cache.py missing"
+if python -c "
+import app
+v = app._asset_version()
+assert isinstance(v, str) and len(v) == 10, v
+" 2>/dev/null; then
+  ok "_asset_version() returns a 10-char hash"
+else
+  bad "_asset_version() broken -> python -m pytest tests/test_asset_cache.py"
+fi
+
 say "=== 5. does the code import cleanly? ==="
 if python -c "from desk import signal_engine, signal_backtest; from desk import settings; print('   ', len(settings.REGISTRY), 'settings')" 2>/dev/null; then
   ok "signal_engine + signal_backtest import, settings registry loads"

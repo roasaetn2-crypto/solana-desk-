@@ -416,12 +416,16 @@ function initDailyStop() {
 }
 
 async function api(path, method = "GET", body = null) {
-  const opts = { method, headers: {} };
+  // cache: "no-store" matters on a phone: Chrome will otherwise serve a GET
+  // from the disk cache when the network is flaky, and the page silently
+  // freezes on an old snapshot while the desk keeps trading.
+  const opts = { method, headers: {}, cache: "no-store" };
   if (body !== null) {
     opts.headers["Content-Type"] = "application/json";
     opts.body = JSON.stringify(body);
   }
   const r = await fetch(path, opts);
+  if (!r.ok) throw new Error(path + " -> HTTP " + r.status);
   return r.json();
 }
 
@@ -1529,16 +1533,37 @@ function renderPostmortem(g) {
   }
 }
 
+// A visible heartbeat. Without this, a frozen page and a quiet market look
+// identical -- you cannot tell "nothing is happening" from "the socket died".
+let SYNC_FAILS = 0;
+
+function paintSync(ok) {
+  const pill = $("syncPill");
+  const txt = $("syncText");
+  if (!pill || !txt) return;
+  if (ok) {
+    SYNC_FAILS = 0;
+    pill.style.color = "var(--green)";
+    txt.textContent = "sync: " + new Date().toLocaleTimeString();
+  } else {
+    SYNC_FAILS += 1;
+    pill.style.color = "var(--red)";
+    txt.textContent = "sync: stale " + SYNC_FAILS + "x";
+  }
+}
+
 async function refresh() {
   try {
     const s = await api("/api/state");
     render(s);
     renderGroq(s && s.groq_sizer);
     renderPostmortem(s && s.groq_postmortem);
+    paintSync(true);
     refreshBacktest(false);
     refreshQuota(false);
   } catch (e) {
     console.error(e);
+    paintSync(false);
   }
 }
 
