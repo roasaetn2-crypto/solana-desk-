@@ -29,7 +29,7 @@ import requests
 from config import AGENT, ENTRY, EXECUTION, EXITS, FOMO, PAPER, RISK
 from desk.brain_advisor import ADVISOR, should_advise, wants_entry, wants_exit
 from desk import (analyst, brain, chain, dexscreener, devcheck, dialogue, exits, fomo, goplus, gmgn,
-                  guard, heartbeat, helius, meme, pumpportal, regime, risk, scanner,
+                  groq_sizer, guard, heartbeat, helius, meme, pumpportal, regime, risk, scanner,
                   signal_engine, signals)
 from desk import chart as candle_chart
 from desk import links as fomo_links
@@ -911,7 +911,8 @@ class SolanaAgent:
                       f"red flags: {flags}\nhttps://dexscreener.com/solana/{t['mint']}")
                 try:
                     fill = self.broker.buy(t["mint"], t["symbol"], ticket, buy_price,
-                                           horizon=sizes.get("horizon", "swing"))
+                                           horizon=sizes.get("horizon", "swing"),
+                                           groq_mult=(sizes.get("guard", {}).get("groq") or {}).get("mult"))
                 except live_mod.LiveError as e:
                     self.stats["errors"] += 1
                     self.emit("error", f"{t['symbol']}: live order refused \u2014 {e}",
@@ -1053,6 +1054,20 @@ class SolanaAgent:
         chips += signals.impact_chips(jup)
         if jup.get("halve"):
             cuts.append(("jupiter", 0.5))
+        # Groq second opinion on SIZE ONLY. Shrink-only by construction: the module
+        # clamps to [0.25, 1.0] and fails open to 1.0, so a slow or wrong model can
+        # only ever make a ticket smaller, never larger and never blocked. It runs
+        # after every rule has already agreed, so it cannot admit a trade the desk
+        # would otherwise refuse.
+        groq_info = None
+        if groq_sizer.enabled():
+            gmult, groq_info = groq_sizer.size_mult(
+                {**t, "dev": (t.get("dev") or {}), "stop_pct": stop, "ticket_usd": ticket},
+                mint=t.get("mint", ""), symbol=t.get("symbol", ""),
+                entry_ts=time.time(), log=lambda line: self.emit("brain", line))
+            if gmult < 1.0:
+                cuts.append(("groq", gmult))
+                chips.append(signals.chip("groq_size", f"x{gmult:g}", "brain"))
         mult, names = guard.size_multiplier(cuts)
         new_ticket = round(ticket * mult, 2)
         floor = PAPER.get("min_ticket_usd", RISK["min_ticket_usd"])
@@ -1063,6 +1078,9 @@ class SolanaAgent:
             paper_only=self.mode != "live")
         info = {"mult": mult, "cuts": names, "breaker": brk["state"], "ticket_before": ticket,
                 "jupiter_impact_pct": jup.get("impact_pct"), "checklist": checklist}
+        if groq_info:
+            info["groq"] = {k: groq_info.get(k) for k in
+                            ("mult", "source", "confidence", "reasons", "latency_ms")}
         if not checklist["ok"]:
             self.stats["guard_rejects"] += 1
             return False, 0.0, "pre-trade checklist failed: " + "; ".join(checklist["failed"]), info, chips

@@ -210,7 +210,7 @@ class PaperBroker:
 
     # ---------- orders ----------
     def buy(self, mint: str, symbol: str, ticket_usd: float, price: float,
-            horizon: str = "swing") -> dict:
+            horizon: str = "swing", groq_mult: float | None = None) -> dict:
         fill = price * (1 + PAPER["slippage_pct"])
         fee = ticket_usd * PAPER["fee_pct"]
         qty = (ticket_usd - fee) / fill
@@ -218,6 +218,11 @@ class PaperBroker:
         self.s["positions"][mint] = {"symbol": symbol, "qty": qty, "entry": fill,
                                      "last": fill, "opened": time.time(),
                                      "cost": ticket_usd, "half_taken": False}
+        if groq_mult is not None:
+            # Kept on the position so the close path can journal the realised P&L
+            # against the multiplier that sized it. That join is the only way to
+            # ever answer whether the model has ranking skill (groq_sizer.buckets).
+            self.s["positions"][mint]["groq_mult"] = float(groq_mult)
         exits.init_state(self.s["positions"][mint], horizon)
         self._save()
         return {"side": "buy", "mint": mint, "symbol": symbol, "qty": qty, "fill": fill,
@@ -275,6 +280,17 @@ class PaperBroker:
             out["pnl_usd"] = pnl
             self.s["closed"].append({"mint": mint, "symbol": p["symbol"], "pnl_usd": pnl,
                                      "reason": reason, "closed": time.time()})
+            if p.get("groq_mult") is not None:
+                # The measurement hook: realised P&L tagged with the multiplier that
+                # sized the ticket. groq_sizer.buckets() reads these rows.
+                try:
+                    from desk.ops import journal
+                    journal("groq_sizer_pnl", mint=mint, symbol=p.get("symbol"),
+                            mult=float(p["groq_mult"]), pnl_usd=pnl, reason=reason,
+                            ticket_usd=p.get("cost"), entry=p.get("entry"),
+                            opened=p.get("opened"), closed=time.time())
+                except Exception:
+                    pass
             del self.s["positions"][mint]
         self._save()
         return out
