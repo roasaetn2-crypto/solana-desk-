@@ -132,7 +132,11 @@ DEVICE_COOKIE = "desk_device"
 DESK_TOKEN = os.environ.get("DESK_TOKEN", "").strip()
 _SESSION = hashlib.sha256(("desk::" + DESK_TOKEN).encode()).hexdigest() if DESK_TOKEN else ""
 
-PUBLIC_PATHS = {"/login", "/logout", "/pair", "/api/health"}
+# /api/store is here for the same reason /api/health is: it exists to answer
+# "is my deployment actually persisting?", and requiring DESK_TOKEN to ask that
+# means you cannot check the thing you are trying to verify. It returns table
+# names and row counts only -- no rows, no keys, nothing that changes state.
+PUBLIC_PATHS = {"/login", "/logout", "/pair", "/api/health", "/api/store"}
 
 
 def _master(request: Request) -> bool:

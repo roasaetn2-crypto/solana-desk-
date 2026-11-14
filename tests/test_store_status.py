@@ -172,3 +172,26 @@ def test_health_exposes_store_and_api_store_returns_a_probe(monkeypatch):
     p = client.get("/api/store").json()
     assert p["schema_ready"] is True
     assert p["journal_rows_remote"] == 7
+
+
+def test_api_store_is_public_but_still_secretless(monkeypatch):
+    """The whole point is checking a deploy without the token you are verifying.
+
+    It must be reachable with no DESK_TOKEN, and it must still not carry the
+    token, the full URL, or any journal row.
+    """
+    fastapi_testclient = pytest.importorskip("fastapi.testclient")
+    monkeypatch.delenv("DESK_TOKEN", raising=False)
+    monkeypatch.setenv("TURSO_DATABASE_URL", "libsql://solana-desk-roms09.turso.io")
+    monkeypatch.setenv("TURSO_AUTH_TOKEN", "super-secret-token")
+    store._poster = _fake_poster(journal_rows=60350)
+
+    import app as appmod
+    assert "/api/store" in appmod.PUBLIC_PATHS
+    client = fastapi_testclient.TestClient(appmod.app)
+    r = client.get("/api/store")
+    assert r.status_code == 200, "must not require DESK_TOKEN"
+    blob = json.dumps(r.json())
+    assert "super-secret-token" not in blob
+    assert "libsql://" not in blob
+    assert r.json()["journal_rows_remote"] == 60350
