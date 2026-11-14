@@ -169,3 +169,33 @@ print(risk_budget_usd(a))   # 4.5  (was 1.5)
 
 The entry gate now approves a $2.50 ticket instead of refusing it, and six
 positions fill to exactly $4.50 of open risk.
+
+---
+
+# v3 — the off switch (Risk → Enforce open-risk budget)
+
+If you would rather the desk simply take every entry, there is now a single
+toggle instead of editing code:
+
+```
+Risk -> Enforce open-risk budget   (default ON)
+```
+
+- **ON** — an entry is trimmed or refused when the whole book's open risk would
+  pass the budget.
+- **OFF** — every entry is allowed, so up to `max_open_positions` can stack. The
+  daily loss stop (`max_daily_loss_pct`) and `flatten_on_daily_stop` still fire:
+  the gate being off does **not** disable the day's stop or the flatten.
+
+The trade-off is explicit: with the gate off, six 1.5% tickets can put **9% of
+the book at risk** on a desk that stops the day at 3%. That is fine if you are
+watching it and want concurrency; it is not fine if you walk away.
+
+Set it from the dashboard (propose → Confirm) or:
+
+```python
+config.RISK["enforce_risk_budget"] = False
+```
+
+`scripts/verify_risk_fix.py` now checks both modes, including that the daily stop
+stays armed when the gate is off.

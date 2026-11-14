@@ -181,6 +181,11 @@ def fit_risk_budget(open_risk: float, ticket: float, stop_pct: float,
     Both messages name the numbers and the way out, so the operator can act
     instead of guessing why the desk went quiet.
     """
+    if not RISK.get("enforce_risk_budget", True):
+        # Operator turned the stacking gate off. Every entry is allowed; the
+        # daily loss stop (and flatten_on_daily_stop) is a separate check in
+        # check_token_trade and still fires.
+        return True, ticket, "approved (risk budget gate off)"
     budget = risk_budget_usd(account)
     if budget <= 0:
         return True, ticket, "approved"

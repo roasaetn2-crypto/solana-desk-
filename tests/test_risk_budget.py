@@ -321,3 +321,41 @@ def test_config_defaults_unstick_the_desk():
     assert risk.PAPER["min_ticket_usd"] <= 0.20
     a = _acct(equity=50.0, day_start_equity=50.0, realized_equity=50.0, cash=50.0)
     assert risk_budget_usd(a) > 1.50
+
+
+# --------------------------------------------------------------------------
+# operator kill switch for the stacking gate (daily stop stays armed)
+# --------------------------------------------------------------------------
+
+def test_enforce_off_lets_every_entry_through():
+    """Turning the gate off must approve even an over-budget book."""
+    a = _acct()
+    old = risk.RISK.get("enforce_risk_budget")
+    try:
+        risk.RISK["enforce_risk_budget"] = False
+        ok, ticket, why = fit_risk_budget(99.0, 4.17, 0.06, a, 0.50)
+        assert ok is True and ticket == 4.17
+        assert "gate off" in why
+    finally:
+        risk.RISK["enforce_risk_budget"] = old
+
+
+def test_enforce_off_does_not_disable_the_daily_stop():
+    """The kill switch is for the stacking gate only, never the daily loss stop."""
+    a = _acct(equity=50.0, day_pnl=-2.0, day_start_equity=50.0, realized_equity=50.0)
+    old = risk.RISK.get("enforce_risk_budget")
+    try:
+        risk.RISK["enforce_risk_budget"] = False
+        # -$2.00 on a $50 book is past the 3% ($1.50) daily stop
+        assert risk.daily_loss_hit(a) is True
+        from desk.analyst import TokenThesis
+        th = TokenThesis(verdict="valid_setup", score=8, red_flags=[], green_flags=[],
+                         shape="crowd", invalidation="n/a", sources=[])
+        ok, ticket, why = risk.check_token_trade(th, a, 100_000, stop_pct=0.30)
+        assert ok is False and "daily loss" in why
+    finally:
+        risk.RISK["enforce_risk_budget"] = old
+
+
+def test_enforce_on_is_the_default():
+    assert risk.RISK.get("enforce_risk_budget", True) is True

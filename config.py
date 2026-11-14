@@ -73,6 +73,11 @@ RISK = {
     "max_pool_share": 0.02,        # never be more than 2% of the pool: you'd be the exit
     "max_open_positions": 6,       # retune: was 4
     "max_daily_loss_pct": 0.03,    # down 3% on the day -> desk stops until tomorrow
+    "enforce_risk_budget": True,   # Whole-book stacking gate. True = refuse/trim an entry that
+                                   # would push total open risk past the budget. False = let every
+                                   # entry through (the daily loss stop still fires and flattens).
+                                   # Turn off only if you accept that N concurrent positions can put
+                                   # max_risk_per_trade x N at risk on a max_daily_loss_pct day.
     "risk_budget_usd": 0.0,        # EXPLICIT whole-book open-risk budget in USD. 0 = auto.
                                    # Auto = max(daily stop, max_risk_per_trade * book * slots),
                                    # i.e. the larger of "the 3% day" and "what all six slots are

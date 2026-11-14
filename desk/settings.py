@@ -156,6 +156,13 @@ _R: list[Setting] = [
     _num("risk.max_open_positions", "Max open positions", "Risk", "int", _d(RISK, "max_open_positions", int), 1, 10),
     _num("risk.max_daily_loss_pct", "Daily loss stop", "Risk", "pct", _d(RISK, "max_daily_loss_pct"), 0.005, 0.10, "of book",
          "the desk halts new entries for the day past this; capped at 10%"),
+    Setting("risk.enforce_risk_budget", "Enforce open-risk budget", "Risk", "bool",
+            lambda: bool(RISK.get("enforce_risk_budget", True)),
+            lambda v: RISK.__setitem__("enforce_risk_budget", bool(v)),
+            help="ON: an entry is trimmed or refused if the whole book's open risk would pass the "
+                 "budget. OFF: every entry is allowed, so up to max-open-positions can stack. The "
+                 "daily loss stop still fires and flattens the book either way. Turn OFF only if "
+                 "the desk is refusing entries you want to take."),
     _num("risk.risk_budget_usd", "Open-risk budget", "Risk", "float", _d(RISK, "risk_budget_usd"), 0.0, 500.0, "USD",
          "dollars of open risk the whole book may carry at once. 0 = auto: the larger of the "
          "daily stop and what all max-open slots are allowed to risk, so the desk never locks "
@@ -303,7 +310,7 @@ for _k in REGISTRY:  # belt and braces: nothing excluded may sneak into the regi
 
 _ALIASES = {"stop_loss": "exits.scalp.stop_pct", "stop": "exits.scalp.stop_pct", "risk": "risk.max_risk_per_trade",
             "style": "trading.style", "min_score": "analyst.valid_score", "max_positions": "risk.max_open_positions",
-            "daily_loss": "risk.max_daily_loss_pct", "risk_budget": "risk.risk_budget_usd", "trailing_stop": "exits.scalp.trail_pct"}
+            "daily_loss": "risk.max_daily_loss_pct", "risk_budget": "risk.risk_budget_usd", "enforce_budget": "risk.enforce_risk_budget", "trailing_stop": "exits.scalp.trail_pct"}
 
 # ---------- presets: one card, every value that changes ----------
 PRESETS: dict[str, dict] = {

@@ -334,10 +334,13 @@ class SolanaAgent:
                 "can_continue": paper and halted and not override,
                 "override_date": self.paper.s.get("daily_loss_override_date") if paper else None,
                 "risk_budget_usd": round(risk_budget_usd(acct), 2) if acct else None,
+                "enforce_risk_budget": bool(RISK.get("enforce_risk_budget", True)),
                 "open_risk_usd": (round(open_risk_usd(self.paper.s.get("positions") or {}), 2)
                                   if paper else None),
-                "over_risk_budget": (open_risk_usd(self.paper.s.get("positions") or {})
-                                     > risk_budget_usd(acct) + 1e-9) if acct else False,
+                "over_risk_budget": (
+                    bool(RISK.get("enforce_risk_budget", True))
+                    and open_risk_usd(self.paper.s.get("positions") or {})
+                    > risk_budget_usd(acct) + 1e-9) if acct else False,
             }
 
     def continue_today(self) -> dict:

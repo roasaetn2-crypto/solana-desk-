@@ -96,6 +96,17 @@ def main() -> int:
     check(f"{filled}/{slots} slots opened, open risk ${risk:.2f} <= ${risk_budget_usd(a2):.2f}",
           filled == slots and risk <= risk_budget_usd(a2) + 1e-6)
 
+    print("\n6. Off switch works, daily stop stays armed")
+    old_enforce = config.RISK.get("enforce_risk_budget")
+    try:
+        config.RISK["enforce_risk_budget"] = False
+        o, t, w = fit_risk_budget(99.0, 2.5, stop, acct, config.PAPER["min_ticket_usd"])
+        check("gate off -> over-budget entry approved", o and t > 0, w)
+        check("daily loss stop still configured",
+              config.RISK["max_daily_loss_pct"] > 0 and config.RISK["flatten_on_daily_stop"])
+    finally:
+        config.RISK["enforce_risk_budget"] = old_enforce
+
     print("=" * 52)
     if _fails:
         print(f"{RED}{_fails} check(s) failed \u2014 the fix is NOT live.{END}\n")
