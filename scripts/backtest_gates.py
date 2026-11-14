@@ -88,7 +88,7 @@ MIN_CANDLES = ENTRY_IDX + 12   # need at least an hour of forward path to be fai
 # GeckoTerminal's free tier is ~30 requests/minute. Hammering it returns 429
 # and every pool silently disappears, which would quietly bias the sample.
 # One global limiter, and a patient 429 handler, keeps the fetch honest.
-MIN_INTERVAL_S = 1.2
+MIN_INTERVAL_S = 4.0
 _last_call = [0.0]
 
 
@@ -107,7 +107,7 @@ def get(url: str, params: dict | None = None, tries: int = 10) -> dict | None:
             if r.status_code == 200:
                 return r.json()
             if r.status_code == 429:
-                back = 1.2
+                back = 30.0
                 print(f"    429 rate-limited, sleeping {back}s", flush=True)
                 time.sleep(back)
                 continue
@@ -294,8 +294,16 @@ def features_at(candles: list[dict], ps: list[float], i: int,
     avg_half = vol_1h / 2.0
     vol_trend = (vol_30m / avg_half) if avg_half > 0 else 1.0
 
+    # memecoin-tactic inputs (point-in-time only)
+    lo20 = max(0, i + 1 - 20)
+    high_20 = max((c["high"] for c in candles[lo20:i + 1] if c.get("high")),
+                  default=None)
+    chg_5m = None
+    if i >= 1 and candles[i - 1].get("close"):
+        chg_5m = price / candles[i - 1]["close"] - 1.0
+
     return {
-        "price": price, "ts": ts,
+        "price": price, "ts": ts, "high_20": high_20, "chg_5m": chg_5m,
         "vol_5m": vol_5m, "vol_30m": vol_30m, "vol_1h": vol_1h,
         "vol_6h": vol_6h, "vol_24h": vol_24h,
         "chg_30m": ago(6), "chg_1h": ago(12), "chg_2h": ago(24),
@@ -496,9 +504,26 @@ def voltrend_ok(pool: dict, f: dict, sc: dict) -> tuple[bool, str]:
     return True, ""
 
 
+def pullback_ok(pool: dict, f: dict, sc: dict) -> tuple[bool, str]:
+    """Meme-guide rule B: do not buy the top of the recent range."""
+    hi = f.get("high_20")
+    if hi and f.get("price") and f["price"] > hi * (1.0 - config.MEME.get("pullback_min_drop", 0.10)):
+        return False, "at_high"
+    return True, ""
+
+
+def flash_ok(pool: dict, f: dict, sc: dict) -> tuple[bool, str]:
+    """Meme-guide rule C: skip entries right after a vertical candle."""
+    thr = config.MEME.get("flash_pump_pct", 0.25)
+    if f.get("chg_5m") is not None and f["chg_5m"] > thr:
+        return False, "flash_pump"
+    return True, ""
+
+
 # Cumulative: rung N applies gates 1..N. That is the only way the ladder means
 # "what did this gate add on top of the ones before it".
-GATES = [scan_ok, flow_ok, organic_ok, meme_ok, community_ok, voltrend_ok]
+GATES = [scan_ok, flow_ok, organic_ok, meme_ok, community_ok, voltrend_ok,
+         pullback_ok, flash_ok]
 LADDER = [
     ("0. no gates (old baseline)", []),
     ("1. + SCAN floors", GATES[:1]),
@@ -507,6 +532,8 @@ LADDER = [
     ("4. + meme not-bad (>=50)", GATES[:4]),
     ("5. + community >= 35", GATES[:5]),
     ("6. + volume still arriving", GATES[:6]),
+    ("7. + not at 20-bar high (pullback)", GATES[:7]),
+    ("8. + no flash pump (>25%/5m)", GATES[:8]),
 ]
 
 

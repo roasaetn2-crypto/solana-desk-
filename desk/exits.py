@@ -40,6 +40,16 @@ def profile(name: str | None, overrides: dict | None = None) -> dict:
         })
     if overrides:
         base.update(overrides)
+    # The pullback package (meme_tactics) ships its own wider stop and slower
+    # take-profit ladder. Apply it here so the broker, the backtests and the
+    # signal plan all read the same numbers. Off by default.
+    try:
+        from desk import meme_tactics
+        ov = meme_tactics.exit_overrides()
+        if ov:
+            base.update(ov)
+    except Exception:
+        pass
     return base
 
 

@@ -1,0 +1,376 @@
+{
+  "baseline": {
+    "trades": 3629,
+    "win_rate": 0.1538,
+    "wins": 558,
+    "avg_ret_pct": -4.781,
+    "total_ret_pct": -17351.93,
+    "profit_factor": 0.503
+  },
+  "tactics": {
+    "A_atr_stop": {
+      "desc": "stop = clamp(k*ATR%, 8%, 60%)",
+      "variants": {
+        "k=1.0": {
+          "trades": 3629,
+          "win_rate": 0.1314,
+          "wins": 477,
+          "avg_ret_pct": -5.109,
+          "total_ret_pct": -18538.75,
+          "profit_factor": 0.444,
+          "kept_pct": 1.0,
+          "win_lift": -0.0224,
+          "verdict": "DO-NOT-ADD (win lift -2.2pp < 5pp)"
+        },
+        "k=1.5": {
+          "trades": 3629,
+          "win_rate": 0.1356,
+          "wins": 492,
+          "avg_ret_pct": -5.155,
+          "total_ret_pct": -18706.65,
+          "profit_factor": 0.451,
+          "kept_pct": 1.0,
+          "win_lift": -0.0182,
+          "verdict": "DO-NOT-ADD (win lift -1.8pp < 5pp)"
+        },
+        "k=2.0": {
+          "trades": 3629,
+          "win_rate": 0.1422,
+          "wins": 516,
+          "avg_ret_pct": -5.109,
+          "total_ret_pct": -18540.32,
+          "profit_factor": 0.468,
+          "kept_pct": 1.0,
+          "win_lift": -0.0116,
+          "verdict": "DO-NOT-ADD (win lift -1.2pp < 5pp)"
+        },
+        "k=2.5": {
+          "trades": 3629,
+          "win_rate": 0.1449,
+          "wins": 526,
+          "avg_ret_pct": -5.197,
+          "total_ret_pct": -18861.54,
+          "profit_factor": 0.471,
+          "kept_pct": 1.0,
+          "win_lift": -0.0089,
+          "verdict": "DO-NOT-ADD (win lift -0.9pp < 5pp)"
+        }
+      }
+    },
+    "B_pullback": {
+      "desc": "enter only if price <= recent20high*(1-drop)",
+      "variants": {
+        "drop=5%": {
+          "trades": 1003,
+          "win_rate": 0.2303,
+          "wins": 231,
+          "avg_ret_pct": -4.22,
+          "total_ret_pct": -4233.06,
+          "profit_factor": 0.661,
+          "kept_pct": 0.2764,
+          "win_lift": 0.0765,
+          "verdict": "DO-NOT-ADD (PF 0.661 < 1.2)"
+        },
+        "drop=10%": {
+          "trades": 424,
+          "win_rate": 0.2689,
+          "wins": 114,
+          "avg_ret_pct": -3.622,
+          "total_ret_pct": -1535.73,
+          "profit_factor": 0.745,
+          "kept_pct": 0.1168,
+          "win_lift": 0.1151,
+          "verdict": "DO-NOT-ADD (PF 0.745 < 1.2)"
+        },
+        "drop=20%": {
+          "trades": 145,
+          "win_rate": 0.331,
+          "wins": 48,
+          "avg_ret_pct": -0.761,
+          "total_ret_pct": -110.36,
+          "profit_factor": 0.949,
+          "kept_pct": 0.04,
+          "win_lift": 0.1772,
+          "verdict": "DO-NOT-ADD (PF 0.949 < 1.2)"
+        },
+        "drop=30%": {
+          "trades": 57,
+          "win_rate": 0.3333,
+          "wins": 19,
+          "avg_ret_pct": -3.678,
+          "total_ret_pct": -209.63,
+          "profit_factor": 0.791,
+          "kept_pct": 0.0157,
+          "win_lift": 0.1795,
+          "verdict": "DO-NOT-ADD (PF 0.791 < 1.2)"
+        }
+      }
+    },
+    "C_flash_breaker": {
+      "desc": "skip if last bar move > thr",
+      "variants": {
+        "thr=15%": {
+          "trades": 3511,
+          "win_rate": 0.1492,
+          "wins": 524,
+          "avg_ret_pct": -4.87,
+          "total_ret_pct": -17098.86,
+          "profit_factor": 0.478,
+          "kept_pct": 0.9675,
+          "win_lift": -0.0046,
+          "verdict": "DO-NOT-ADD (win lift -0.5pp < 5pp)"
+        },
+        "thr=25%": {
+          "trades": 3582,
+          "win_rate": 0.1519,
+          "wins": 544,
+          "avg_ret_pct": -4.867,
+          "total_ret_pct": -17433.69,
+          "profit_factor": 0.487,
+          "kept_pct": 0.987,
+          "win_lift": -0.0019,
+          "verdict": "DO-NOT-ADD (win lift -0.2pp < 5pp)"
+        },
+        "thr=50%": {
+          "trades": 3614,
+          "win_rate": 0.1525,
+          "wins": 551,
+          "avg_ret_pct": -4.9,
+          "total_ret_pct": -17709.82,
+          "profit_factor": 0.489,
+          "kept_pct": 0.9959,
+          "win_lift": -0.0013,
+          "verdict": "DO-NOT-ADD (win lift -0.1pp < 5pp)"
+        }
+      }
+    },
+    "D_vol_ceiling": {
+      "desc": "skip if ATR% > ceil",
+      "variants": {
+        "ceil=10%": {
+          "trades": 3429,
+          "win_rate": 0.1481,
+          "wins": 508,
+          "avg_ret_pct": -4.538,
+          "total_ret_pct": -15560.87,
+          "profit_factor": 0.495,
+          "kept_pct": 0.9449,
+          "win_lift": -0.0057,
+          "verdict": "DO-NOT-ADD (win lift -0.6pp < 5pp)"
+        },
+        "ceil=20%": {
+          "trades": 3598,
+          "win_rate": 0.1529,
+          "wins": 550,
+          "avg_ret_pct": -4.732,
+          "total_ret_pct": -17025.82,
+          "profit_factor": 0.501,
+          "kept_pct": 0.9915,
+          "win_lift": -0.0009,
+          "verdict": "DO-NOT-ADD (win lift -0.1pp < 5pp)"
+        },
+        "ceil=40%": {
+          "trades": 3627,
+          "win_rate": 0.1536,
+          "wins": 557,
+          "avg_ret_pct": -4.794,
+          "total_ret_pct": -17388.32,
+          "profit_factor": 0.501,
+          "kept_pct": 0.9994,
+          "win_lift": -0.0002,
+          "verdict": "DO-NOT-ADD (win lift -0.0pp < 5pp)"
+        }
+      }
+    }
+  },
+  "combos": {
+    "drop=5% + profile (default)": {
+      "trades": 1003,
+      "win_rate": 0.2303,
+      "wins": 231,
+      "avg_ret_pct": -4.22,
+      "total_ret_pct": -4233.06,
+      "profit_factor": 0.661,
+      "win_lift": 0.0765,
+      "verdict": "DO-NOT-ADD (PF 0.661 < 1.2)"
+    },
+    "drop=5% + global 1.5x/2x": {
+      "trades": 1003,
+      "win_rate": 0.2303,
+      "wins": 231,
+      "avg_ret_pct": -4.22,
+      "total_ret_pct": -4233.06,
+      "profit_factor": 0.661,
+      "win_lift": 0.0765,
+      "verdict": "DO-NOT-ADD (PF 0.661 < 1.2)"
+    },
+    "drop=5% + single 1.35x": {
+      "trades": 1003,
+      "win_rate": 0.2622,
+      "wins": 263,
+      "avg_ret_pct": -4.789,
+      "total_ret_pct": -4803.57,
+      "profit_factor": 0.6,
+      "win_lift": 0.1084,
+      "verdict": "DO-NOT-ADD (PF 0.6 < 1.2)"
+    },
+    "drop=5% + quick 1.25x half": {
+      "trades": 1003,
+      "win_rate": 0.3041,
+      "wins": 305,
+      "avg_ret_pct": -4.57,
+      "total_ret_pct": -4584.15,
+      "profit_factor": 0.599,
+      "win_lift": 0.1503,
+      "verdict": "DO-NOT-ADD (PF 0.599 < 1.2)"
+    },
+    "drop=5% + patient 2x/3x": {
+      "trades": 1003,
+      "win_rate": 0.1994,
+      "wins": 200,
+      "avg_ret_pct": -4.406,
+      "total_ret_pct": -4419.43,
+      "profit_factor": 0.654,
+      "win_lift": 0.0456,
+      "verdict": "DO-NOT-ADD (win lift +4.6pp < 5pp)"
+    },
+    "drop=5% + tight trail 1.4x": {
+      "trades": 1003,
+      "win_rate": 0.2443,
+      "wins": 245,
+      "avg_ret_pct": -5.001,
+      "total_ret_pct": -5016.03,
+      "profit_factor": 0.592,
+      "win_lift": 0.0905,
+      "verdict": "DO-NOT-ADD (PF 0.592 < 1.2)"
+    },
+    "drop=10% + profile (default)": {
+      "trades": 424,
+      "win_rate": 0.2689,
+      "wins": 114,
+      "avg_ret_pct": -3.622,
+      "total_ret_pct": -1535.73,
+      "profit_factor": 0.745,
+      "win_lift": 0.1151,
+      "verdict": "DO-NOT-ADD (PF 0.745 < 1.2)"
+    },
+    "drop=10% + global 1.5x/2x": {
+      "trades": 424,
+      "win_rate": 0.2689,
+      "wins": 114,
+      "avg_ret_pct": -3.622,
+      "total_ret_pct": -1535.73,
+      "profit_factor": 0.745,
+      "win_lift": 0.1151,
+      "verdict": "DO-NOT-ADD (PF 0.745 < 1.2)"
+    },
+    "drop=10% + single 1.35x": {
+      "trades": 424,
+      "win_rate": 0.316,
+      "wins": 134,
+      "avg_ret_pct": -3.436,
+      "total_ret_pct": -1456.93,
+      "profit_factor": 0.744,
+      "win_lift": 0.1622,
+      "verdict": "DO-NOT-ADD (PF 0.744 < 1.2)"
+    },
+    "drop=10% + quick 1.25x half": {
+      "trades": 424,
+      "win_rate": 0.3585,
+      "wins": 152,
+      "avg_ret_pct": -3.413,
+      "total_ret_pct": -1447.01,
+      "profit_factor": 0.732,
+      "win_lift": 0.2047,
+      "verdict": "DO-NOT-ADD (PF 0.732 < 1.2)"
+    },
+    "drop=10% + patient 2x/3x": {
+      "trades": 424,
+      "win_rate": 0.2264,
+      "wins": 96,
+      "avg_ret_pct": -3.473,
+      "total_ret_pct": -1472.58,
+      "profit_factor": 0.763,
+      "win_lift": 0.0726,
+      "verdict": "DO-NOT-ADD (PF 0.763 < 1.2)"
+    },
+    "drop=10% + tight trail 1.4x": {
+      "trades": 424,
+      "win_rate": 0.2854,
+      "wins": 121,
+      "avg_ret_pct": -3.598,
+      "total_ret_pct": -1525.74,
+      "profit_factor": 0.742,
+      "win_lift": 0.1316,
+      "verdict": "DO-NOT-ADD (PF 0.742 < 1.2)"
+    },
+    "drop=20% + profile (default)": {
+      "trades": 145,
+      "win_rate": 0.331,
+      "wins": 48,
+      "avg_ret_pct": -0.761,
+      "total_ret_pct": -110.36,
+      "profit_factor": 0.949,
+      "win_lift": 0.1772,
+      "verdict": "DO-NOT-ADD (PF 0.949 < 1.2)"
+    },
+    "drop=20% + global 1.5x/2x": {
+      "trades": 145,
+      "win_rate": 0.331,
+      "wins": 48,
+      "avg_ret_pct": -0.761,
+      "total_ret_pct": -110.36,
+      "profit_factor": 0.949,
+      "win_lift": 0.1772,
+      "verdict": "DO-NOT-ADD (PF 0.949 < 1.2)"
+    },
+    "drop=20% + single 1.35x": {
+      "trades": 145,
+      "win_rate": 0.3724,
+      "wins": 54,
+      "avg_ret_pct": -1.249,
+      "total_ret_pct": -181.11,
+      "profit_factor": 0.913,
+      "win_lift": 0.2186,
+      "verdict": "DO-NOT-ADD (PF 0.913 < 1.2)"
+    },
+    "drop=20% + quick 1.25x half": {
+      "trades": 145,
+      "win_rate": 0.4414,
+      "wins": 64,
+      "avg_ret_pct": -0.315,
+      "total_ret_pct": -45.64,
+      "profit_factor": 0.976,
+      "win_lift": 0.2876,
+      "verdict": "DO-NOT-ADD (PF 0.976 < 1.2)"
+    },
+    "drop=20% + patient 2x/3x": {
+      "trades": 145,
+      "win_rate": 0.2552,
+      "wins": 37,
+      "avg_ret_pct": -0.853,
+      "total_ret_pct": -123.69,
+      "profit_factor": 0.946,
+      "win_lift": 0.1014,
+      "verdict": "DO-NOT-ADD (PF 0.946 < 1.2)"
+    },
+    "drop=20% + tight trail 1.4x": {
+      "trades": 145,
+      "win_rate": 0.3448,
+      "wins": 50,
+      "avg_ret_pct": -0.722,
+      "total_ret_pct": -104.72,
+      "profit_factor": 0.951,
+      "win_lift": 0.191,
+      "verdict": "DO-NOT-ADD (PF 0.951 < 1.2)"
+    }
+  },
+  "paths": 60,
+  "bars": 52304,
+  "bar": {
+    "min_trades": 30,
+    "min_win_lift": 0.05,
+    "min_pf": 1.2
+  },
+  "source": "real GeckoTerminal OHLCV (cached, 60 pools)"
+}

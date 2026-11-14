@@ -26,7 +26,7 @@ from datetime import date, datetime, timezone
 
 import requests
 
-from config import AGENT, ENTRY, EXECUTION, EXITS, FOMO, PAPER, RISK
+from config import AGENT, ENTRY, EXECUTION, EXITS, FOMO, MEME, PAPER, RISK
 from desk.brain_advisor import ADVISOR, should_advise, wants_entry, wants_exit
 from desk import (analyst, brain, chain, dexscreener, devcheck, dialogue, exits, fomo, goplus, gmgn,
                   groq_sizer, guard, heartbeat, helius, meme, pumpportal, regime, risk, scanner,
@@ -665,6 +665,20 @@ class SolanaAgent:
                         journal("reject", stage="chain", mint=t["mint"], symbol=t["symbol"],
                                 reason=k, facts=f)
                         continue
+
+                # memecoin tactic B needs the recent 20-bar high. Only fetched
+                # when the operator switched the tactic on, so the default desk
+                # costs nothing extra and the rate-limited chart feed is not
+                # touched. Unknown high = neutral (never a veto).
+                if MEME.get("pullback_entry") and not t["mint"].startswith("DEMO"):
+                    try:
+                        cs = candle_chart.series(t["mint"], session=self.session)
+                        highs = [c.get("high") for c in (cs.get("candles") or [])[-20:]
+                                 if c.get("high")]
+                        if highs:
+                            f["high_20"] = max(highs)
+                    except Exception:
+                        pass
 
                 # seat 2b+: free security / launch / promo signals (fail open to "unknown")
                 sec = signals.security(t["mint"], self.session)

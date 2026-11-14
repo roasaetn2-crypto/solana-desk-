@@ -310,6 +310,19 @@ MEME = {
     "min_community_score": 35,       # 0-100, below this the desk will not call it a community coin (retune: was 40)
     # score -> verdict bands for the meme scorecard
     "bands": {"strong": 70, "watch": 50},
+    # ---------- memecoin entry tactics (from the public "meme bot" guide) ----------
+    # These are OFF by default. They were measured on real GeckoTerminal candles
+    # by scripts/meme_tactics_eval.py and scripts/backtest_gates.py; see
+    # MEME_TACTICS.md for the numbers. Flip a flag only if the measurement says
+    # it clears the bar (>=30 trades, +5pp win rate, PF >= 1.2).
+    "pullback_entry": False,         # rule B: refuse to buy the top of the range
+    "pullback_min_drop": 0.20,       # must be >=20% below the 20-bar high (measured)
+    "flash_pump_guard": False,       # rule C: skip entries right after a spike
+    "flash_pump_pct": 0.25,          # a >25% 5m candle = do not chase
+    "atr_stop": False,               # rule A: stop = clamp(k*ATR%, 8%, 60%)
+    "atr_stop_k": 1.5,
+    "vol_ceiling": False,            # rule D: skip when ATR% is insane
+    "vol_ceiling_pct": 0.20,
 }
 
 # ---------- FOMO evidence seat (optional) ----------

@@ -33,6 +33,7 @@ import math
 
 from config import EXITS, SIGNAL
 from desk import exits as exit_rules
+from desk import meme_tactics
 
 # Human labels for the security flags the desk already produces.
 _BLOCK_FLAGS = {
@@ -405,6 +406,9 @@ def evaluate(token: dict, facts: dict | None = None, links: dict | None = None,
         "holding": bool(holding),
         "hard_block": hard_block,
     }
+    # memecoin tactics from the public guide: entry gates can only remove a
+    # BUY, and the pullback package swaps in its measured exit ladder.
+    sig = meme_tactics.apply(sig, t, f)
     sig["signal"] = _signal_text(t.get("symbol") or t.get("mint", "?"), sig)
     sig["prompt"] = _prompt_text(t.get("symbol") or t.get("mint", "?"), sig)
     return sig
