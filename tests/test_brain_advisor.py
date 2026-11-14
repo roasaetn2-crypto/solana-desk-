@@ -1336,3 +1336,146 @@ class CloudflareProvider(unittest.TestCase):
             with self.assertRaises(ba.ProviderError):
                 self.p.call("s", "u", 100)
         self.assertEqual(len(calls), 1)
+
+
+class OllamaLocalSecondOpinion(unittest.TestCase):
+    """A local Ollama must be able to serve the second opinion with no key at all.
+
+    This is the case the cloud bucket cannot cover: no credits, no account, no
+    network. It also pins the ordering rule -- a free local model goes first,
+    the paid cloud bucket stays last.
+    """
+
+    def setUp(self):
+        self.env = mock.patch.dict(os.environ, {"OLLAMA_BASE_URL": "http://127.0.0.1:11434"})
+        self.env.start()
+        self.addCleanup(self.env.stop)
+        for k in ("GEMINI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY",
+                  "CEREBRAS_API_KEY", "CLOUDFLARE_API_TOKEN", "OLLAMA_API_KEY"):
+            os.environ.pop(k, None)
+        self.addCleanup(ba._local_probe.update, at=0.0, up=False, host="")
+
+    def test_local_mode_needs_no_key(self):
+        p = ba.Ollama("ollama", "OLLAMA_API_KEY", 200)
+        self.assertTrue(p.local())
+        self.assertEqual(p.keys(), ["local"])
+        self.assertTrue(p.available())
+
+    def test_local_mode_uses_the_local_model_list(self):
+        with mock.patch.dict(os.environ, {"BRAIN_OLLAMA_LOCAL_MODEL": "qwen2.5"}):
+            self.assertEqual(ba.ollama_local_models()[0], "qwen2.5")
+        self.assertNotEqual(ba.ollama_local_models(), ba.ollama_models())
+
+    def test_local_posts_to_the_local_host_without_auth(self):
+        seen = {}
+
+        def post(url, headers=None, json=None, timeout=None):
+            seen.update(url=url, headers=headers, json=json)
+            return Resp(200, {"choices": [{"message": {"content": opinion("buy", 71)}}]})
+
+        p = ba.Ollama("ollama", "OLLAMA_API_KEY", 200)
+        with mock.patch.object(ba.requests, "post", post):
+            out = p.call("sys", "user", 700)
+        self.assertEqual(json.loads(out)["verdict"], "buy")
+        self.assertEqual(seen["url"], "http://127.0.0.1:11434/v1/chat/completions")
+        self.assertNotIn("Authorization", seen["headers"])
+        self.assertEqual(seen["json"]["model"], ba.OLLAMA_LOCAL_MODEL)
+
+    def test_local_is_tried_before_every_keyed_provider(self):
+        adv = ba.Advisor()
+        self.addCleanup(adv._pool.shutdown, wait=True, cancel_futures=True)
+        names = [p.name for p in adv.providers()]
+        self.assertEqual(names[0], "ollama")
+        self.assertEqual(names[1:], ["gemini", "groq", "cerebras", "cloudflare", "openrouter"])
+
+    def test_a_full_review_runs_with_zero_keys(self):
+        def post(url, headers=None, json=None, timeout=None):
+            return Resp(200, {"choices": [{"message": {"content": opinion("skip", 64)}}]})
+
+        adv = ba.Advisor()
+        self.addCleanup(adv._pool.shutdown, wait=True, cancel_futures=True)
+        self.assertTrue(adv.enabled())
+        with mock.patch.object(ba.requests, "post", post):
+            res = adv.review("So1LocalMint", dict(SUMMARY), lambda s: None)
+        self.assertIsNotNone(res)
+        self.assertEqual(res["source"], "ollama")
+        self.assertEqual(res["verdict"], "skip")
+        self.assertEqual(res["confidence"], 64)
+        self.assertTrue(res["advisory_only"])
+
+    def test_local_has_no_per_minute_cap(self):
+        p = ba.Ollama("ollama", "OLLAMA_API_KEY", 200)
+        p.rpm = 1
+        self.assertTrue(all(p.pace(max_wait=0) for _ in range(5)))
+
+    def test_cloud_stays_last_when_local_is_absent(self):
+        os.environ.pop("OLLAMA_BASE_URL", None)
+        ba._local_probe.update(at=0.0, up=False, host="")
+        with mock.patch.object(ba, "ollama_local_up", return_value=False):
+            adv = ba.Advisor()
+            self.addCleanup(adv._pool.shutdown, wait=True, cancel_futures=True)
+            names = [p.name for p in adv.providers()]
+        self.assertEqual(names[-1], "ollama")
+        self.assertEqual(names[:5], ["gemini", "groq", "cerebras", "cloudflare", "openrouter"])
+
+    def test_snapshot_and_status_report_the_mode(self):
+        p = ba.Ollama("ollama", "OLLAMA_API_KEY", 200)
+        self.assertEqual(p.snapshot()["mode"], "local")
+        self.assertEqual(p.health()["mode"], "local")
+        adv = ba.Advisor()
+        self.addCleanup(adv._pool.shutdown, wait=True, cancel_futures=True)
+        self.assertEqual(adv.status()["models"]["ollama_mode"], "local")
+
+    def test_every_provider_key_is_redacted(self):
+        """A new provider must not leak its key into an error string."""
+        with mock.patch.dict(os.environ, {"OLLAMA_API_KEY": "ollama_SECRET_KEY_123456"}):
+            self.assertIn("ollama_SECRET_KEY_123456", ba._keys())
+            self.assertNotIn("ollama_SECRET_KEY_123456", ba.redact("boom ollama_SECRET_KEY_123456"))
+
+
+class OllamaLocalProbe(unittest.TestCase):
+    """A bare `ollama serve` must be found with no configuration at all."""
+
+    def setUp(self):
+        for k in ("OLLAMA_BASE_URL", "OLLAMA_HOST"):
+            os.environ.pop(k, None)
+        # conftest turns the probe off for the whole suite; this class is the one
+        # place that exercises it, so lift the kill switch here.
+        self._no_probe = os.environ.pop("DESK_NO_LOCAL_OLLAMA", None)
+        self.addCleanup(self._restore)
+        ba._local_probe.update(at=0.0, up=False, host="")
+
+    def _restore(self):
+        if self._no_probe is not None:
+            os.environ["DESK_NO_LOCAL_OLLAMA"] = self._no_probe
+        ba._local_probe.update(at=0.0, up=False, host="")
+
+    def test_a_running_local_ollama_is_detected_with_no_env(self):
+        with mock.patch.object(ba.requests, "get", lambda *a, **k: Resp(200, {"models": []})):
+            self.assertTrue(ba.ollama_local_up(force=True))
+            self.assertEqual(ba.ollama_mode(), "local")
+
+    def test_a_dead_local_ollama_falls_back_to_cloud(self):
+        def boom(*a, **k):
+            raise ba.requests.ConnectionError("refused")
+
+        with mock.patch.object(ba.requests, "get", boom):
+            self.assertFalse(ba.ollama_local_up(force=True))
+            self.assertEqual(ba.ollama_mode(), "cloud")
+
+    def test_the_probe_is_cached_so_health_checks_are_cheap(self):
+        calls = []
+
+        def get(*a, **k):
+            calls.append(1)
+            return Resp(200, {"models": []})
+
+        with mock.patch.object(ba.requests, "get", get):
+            for _ in range(5):
+                ba.ollama_local_up()
+        self.assertEqual(len(calls), 1, "the probe must not hit the network on every read")
+
+    def test_ollama_host_env_is_honoured_too(self):
+        with mock.patch.dict(os.environ, {"OLLAMA_HOST": "http://192.168.1.40:11434"}):
+            self.assertEqual(ba.ollama_local_host(), "http://192.168.1.40:11434")
+            self.assertEqual(ba.ollama_mode(), "local")

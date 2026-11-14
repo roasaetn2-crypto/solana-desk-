@@ -703,7 +703,9 @@ function seatStatus(s, id) {
 
 
 // ---------- AI second opinion thread (display only; never changes a score or trade) ----------
-const BOT_NAME = { gemini: "Gemini", groq: "Groq", openrouter: "OpenRouter" };
+const BOT_NAME = { gemini: "Gemini", groq: "Groq", openrouter: "OpenRouter",
+                   cerebras: "Cerebras", cloudflare: "Cloudflare",
+                   ollama: "Ollama", local: "Ollama (local)" };
 function botBubble(bot, verdict, text, tag, right) {
   const b = String(bot || "ai").toLowerCase();
   const v = String(verdict || "").toLowerCase();

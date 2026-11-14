@@ -32,6 +32,14 @@
 # Optional 8th arg overrides the model (default deepseek-v4.1-flash):
 #   bash termux/set-ai-keys.sh - - - - - - <key> glm-5.3-flash
 #
+# LOCAL Ollama is free: no key, no credits, no bill. Pass the word "local" as
+# the 7th arg and the script writes OLLAMA_BASE_URL instead of a key, so the
+# second opinion runs on your own machine:
+#   bash termux/set-ai-keys.sh - - - - - - local
+#   bash termux/set-ai-keys.sh - - - - - - local qwen2.5     # pick the model
+# Start it first with `ollama serve` and `ollama pull llama3.2`. A running
+# localhost:11434 is detected even with no .env line at all.
+#
 # Both keys are optional in the sense that you can pass "-" to leave one alone:
 #   bash termux/set-ai-keys.sh - sk-or-v1-xxxx
 #   bash termux/set-ai-keys.sh AIzaSyxxxx -
@@ -97,8 +105,9 @@ if [ "$GROQ" != "-" ] && [ "$GROQ" != "" ] && [ "${#GROQ}" -lt 20 ]; then
   echo "That Groq key looks too short (${#GROQ} chars). Nothing changed."
   exit 2
 fi
-if [ "$OLLAMA" != "-" ] && [ "$OLLAMA" != "" ] && [ "${#OLLAMA}" -lt 20 ]; then
+if [ "$OLLAMA" != "-" ] && [ "$OLLAMA" != "" ] && [ "$OLLAMA" != "local" ] && [ "${#OLLAMA}" -lt 20 ]; then
   echo "That Ollama key looks too short (${#OLLAMA} chars). Nothing changed."
+  echo "For a free local Ollama pass the word: local"
   exit 2
 fi
 # A token with no account id cannot build a URL, so refuse the half-configuration
@@ -121,6 +130,7 @@ OLD_MODEL="$(grep '^BRAIN_GEMINI_MODEL=' "$ENV_FILE" 2>/dev/null | head -1 | cut
 OLD_GROQ="$(grep '^GROQ_API_KEY=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)"
 OLD_OLLAMA="$(grep '^OLLAMA_API_KEY=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)"
 OLD_OLLAMA_MODEL="$(grep '^BRAIN_OLLAMA_MODEL=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)"
+OLD_OLLAMA_BASE="$(grep '^OLLAMA_BASE_URL=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)"
 
 # ---------- back up, then rewrite only our three lines ----------
 cp "$ENV_FILE" "$ENV_FILE.bak" 2>/dev/null
@@ -130,7 +140,8 @@ chmod 600 "$ENV_FILE" "$ENV_FILE.bak" 2>/dev/null
 # would wipe the login key and lock the owner out of their own desk.
 grep -v -e '^GEMINI_API_KEY=' -e '^OPENROUTER_API_KEY=' -e '^CEREBRAS_API_KEY=' -e '^BRAIN_GEMINI_MODEL=' \
        -e '^CLOUDFLARE_ACCOUNT_ID=' -e '^CLOUDFLARE_API_TOKEN=' \
-       -e '^OLLAMA_API_KEY=' -e '^BRAIN_OLLAMA_MODEL=' -e '^GROQ_API_KEY=' \
+       -e '^OLLAMA_API_KEY=' -e '^BRAIN_OLLAMA_MODEL=' -e '^OLLAMA_BASE_URL=' \
+       -e '^BRAIN_OLLAMA_LOCAL_MODEL=' -e '^GROQ_API_KEY=' \
   "$ENV_FILE" > "$ENV_FILE.new" 2>/dev/null
 mv "$ENV_FILE.new" "$ENV_FILE"
 
@@ -143,6 +154,7 @@ if [ "$CF_TOKEN" = "-" ] && [ -n "${OLD_CF_TOKEN:-}" ]; then CF_TOKEN="$OLD_CF_T
 if [ "$GROQ" = "-" ] && [ -n "${OLD_GROQ:-}" ]; then GROQ="$OLD_GROQ"; fi
 if [ "$OLLAMA" = "-" ] && [ -n "${OLD_OLLAMA:-}" ]; then OLLAMA="$OLD_OLLAMA"; fi
 if [ "$OLLAMA_MODEL" = "-" ] && [ -n "${OLD_OLLAMA_MODEL:-}" ]; then OLLAMA_MODEL="$OLD_OLLAMA_MODEL"; fi
+if [ "$OLLAMA" = "-" ] && [ -n "${OLD_OLLAMA_BASE:-}" ]; then OLLAMA="local"; fi
 
 if [ -n "$GEMINI" ] && [ "$GEMINI" != "-" ]; then
   echo "GEMINI_API_KEY=$GEMINI" >> "$ENV_FILE"
@@ -162,10 +174,16 @@ fi
 if [ -n "$GROQ" ] && [ "$GROQ" != "-" ]; then
   echo "GROQ_API_KEY=$GROQ" >> "$ENV_FILE"
 fi
-if [ -n "$OLLAMA" ] && [ "$OLLAMA" != "-" ]; then
+if [ "$OLLAMA" = "local" ]; then
+  # Free local model: no key, just where to reach it.
+  echo "OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://localhost:11434}" >> "$ENV_FILE"
+  if [ -n "$OLLAMA_MODEL" ] && [ "$OLLAMA_MODEL" != "-" ]; then
+    echo "BRAIN_OLLAMA_LOCAL_MODEL=$OLLAMA_MODEL" >> "$ENV_FILE"
+  fi
+elif [ -n "$OLLAMA" ] && [ "$OLLAMA" != "-" ]; then
   echo "OLLAMA_API_KEY=$OLLAMA" >> "$ENV_FILE"
 fi
-if [ -n "$OLLAMA_MODEL" ] && [ "$OLLAMA_MODEL" != "-" ]; then
+if [ -n "$OLLAMA_MODEL" ] && [ "$OLLAMA_MODEL" != "-" ] && [ "$OLLAMA" != "local" ]; then
   echo "BRAIN_OLLAMA_MODEL=$OLLAMA_MODEL" >> "$ENV_FILE"
 fi
 # "-" (or nothing) means keep whatever model was already configured.

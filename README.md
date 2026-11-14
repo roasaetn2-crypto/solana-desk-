@@ -646,6 +646,40 @@ spending spree.
 `termux/set-ai-keys.sh` sets `BRAIN_SPREAD_DAY=groq` for you as part of its quota
 profile.
 
+#### Ollama local is the free one, and it goes first
+
+Ollama has two flavours behind one provider name, and they behave very
+differently. **Local** Ollama runs a model on your own machine: no key, no
+credits, no bill, no rate limit, and nothing leaves the box. Because it is
+genuinely free it is moved to the **front** of the provider order whenever it is
+up \u2014 it cannot cost a quota it does not have.
+
+```bash
+ollama serve                 # in one terminal
+ollama pull llama3.2         # the default local model
+bash termux/set-ai-keys.sh - - - - - - local            # writes OLLAMA_BASE_URL
+bash termux/set-ai-keys.sh - - - - - - local qwen2.5   # or pick the model
+```
+
+You do not even need that last step: with no `OLLAMA_BASE_URL` and no
+`OLLAMA_HOST` set, the advisor probes `localhost:11434` once a minute and picks
+up a running `ollama serve` on its own. `OLLAMA_BASE_URL` only matters when the
+model lives somewhere else, e.g. a desktop on the LAN:
+
+```bash
+OLLAMA_BASE_URL=http://192.168.1.40:11434
+```
+
+Local mode sends **no `Authorization` header at all** (there is no key to send),
+skips the per-minute pacing (your GPU is not a shared free tier), and reports
+`"mode": "local"` in `/api/ai/status` so the dashboard can say which flavour is
+answering. Models fall back `BRAIN_OLLAMA_LOCAL_MODEL` (or `OLLAMA_MODEL`) \u2192
+`llama3.2` \u2192 `qwen2.5` \u2192 `gpt-oss:20b` \u2192 `llama3.1` \u2192 `mistral`.
+
+`python3 scripts/verify_ollama_local.py` proves the whole path against a fake
+local server: detection, ordering, a full review with zero keys, and that the
+request carries no auth header.
+
 #### Ollama Cloud is the sixth bucket, and the only one you pay for
 
 Everything above is free. **Ollama Cloud** is not: it is the same OpenAI-compatible
