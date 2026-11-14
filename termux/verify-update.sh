@@ -185,6 +185,42 @@ fi
 [ -f tests/test_risk_budget.py ] && ok "tests/test_risk_budget.py present (16 tests)" || bad "tests/test_risk_budget.py missing"
 
 say ""
+say "=== 4f. Groq size sizer + the live-mode guard fix ==="
+[ -f desk/groq_sizer.py ] && ok "desk/groq_sizer.py present (shrink-only size multiplier)" || bad "desk/groq_sizer.py missing"
+[ -f tests/test_groq_sizer.py ] && ok "tests/test_groq_sizer.py present" || bad "tests/test_groq_sizer.py missing"
+[ -f GUARD-LIVE.md ] && ok "GUARD-LIVE.md present (the line-551 write-up)" || bad "GUARD-LIVE.md missing"
+grep -q "MAX_MULT = 1.00" desk/groq_sizer.py && ok "sizer is capped at 1.00x (can never grow a ticket)" || bad "desk/groq_sizer.py missing the 1.00x cap"
+grep -q "groq_sizer" desk/solana_agent.py && ok "agent calls the sizer" || bad "desk/solana_agent.py not wired to groq_sizer"
+# the line-551 fix: the old paper-only gate must be GONE
+if grep -q 'if self.mode != "live":' desk/solana_agent.py && \
+   grep -A3 'if self.mode != "live":' desk/solana_agent.py | grep -q "circuit_breaker"; then
+  bad "line 551 NOT fixed: circuit_breaker is still gated on mode != live"
+else
+  ok "breaker is no longer gated on paper mode (line 551 fixed)"
+fi
+grep -q 'max_ticket=caps\["max_trade"\]' desk/solana_agent.py && ok "_caution() runs on the live path with the live cap" || bad "desk/solana_agent.py: _caution() not called for live"
+grep -q "mode: paper, or live is armed" desk/guard.py && ok "checklist item is no longer backwards" || bad "desk/guard.py still has the 'paper mode' checklist item"
+grep -q "live_armed" desk/guard.py && ok "checklist knows about live_armed" || bad "desk/guard.py missing live_armed"
+grep -q "groq_mult" desk/live.py && ok "LiveBroker.buy accepts groq_mult (no TypeError on a real fill)" || bad "desk/live.py buy() missing groq_mult -> live fills would crash"
+grep -q "groq_sizer_pnl" desk/live.py && ok "live sells journal P&L against the multiplier" || bad "desk/live.py missing groq_sizer_pnl journal"
+if python -c "
+import time
+from desk import guard
+now = time.time()
+closed = [{'pnl_usd': -1.0, 'closed': now - 10*i} for i in (1, 2, 3)]
+b = guard.circuit_breaker(closed, -1.0, 20.0, now=now)
+assert b['state'] == 'cooldown', b
+c = guard.pretrade_checklist(stop_pct=0.35, ticket=3, max_ticket=5,
+                             breaker={'state': 'ok'}, block_flags=[],
+                             quote_confirmed=None, paper_only=False, live_armed=True)
+assert c['ok'], c['failed']
+" 2>/dev/null; then
+  ok "breaker trips on 3 losses; checklist permits an armed live fill"
+else
+  bad "guard behaviour wrong -> python -m pytest tests/test_live_disabled.py"
+fi
+
+say ""
 say "=== 5. does the code import cleanly? ==="
 if python -c "from desk import signal_engine, signal_backtest; from desk import settings; print('   ', len(settings.REGISTRY), 'settings')" 2>/dev/null; then
   ok "signal_engine + signal_backtest import, settings registry loads"
