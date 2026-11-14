@@ -57,3 +57,20 @@ def test_keepalive_on_when_render_url_present(monkeypatch):
     assert s["on"] is True
     assert s["url"] == "https://x.onrender.com/api/health"
     assert s["off_reason"] is None
+
+
+def test_health_exposes_the_ladder_without_a_token():
+    """The token is exactly what you lack when checking whether a push landed."""
+    d = _client().get("/api/health").json()
+    x = d["exits"]
+    assert x["name"] in ("fast", "patient", "slow", "single")
+    assert x["source"] in ("env", "config", "default")
+    assert set(x["ladder"]) == {"stop_pct", "tp1_at", "tp1_frac",
+                                "tp2_at", "tp2_frac", "trail_pct"}
+
+
+def test_health_exits_never_leaks_a_secret():
+    """Unauthenticated endpoint: geometry only, no keys, no positions."""
+    body = _client().get("/api/health").text.lower()
+    for forbidden in ("desk_token", "api_key", "private", "secret", "wallet"):
+        assert forbidden not in body

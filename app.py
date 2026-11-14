@@ -71,7 +71,7 @@ from desk.ops import KILL_FILE, load_env
 # desk kept calling the slow default model. Import order is load-bearing here.
 load_env()
 
-from desk import devices, keepalive, pumpportal  # noqa: E402
+from desk import devices, keepalive, meme_tactics, pumpportal  # noqa: E402
 from desk.solana_agent import SolanaAgent  # noqa: E402
 from desk.store import restore as restore_store  # noqa: E402
 from desk.intent import maybe_autostart  # noqa: E402
@@ -346,6 +346,11 @@ def health():
         "uptime_s": int(time.time() - _BOOT),
         "booted_at": _iso(_BOOT),
         "keepalive": keepalive.status(),
+        # The ladder in force, unauthenticated. /api/state needs the DESK_TOKEN,
+        # which is exactly the thing you do not have when you are trying to work
+        # out whether the desk is running the config you just pushed. Geometry
+        # only: no keys, no positions, nothing that changes state.
+        "exits": meme_tactics.ladder_info(),
         "running": agent.running,
         "cycle": agent.cycle_no,
         "pumpportal": {
