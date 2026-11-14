@@ -15,6 +15,12 @@ import tempfile
 
 os.environ.setdefault("DESK_OFFLINE", "1")
 
+# app.py calls ops.load_env() at import time. Popping the keys below is not
+# enough: load_env() would read the operator's .env and put them back, so the
+# "no keys configured" tests pass in a bare sandbox and fail on a real phone.
+# This flag makes load_env() a no-op for the whole test process.
+os.environ["DESK_NO_DOTENV"] = "1"
+
 # CoinGecko Demo, Gemini, Groq and OpenRouter keys must never be used by tests;
 # they mock HTTP and, when needed, set fake keys themselves.
 for _name in ("COINGECKO_DEMO_API_KEY", "GEMINI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY"):

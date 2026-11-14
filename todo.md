@@ -115,3 +115,18 @@ rate. If it does not, do NOT add it to the desk.
 - [x] `tests/test_groq_ui.py` (10 tests): status contract, no I/O, bounded ring, cut flag, esc() audit
 - [x] Full suite: 727 passed, 17 skipped
 - [x] `termux/verify-update.sh` section 4g (8 checks, all OK)
+
+# Groq key: wire it up, and fix what the key exposed
+
+- [x] Key validated live against api.groq.com -> HTTP 200 (openai/gpt-oss-20b)
+- [x] Written to `.env` with chmod 600; `.env` is gitignored, never committed
+- [x] Only GROQ_API_KEY written -- DESK_BRAIN left unset so the Analyst seat stays on the heuristic
+- [x] Real `size_mult()` path exercised on 8 setups: 1.0 / 1.0 / 0.75 / 0.75 / 0.5 / 0.25 -- it discriminates
+- [x] Journal verified: 10 `groq_sizer` rows with input, output, mult, confidence, latency
+- [x] Live desk made its own calls unprompted (SCRAP x1.0, UwU x1.0) -- panel shows ON, 32/40 budget
+- [x] Found: suite went red with a `.env` present -- `app.py` load_env() undid the test isolation
+- [x] Fix: `DESK_NO_DOTENV=1` makes load_env() a no-op; set by tests/isolate_env.py
+- [x] tests/test_dotenv_isolation.py (4 tests) incl. proof load_env still works in production
+- [x] Negative check: flag removed -> 4 failures; flag restored -> green
+- [x] Fixed a real flake: test_verdict_never_changes_the_decision polled 2.5s for a background verdict
+- [x] 731 passed, 17 skipped, three consecutive runs

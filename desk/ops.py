@@ -132,7 +132,17 @@ def killed() -> bool:
 
 
 def load_env(path: str = ".env"):
-    """Tiny .env loader so the desk has no extra dependency. Real env vars win."""
+    """Tiny .env loader so the desk has no extra dependency. Real env vars win.
+
+    DESK_NO_DOTENV=1 disables it entirely. The test suite sets that flag: its
+    isolation fixture strips live keys from os.environ, but app.py calls
+    load_env() at import time, which read .env and put the operator's real
+    GROQ_API_KEY straight back. Three tests that assert "no keys configured"
+    then failed on any machine that actually had a .env -- green in CI, red on
+    the owner's phone. The suite must never see the operator's secrets.
+    """
+    if (os.environ.get("DESK_NO_DOTENV") or "").strip() in ("1", "true", "yes"):
+        return
     p = Path(path)
     if not p.exists():
         return

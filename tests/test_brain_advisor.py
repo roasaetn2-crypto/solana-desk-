@@ -568,7 +568,13 @@ class Advisory(unittest.TestCase):
             ADVISOR.new_cycle()
             ADVISOR._cache.clear()
             a = t.run_agent()
-            for _ in range(50):
+            # The advisory verdict lands on a background thread. 50 x 0.05s = 2.5s
+            # was too tight: under load (a dev server running, or a phone that is
+            # simply slower than a laptop) the thread had not finished and this
+            # failed spuriously. The loop breaks the moment the verdict appears,
+            # so a wider ceiling costs nothing in the normal case and removes a
+            # flake that would otherwise show up only on the owner's device.
+            for _ in range(200):
                 if a.decisions and a.decisions[0].get("brain", {}).get("verdict") == verdict:
                     break
                 time.sleep(0.05)
