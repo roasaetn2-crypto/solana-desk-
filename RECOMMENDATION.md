@@ -69,12 +69,21 @@ Measured effect on the 120-pool store, scan gate on:
 | 10%  | 101  | 5  | 62.4% | 2.63 |
 | 20%  | 38   | 4  | 81.6% | 5.73 |
 
-The lane lifts gate survivors from 4–5 to **10 pools**, but the 20% pullback is
-selective enough that only **4** of them actually fire in the sampled windows.
-So the lane fixes the *reachability* problem (old-but-alive pools can now enter
-the desk at all) but the pullback sample is still under the 10-pool bar. Honest
-reading: the edge is intact and now reachable, not yet independently confirmed on
-a live-population sample.
+**Read that table carefully — the lane did not cause it.** The output is
+byte-identical with the lane on and off, because the lane admits **zero** of the
+store's pools. The 10 gate survivors are exactly the 10 pools that carry *no*
+`created_at` (unknown age makes the gate skip); every pool with a known age is
+**~1659 days** old, far beyond the lane's 7-day cap. So the store cannot validate
+the lane — it can only fail to exercise it.
+
+The lane is therefore a **mechanism that is correct and tested, not a measured
+improvement**. What it buys you is that an old-but-alive pool can now enter the
+desk at all, at half size, instead of being silently discarded. Whether that
+helps is unknown until the store holds pools in the 6h–7d band, which is the
+data problem below.
+
+A second correction: the 68.9% was measured on pools that are ~4.5 **years** old,
+not merely "older than 48h". That makes the original caveat stronger, not weaker.
 
 ## What to do, in order
 
