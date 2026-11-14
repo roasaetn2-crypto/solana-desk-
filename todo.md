@@ -10,4 +10,4 @@
 - [x] desk/settings.py: Risk -> Open-risk budget + Split budget across slots
 - [x] tests updated + 3 regression tests (19 risk tests pass, 734 total pass)
 - [x] RISK-BUDGET-FIX.md v2 section
-- [ ] Commit + push to roasaetn2-crypto/solana-desk-
+- [x] Commit + push to roasaetn2-crypto/solana-desk-
