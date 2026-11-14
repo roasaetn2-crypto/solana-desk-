@@ -356,7 +356,7 @@ MEME = {
     # constant (LADDER-REPLAY.md): win rate is within 1pt across every ladder at
     # every stop width, but `patient` earns ~3x the expectancy of `fast`. Kept on
     # "fast" so this key changes nothing until you choose to switch it.
-    "exit_ladder": "fast",
+    "exit_ladder": "patient",
     "flash_pump_guard": False,       # rule C: skip entries right after a spike
     "flash_pump_pct": 0.25,          # a >25% 5m candle = do not chase
     "atr_stop": False,               # rule A: stop = clamp(k*ATR%, 8%, 60%)

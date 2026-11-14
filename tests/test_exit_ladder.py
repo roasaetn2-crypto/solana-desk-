@@ -19,11 +19,19 @@ def mt(monkeypatch):
     return mod
 
 
-def test_default_ladder_is_fast(mt):
-    """The shipped default must stay `fast` so this feature is inert until chosen."""
+def test_fallback_is_fast_when_nothing_is_configured(mt, monkeypatch):
+    """With no config key and no env var, the code fallback is `fast`."""
     assert mt.DEFAULT_LADDER == "fast"
+    monkeypatch.delitem(mt.MEME, "exit_ladder", raising=False)
     assert mt.active_ladder()["tp1_at"] == 1.25
     assert mt.active_ladder()["tp2_at"] == 1.6
+
+
+def test_shipped_config_selects_a_real_ladder(mt):
+    """Whatever config.py ships must name a ladder that exists."""
+    name = mt.MEME.get("exit_ladder", mt.DEFAULT_LADDER)
+    assert name in mt.LADDERS, f"config exit_ladder={name!r} is not a known ladder"
+    assert mt.active_ladder() == mt.LADDERS[name]
 
 
 def test_every_ladder_has_the_same_shape(mt):

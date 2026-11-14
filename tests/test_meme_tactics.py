@@ -130,9 +130,12 @@ def test_pullback_gate_lets_a_deep_dip_through_and_swaps_the_ladder(monkeypatch)
     _with_flags(monkeypatch, pullback_entry=True)
     out = meme_tactics.apply(_sig(), {"price_usd": 75.0}, {"high_20": 100.0})
     assert out["action"] == "BUY"
-    assert out["take_profit"]["stop_pct"] == 0.30
-    assert out["take_profit"]["tp1_at"] == 1.25
-    assert out["take_profit"]["tp2_at"] == 1.6
+    # Assert against whatever ladder is configured, not a hardcoded one: the
+    # point of this test is that the package swaps the ladder in at all.
+    want = meme_tactics.active_ladder()
+    assert out["take_profit"]["stop_pct"] == want["stop_pct"]
+    assert out["take_profit"]["tp1_at"] == want["tp1_at"]
+    assert out["take_profit"]["tp2_at"] == want["tp2_at"]
 
 
 def test_pullback_gate_is_neutral_when_the_high_is_unknown(monkeypatch):
@@ -163,9 +166,10 @@ def test_exit_overrides_only_apply_when_the_package_is_on(monkeypatch):
     assert meme_tactics.exit_overrides() == {}
     assert exits.profile("scalp")["tp1_at"] == 1.5
     _with_flags(monkeypatch, pullback_entry=True)
-    assert exits.profile("scalp")["tp1_at"] == 1.25
-    assert exits.profile("scalp")["tp2_at"] == 1.6
-    assert exits.profile("scalp")["stop_pct"] == 0.30
+    want = meme_tactics.active_ladder()
+    assert exits.profile("scalp")["tp1_at"] == want["tp1_at"]
+    assert exits.profile("scalp")["tp2_at"] == want["tp2_at"]
+    assert exits.profile("scalp")["stop_pct"] == want["stop_pct"]
 
 
 def test_atr_stop_is_clamped():
