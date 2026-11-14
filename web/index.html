@@ -262,6 +262,25 @@
           <div class="tiny muted" style="margin-top:10px" id="quotaLine">Free-tier calls left today: —</div>
         </div>
       </div>
+
+      <div class="panel" id="groqPanel">
+        <div class="panel-head">
+          <span class="icon">🧠</span><h2>Groq sizer</h2>
+          <span class="badge" id="groqBadge">OFF</span>
+        </div>
+        <div class="panel-body">
+          <div class="tiny muted" id="groqLine">Shrink-only: can cut a ticket, never grow or block one.</div>
+          <div class="bars" style="margin-top:10px">
+            <div class="bar-row">
+              <span class="lab">budget</span>
+              <span class="track"><i id="groqBudgetBar" style="width:0%;background:var(--blue)"></i></span>
+              <span class="num" id="groqBudgetNum">—</span>
+            </div>
+          </div>
+          <div class="tiny muted" style="margin-top:8px" id="groqSummary">No calls yet.</div>
+          <div class="groq-list" id="groqList"></div>
+        </div>
+      </div>
     </section>
 
     <!-- CENTER: KPIs, positions, decisions, dialogue -->

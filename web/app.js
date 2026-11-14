@@ -45,6 +45,20 @@ function shortCa(mint) {
   if (mint.length <= 8) return mint;
   return mint.slice(0, 4) + "\u2026" + mint.slice(-4);
 }
+// A small "x0.5" chip when the Groq sizer shrank this ticket. Reads the value
+// the agent already stored on the decision (sizes.guard.groq), so it is the
+// exact multiplier that sized the fill -- not a re-derivation.
+function groqChip(d) {
+  const g = d && d.sizes && d.sizes.guard && d.sizes.guard.groq;
+  if (!g) return "";
+  const mult = Number(g.mult);
+  if (!(mult < 1)) return "";
+  const why = (g.reasons && g.reasons.length) ? g.reasons.join("; ")
+    : (g.source === "groq" ? "no objection recorded" : String(g.source || ""));
+  const conf = g.confidence != null ? " \u00b7 conf " + Math.round(g.confidence) : "";
+  return `<span class="tag watch" title="${esc(why + conf)}">groq x${mult.toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}</span> `;
+}
+
 function flagsHtml(row) {
   const flags = (row && Array.isArray(row.flags)) ? row.flags : [];
   const cl = row && row.checklist;
@@ -1087,7 +1101,7 @@ function render(s) {
         <td>${d.thesis ? d.thesis.score : "—"}</td>
         <td>${memeCell}</td>
         <td>${devCell}</td>
-        <td>${d.approved ? fmtMoney(d.ticket_usd) + " " + fomoBtn(d.fomo_url) : "—"}</td>
+        <td>${d.approved ? fmtMoney(d.ticket_usd) + " " + groqChip(d) + fomoBtn(d.fomo_url) : "—"}</td>
         <td class="muted" style="font-family:var(--sans);font-size:11.5px">${esc(d.reason || "")} <span class="tag ${d.source === "demo" ? "demo" : "live"}">${esc(d.source || "—")}</span></td>
       </tr>`;
     }).join("");
@@ -1332,10 +1346,83 @@ async function refreshQuota(force) {
   } catch (e) { /* quota is cosmetic; never break the dashboard */ }
 }
 
+// ---------- Groq sizer: is the model in action, and what did it do ----------
+// Shrink-only by design, so the only interesting states are "cut" (it lowered a
+// ticket), "pass" (it looked and said 1.0x) and "fail" (a call that did not
+// produce a usable answer -- the desk traded at rule size anyway).
+function groqRow(r) {
+  const src = String(r.source || "");
+  const failed = /^(http_|error:|unparsed|budget)/.test(src);
+  const cls = failed ? "fail" : (r.cut ? "cut" : "pass");
+  const mult = Number(r.mult);
+  const multTxt = failed ? "1.0x" : mult.toFixed(2).replace(/0+$/, "").replace(/\.$/, "") + "x";
+  const why = (r.reasons && r.reasons.length) ? r.reasons.join(" \u00b7 ")
+    : failed ? "no usable answer, rule size kept" : "no objection";
+  const conf = r.confidence != null ? "conf " + Math.round(r.confidence) : "";
+  const lat = r.latency_ms != null ? r.latency_ms + "ms" : "";
+  const meta = [conf, lat].filter(Boolean).join(" \u00b7 ");
+  return `<div class="groq-row ${cls}" title="${esc(why)}">
+    <div class="top">
+      <span class="sym">${esc(r.symbol || "\u2014")}</span>
+      <span class="mult">${multTxt}</span>
+      <span class="src">${esc(src || "\u2014")}</span>
+    </div>
+    <div class="why">${esc(why)}</div>
+    ${meta ? `<div class="meta">${esc(meta)}</div>` : ""}
+  </div>`;
+}
+
+function renderGroq(g) {
+  const badge = $("groqBadge");
+  if (!badge) return;
+  const on = !!(g && g.enabled);
+  badge.textContent = on ? "ON" : "OFF";
+  badge.style.color = on ? "var(--green)" : "var(--muted)";
+
+  const total = Number((g && g.budget_total) || 0);
+  const left = Number((g && g.budget_left) || 0);
+  const used = Math.max(0, total - left);
+  const pct = total ? Math.min(100, Math.round((used / total) * 100)) : 0;
+  const bar = $("groqBudgetBar");
+  if (bar) {
+    bar.style.width = pct + "%";
+    bar.style.background = pct >= 90 ? "var(--red)" : pct >= 70 ? "var(--amber)" : "var(--blue)";
+  }
+  if ($("groqBudgetNum")) $("groqBudgetNum").textContent = total ? used + "/" + total : "\u2014";
+
+  const line = $("groqLine");
+  if (line) {
+    line.textContent = on
+      ? "Shrink-only, capped at 1.00x. Model: " + (g.model || "\u2014")
+      : "Off (" + ((g && g.reason) || "no key") + "). Tickets use rule size.";
+  }
+
+  const sum = $("groqSummary");
+  if (sum) {
+    if (!g || !g.recent_calls) {
+      sum.textContent = on ? "No calls yet this session." : "Enable with BRAIN_SIZER_ON=1 and a GROQ_API_KEY.";
+    } else {
+      const cuts = Number(g.recent_cuts || 0);
+      const avg = g.avg_cut != null ? " \u00b7 avg cut " + Number(g.avg_cut).toFixed(2) + "x" : "";
+      sum.textContent = cuts + " cut" + (cuts === 1 ? "" : "s") + " of " + g.recent_calls
+        + " recent call" + (g.recent_calls === 1 ? "" : "s") + avg;
+    }
+  }
+
+  const list = $("groqList");
+  if (list) {
+    const rows = (g && g.recent) || [];
+    list.innerHTML = rows.length
+      ? rows.map(groqRow).join("")
+      : '<div class="tiny muted" style="padding:4px 2px">Nothing yet \u2014 the sizer runs after every rule has already approved a setup.</div>';
+  }
+}
+
 async function refresh() {
   try {
     const s = await api("/api/state");
     render(s);
+    renderGroq(s && s.groq_sizer);
     refreshBacktest(false);
     refreshQuota(false);
   } catch (e) {

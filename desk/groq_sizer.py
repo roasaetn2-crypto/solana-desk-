@@ -37,6 +37,7 @@ import os
 import re
 import threading
 import time
+from collections import deque
 
 import requests
 
@@ -197,13 +198,75 @@ def _journal(kind: str, **fields) -> None:
         pass
 
 
+# ---------- what the dashboard shows ----------
+# A small ring of the most recent calls, so the UI can show the model "in action"
+# without reading the journal off disk on every poll. In-memory only: a restart
+# empties it, which is correct -- this is a live view, not a record.
+_RECENT: deque = deque(maxlen=24)
+
+
+def _note(mult: float, info: dict, mint: str, symbol: str) -> None:
+    """Record one decision for the UI. Never raises."""
+    try:
+        _RECENT.appendleft({
+            "ts": time.time(), "mint": mint, "symbol": symbol or (mint or "")[:6],
+            "mult": round(float(mult), 4), "source": info.get("source"),
+            "confidence": info.get("confidence"),
+            "reasons": (info.get("reasons") or [])[:2],
+            "latency_ms": info.get("latency_ms"),
+            "clamped_from": info.get("clamped_from"),
+            "cut": bool(mult < 1.0),
+        })
+    except Exception:                                          # noqa: BLE001
+        pass
+
+
+def status() -> dict:
+    """UI-safe snapshot: is it on, how much budget is left, what it did lately.
+
+    Deliberately does no network I/O and never raises, so the dashboard can poll
+    it on every refresh without costing a Groq call.
+    """
+    on = False
+    why = "off"
+    try:
+        on = enabled()
+        why = "on" if on else ("no key" if len(_key()) < 8 else "BRAIN_SIZER_ON is not 1")
+    except Exception as e:                                     # noqa: BLE001
+        why = f"error:{type(e).__name__}"
+    try:
+        left = budget_left()
+        used = max(0, DAILY_BUDGET - left)
+    except Exception:                                          # noqa: BLE001
+        left, used = 0, 0
+    recent = list(_RECENT)
+    cuts = [r for r in recent if r["cut"]]
+    return {
+        "enabled": on, "reason": why, "model": MODEL,
+        "budget_total": DAILY_BUDGET, "budget_left": left, "calls_today": used,
+        "min_mult": MIN_MULT, "max_mult": MAX_MULT,
+        "recent": recent[:12],
+        "recent_cuts": len(cuts), "recent_calls": len(recent),
+        "avg_cut": (round(sum(r["mult"] for r in cuts) / len(cuts), 3) if cuts else None),
+    }
+
+
 # ---------- the call ----------
 def size_mult(ctx: dict, *, mint: str = "", symbol: str = "", entry_ts: float | None = None,
               log=None) -> tuple[float, dict]:
     """Return (multiplier in [0.25, 1.0], info). Fail-open: 1.0 on any problem.
 
     Never raises. Never blocks longer than TIMEOUT_S. Never grows a ticket.
+    Wrapper: records the outcome for the dashboard, then hands off to the real
+    call. Keeping the recording outside means no return path can forget it.
     """
+    mult, info = _size_mult(ctx, mint=mint, symbol=symbol, entry_ts=entry_ts, log=log)
+    _note(mult, info, mint or str(ctx.get("mint") or ""), symbol)
+    return mult, info
+
+
+def _size_mult(ctx: dict, *, mint: str = "", symbol: str = "", entry_ts: float | None = None,
+               log=None) -> tuple[float, dict]:
     info: dict = {"mult": 1.0, "source": "off", "clamped_from": None}
     if not enabled():
         return 1.0, info

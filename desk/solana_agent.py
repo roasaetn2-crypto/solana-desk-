@@ -1395,6 +1395,9 @@ class SolanaAgent:
                 "curve_marks": list(self.curve_marks),
                 "latest_realized": self._latest_realized(broker),
                 "activity": self._activity(seen)[:60],
+                # Live view of the shrink-only Groq sizer: on/off, budget left,
+                # and the last dozen decisions. No network, so polling is free.
+                "groq_sizer": groq_sizer.status(),
                 "guard": {
                     "breaker": dict(self.breaker),
                     "regime": dict(self.regime),

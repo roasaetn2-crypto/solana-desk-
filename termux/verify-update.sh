@@ -221,6 +221,29 @@ else
 fi
 
 say ""
+say "=== 4g. Groq sizer panel on the dashboard ==="
+grep -q 'id="groqPanel"' web/index.html && ok "web/index.html has the Groq sizer panel" || bad "web/index.html missing #groqPanel"
+for el in groqBadge groqLine groqBudgetBar groqBudgetNum groqSummary groqList; do
+  grep -q "id=\"$el\"" web/index.html || bad "web/index.html missing #$el"
+done
+ok "all 6 panel ids present (badge, line, budget bar/num, summary, list)"
+grep -q "function renderGroq(" web/app.js && ok "web/app.js has renderGroq()" || bad "web/app.js missing renderGroq()"
+grep -q "renderGroq(s && s.groq_sizer)" web/app.js && ok "renderGroq() is called from refresh()" || bad "renderGroq() never called -> panel stays empty forever"
+grep -q "function groqChip(" web/app.js && ok "decision rows get a groq x0.5 chip" || bad "web/app.js missing groqChip()"
+grep -q ".groq-row.cut" web/styles.css && ok "web/styles.css styles cut/pass/fail rows" || bad "web/styles.css missing .groq-row rules"
+grep -q '"groq_sizer": groq_sizer.status()' desk/solana_agent.py && ok "/api/state carries the groq_sizer block" || bad "desk/solana_agent.py does not expose groq_sizer"
+if python -c "
+from desk import groq_sizer as g
+s = g.status()
+assert s['max_mult'] == 1.0 and s['min_mult'] <= s['max_mult'], s
+assert isinstance(s['recent'], list), s
+" 2>/dev/null; then
+  ok "groq_sizer.status() returns the panel contract (cap 1.00x, ring list)"
+else
+  bad "groq_sizer.status() broken -> python -m pytest tests/test_groq_ui.py"
+fi
+
+say ""
 say "=== 5. does the code import cleanly? ==="
 if python -c "from desk import signal_engine, signal_backtest; from desk import settings; print('   ', len(settings.REGISTRY), 'settings')" 2>/dev/null; then
   ok "signal_engine + signal_backtest import, settings registry loads"

@@ -875,3 +875,22 @@ body.desk-page { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); 
 .ds-actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
 .ds-note { color: var(--muted); font-size: 11.5px; }
 
+
+/* ---------- Groq sizer (live view of the shrink-only size opinion) ---------- */
+.groq-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px;
+  max-height: 232px; overflow-y: auto; }
+.groq-row { display: flex; flex-direction: column; gap: 3px; padding: 7px 9px;
+  border-radius: 8px; background: var(--panel-2); border: 1px solid var(--border-soft);
+  border-left: 2px solid var(--border); }
+.groq-row.cut { border-left-color: var(--amber); }
+.groq-row.pass { border-left-color: var(--green); }
+.groq-row.fail { border-left-color: var(--red); }
+.groq-row .top { display: flex; align-items: center; gap: 7px; font-size: 11.5px; }
+.groq-row .sym { font-weight: 600; color: var(--fg); }
+.groq-row .mult { font-family: var(--mono); font-size: 11px; padding: 1px 6px;
+  border-radius: 5px; background: var(--panel); color: var(--muted); }
+.groq-row.cut .mult { background: var(--amber-dim); color: var(--amber); }
+.groq-row .why { font-size: 10.5px; color: var(--muted); line-height: 1.35; }
+.groq-row .meta { font-size: 10px; color: var(--muted-2); font-family: var(--mono); }
+.groq-row .src { font-size: 9.5px; text-transform: uppercase; letter-spacing: .4px;
+  color: var(--muted-2); margin-left: auto; }

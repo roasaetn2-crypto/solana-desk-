@@ -99,3 +99,19 @@ rate. If it does not, do NOT add it to the desk.
 - [x] Control backtest A unchanged: 644 trades / 12 pools / -23.25% median / 27.9% win
 - [x] GUARD-LIVE.md written
 - [x] Commit + push (76d8afe)
+
+# Groq sizer panel — show the model while it is trading
+
+- [x] `groq_sizer.status()`: on/off + reason, model, budget left/used, clamp, recent ring, cuts/avg
+- [x] `_RECENT` deque(maxlen=24) + `_note()`; `size_mult` becomes a recording wrapper over `_size_mult`
+- [x] `_note()` swallows every error — it sits in the hot path of every buy
+- [x] `/api/state` gains `groq_sizer` (no network, so polling is free)
+- [x] `web/index.html`: `#groqPanel` in the left column (badge, line, budget bar, summary, list)
+- [x] `web/styles.css`: `.groq-row` with cut/pass/fail left-border colours
+- [x] `web/app.js`: `renderGroq()` called from `refresh()`, `groqRow()` per call
+- [x] `groqChip()` on decision rows: `groq x0.5` + tooltip, only when mult < 1
+- [x] Booted the desk on :8099, logged in, verified the panel in a real browser
+- [x] Seeded a fake payload: badge ON, bar 83%, 5 rows -> cut/pass/cut/fail/fail
+- [x] `tests/test_groq_ui.py` (10 tests): status contract, no I/O, bounded ring, cut flag, esc() audit
+- [x] Full suite: 727 passed, 17 skipped
+- [x] `termux/verify-update.sh` section 4g (8 checks, all OK)
