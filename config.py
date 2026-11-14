@@ -73,6 +73,13 @@ RISK = {
     "max_pool_share": 0.02,        # never be more than 2% of the pool: you'd be the exit
     "max_open_positions": 6,       # retune: was 4
     "max_daily_loss_pct": 0.03,    # down 3% on the day -> desk stops until tomorrow
+    "risk_budget_usd": 0.0,        # EXPLICIT whole-book open-risk budget in USD. 0 = auto.
+                                   # Auto = max(daily stop, max_risk_per_trade * book * slots),
+                                   # i.e. the larger of "the 3% day" and "what all six slots are
+                                   # allowed to risk". Without that floor the config contradicts
+                                   # itself (1.5% x 6 = 9% at risk vs a 3% budget) and the desk
+                                   # refuses every entry after two positions. Set this to a
+                                   # dollar figure to override the auto budget from the dashboard.
     "max_daily_loss_usd": 0.0,     # hard dollar daily stop. 0 = off (use the % above). When set it
                                    # REPLACES the % limit, so you can name the day's loss in cash.
                                    # Useful on a small book where 3% is only a dollar or two.
@@ -83,7 +90,7 @@ RISK = {
                                    # still journaled, but it does not block new entries (same effect as
                                    # tapping "Continue today" every day). LIVE ignores this entirely.
     "min_ticket_usd": 10,          # live fee floor (unchanged). Paper floor is PAPER["min_ticket_usd"]
-    "risk_budget_split_across_slots": False,  # Divide the whole-book risk budget across
+    "risk_budget_split_across_slots": True,   # Divide the whole-book risk budget across
                                    # max_open_positions, so the per-trade risk cap agrees with
                                    # the daily stop by construction. Without this the config
                                    # contradicts itself (1.5% x 6 slots = 9% at risk on a 3%
@@ -225,7 +232,7 @@ PAPER = {
                                    # floor below is scaled to it: at $50 a two-cut ticket is
                                    # $0.63-$0.94, and a $2 floor would silently reject every
                                    # setup (the original "sizing deadlock").
-    "min_ticket_usd": 0.50,        # paper fee floor; live still uses RISK["min_ticket_usd"]
+    "min_ticket_usd": 0.20,        # paper fee floor; live still uses RISK["min_ticket_usd"]
     "fee_pct": 0.01,               # pump.fun charges ~1% per swap on the curve
     "slippage_pct": 0.02,          # assume 2% worse than the quoted price
     # A position is never marked above max_mark_mult times what it cost, nor

@@ -64,7 +64,7 @@ class OverrideRule(unittest.TestCase):
         full = down_account(open_positions=RISK["max_open_positions"])
         self.assertEqual(check_token_trade(thesis(), full, 30_000, now=NOON,
                                            daily_override=True)[2], "max open positions")
-        self.assertIn("fee floor", check_token_trade(thesis(), acct, 10, now=NOON,
+        self.assertIn("fee floor", check_token_trade(thesis(), acct, 5, now=NOON,
                                                      daily_override=True)[2])
         with mock.patch.dict("config.RISK", {"quiet_hours": (1, 7)}):
             night = datetime(2026, 10, 26, 2, 30)

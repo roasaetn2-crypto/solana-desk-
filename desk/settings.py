@@ -156,6 +156,17 @@ _R: list[Setting] = [
     _num("risk.max_open_positions", "Max open positions", "Risk", "int", _d(RISK, "max_open_positions", int), 1, 10),
     _num("risk.max_daily_loss_pct", "Daily loss stop", "Risk", "pct", _d(RISK, "max_daily_loss_pct"), 0.005, 0.10, "of book",
          "the desk halts new entries for the day past this; capped at 10%"),
+    _num("risk.risk_budget_usd", "Open-risk budget", "Risk", "float", _d(RISK, "risk_budget_usd"), 0.0, 500.0, "USD",
+         "dollars of open risk the whole book may carry at once. 0 = auto: the larger of the "
+         "daily stop and what all max-open slots are allowed to risk, so the desk never locks "
+         "itself out. Raise it if the desk says 'over its risk budget' and you accept more "
+         "concurrency; lower it to cap simultaneous exposure."),
+    Setting("risk.risk_budget_split_across_slots", "Split budget across slots", "Risk", "bool",
+            lambda: bool(RISK.get("risk_budget_split_across_slots", True)),
+            lambda v: RISK.__setitem__("risk_budget_split_across_slots", bool(v)),
+            help="when on, per-trade risk is budget / max-open-positions, so every slot fits the "
+                 "budget by construction. Turn off to size every ticket at Risk per trade and let "
+                 "the budget limit how many can open."),
     _num("risk.max_daily_loss_usd", "Daily loss stop (USD)", "Risk", "float", _d(RISK, "max_daily_loss_usd"), 0.0, 500.0, "USD",
          "hard dollar daily stop: the desk halts new entries once the day is down this much. "
          "0 = off (use the % limit above). When above 0 this replaces the % limit, so you can "
@@ -168,7 +179,7 @@ _R: list[Setting] = [
                  "its daily stop and ignores this."),
     Setting("risk.compound", "Compound wins", "Risk", "bool", lambda: bool(RISK["compound"]),
             lambda v: RISK.__setitem__("compound", bool(v))),
-    _num("paper.min_ticket_usd", "Min paper ticket", "Risk", "float", _d(PAPER, "min_ticket_usd"), 0.5, 10, "USD"),
+    _num("paper.min_ticket_usd", "Min paper ticket", "Risk", "float", _d(PAPER, "min_ticket_usd"), 0.10, 10, "USD"),
     _num("paper.fee_pct", "Simulated fee", "Risk", "pct", _d(PAPER, "fee_pct"), 0.0025, 0.05, "per swap"),
     _num("paper.slippage_pct", "Simulated slippage", "Risk", "pct", _d(PAPER, "slippage_pct"), 0.005, 0.10, "per swap"),
     # drawdown breaker
@@ -292,7 +303,7 @@ for _k in REGISTRY:  # belt and braces: nothing excluded may sneak into the regi
 
 _ALIASES = {"stop_loss": "exits.scalp.stop_pct", "stop": "exits.scalp.stop_pct", "risk": "risk.max_risk_per_trade",
             "style": "trading.style", "min_score": "analyst.valid_score", "max_positions": "risk.max_open_positions",
-            "daily_loss": "risk.max_daily_loss_pct", "trailing_stop": "exits.scalp.trail_pct"}
+            "daily_loss": "risk.max_daily_loss_pct", "risk_budget": "risk.risk_budget_usd", "trailing_stop": "exits.scalp.trail_pct"}
 
 # ---------- presets: one card, every value that changes ----------
 PRESETS: dict[str, dict] = {

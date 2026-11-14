@@ -109,3 +109,63 @@ python -m pytest tests/test_risk_budget.py -q
 `tests/test_risk_budget.py` has 16 tests pinning all three faults: the trim
 instead of refuse, the day-start basis, the two legitimate refusals, and the
 dashboard fields.
+
+---
+
+# v2 — why it still said "no entry", and the real fix
+
+The split knob above existed but shipped **off**, so the contradiction stayed
+live. On the screenshot the desk showed:
+
+```
+Open risk $2.62 is over the $1.50 risk budget (over by $1.12).
+New entries wait until positions close or stops tighten.
+```
+
+The arithmetic: budget = 3% x $50 = **$1.50**, but each ticket risked 1.5% x
+$50 = **$0.76**. Two positions = $1.52, already past the budget, so the third
+entry was refused and the desk never traded again.
+
+## What changed
+
+1. **The budget can no longer be smaller than what the slots may deploy.**
+   `risk_budget_usd()` now returns
+
+   ```
+   max(daily stop, max_risk_per_trade x book x max_open_positions)
+   ```
+
+   On a $50 book that is `max($1.50, $4.50) = $4.50`. The daily loss stop still
+   fires and flattens the book at 3% *realised* loss, so this widens how many
+   positions can be open at once — it does not widen the day's realised loss.
+
+2. **The split is on by default** (`risk_budget_split_across_slots = True`), so
+   per-trade risk is `budget / slots` and six slots fit by construction.
+
+3. **The paper fee floor is $0.20** (was $0.50), so a split ticket still clears
+   the floor even after the caution layer's worst quarter-cut. That removes the
+   last "sizing deadlock wearing a new hat".
+
+4. **New dashboard setting: Risk → Open-risk budget.**
+   `RISK["risk_budget_usd"]` (0 = auto). Set a dollar figure to override the
+   auto budget on a small book. There is also **Risk → Split budget across
+   slots** as a toggle.
+
+## Verify
+
+```bash
+python -m pytest tests/test_risk_budget.py -q     # 19 passed
+python -m pytest tests -q                          # 734 passed
+```
+
+Reproduce the screenshot state in Python:
+
+```python
+from desk.risk import Account, check_token_trade, risk_budget_usd
+a = Account(equity=50.90, day_pnl=0.90, open_positions=3,
+            realized_equity=50.90, cash=20.0, day_start_equity=50.00)
+print(risk_budget_usd(a))   # 4.5  (was 1.5)
+```
+
+The entry gate now approves a $2.50 ticket instead of refusing it, and six
+positions fill to exactly $4.50 of open risk.

@@ -39,14 +39,17 @@ def test_budget_uses_day_start_not_live_equity():
     allowed to work. The budget must be anchored to the day's opening equity.
     """
     a = _acct(equity=40.0, day_start_equity=51.33)   # down ~22% intraday
-    assert risk_budget_usd(a) == pytest.approx(0.03 * 51.33, abs=1e-9)
+    # auto = max(3% daily stop, 1.5% x 6 slots) of the day-start book
+    expected = max(0.03 * 51.33, 0.015 * 51.33 * risk.RISK["max_open_positions"])
+    assert risk_budget_usd(a) == pytest.approx(expected, abs=1e-9)
     # the old basis would have been much smaller
     assert risk_budget_usd(a) > risk.daily_loss_limit_usd(a)
 
 
 def test_budget_falls_back_to_equity_when_day_start_missing():
     a = _acct(equity=50.0, day_start_equity=None)
-    assert risk_budget_usd(a) == pytest.approx(0.03 * 50.0, abs=1e-9)
+    expected = max(0.03 * 50.0, 0.015 * 50.0 * risk.RISK["max_open_positions"])
+    assert risk_budget_usd(a) == pytest.approx(expected, abs=1e-9)
 
 
 def test_hard_dollar_stop_wins_over_percentage():
@@ -71,10 +74,15 @@ def test_ticket_is_trimmed_to_fit_the_remaining_budget():
     ($0.14 / 0.06) and the desk keeps trading.
     """
     a = _acct()
-    ok, ticket, why = fit_risk_budget(1.40, 4.17, 0.06, a, 0.50)
-    assert ok is True
-    assert ticket == pytest.approx(2.33, abs=0.01)
-    assert "trimmed" in why
+    old = risk.RISK.get("risk_budget_usd")
+    try:
+        risk.RISK["risk_budget_usd"] = 1.54
+        ok, ticket, why = fit_risk_budget(1.40, 4.17, 0.06, a, 0.50)
+        assert ok is True
+        assert ticket == pytest.approx(2.33, abs=0.01)
+        assert "trimmed" in why
+    finally:
+        risk.RISK["risk_budget_usd"] = old
 
 
 def test_ticket_that_already_fits_is_untouched():
@@ -103,20 +111,31 @@ def test_first_position_is_left_to_the_sizing_layer():
 
 def test_book_already_over_budget_refuses_with_actionable_message():
     a = _acct()
-    ok, ticket, why = fit_risk_budget(1.89, 4.17, 0.06, a, 0.50)
-    assert ok is False and ticket == 0.0
-    assert "over its risk budget" in why
-    assert "1.89" in why and "1.54" in why
-    # the operator must be told the way out, not just that it failed
-    assert "close" in why.lower() or "tighten" in why.lower()
+    old = risk.RISK.get("risk_budget_usd")
+    try:
+        risk.RISK["risk_budget_usd"] = 1.54
+        ok, ticket, why = fit_risk_budget(1.89, 4.17, 0.06, a, 0.50)
+        assert ok is False and ticket == 0.0
+        assert "over its risk budget" in why
+        assert "1.89" in why and "1.54" in why
+        # the operator must be told the way out, not just that it failed
+        assert "close" in why.lower() or "tighten" in why.lower()
+        assert "budget" in why.lower()
+    finally:
+        risk.RISK["risk_budget_usd"] = old
 
 
 def test_refuses_when_what_fits_is_below_the_fee_floor():
     a = _acct()
-    # $0.03 of room at a 6% stop is a $0.50 ticket; force it under the floor
-    ok, ticket, why = fit_risk_budget(1.53, 4.17, 0.06, a, 0.50)
-    assert ok is False and ticket == 0.0
-    assert "fee floor" in why
+    # $0.01 of room at a 6% stop is a $0.17 ticket; force it under the floor
+    old = risk.RISK.get("risk_budget_usd")
+    try:
+        risk.RISK["risk_budget_usd"] = 1.54
+        ok, ticket, why = fit_risk_budget(1.53, 4.17, 0.06, a, 0.50)
+        assert ok is False and ticket == 0.0
+        assert "fee floor" in why
+    finally:
+        risk.RISK["risk_budget_usd"] = old
 
 
 def test_zero_budget_disables_the_gate():
@@ -226,7 +245,8 @@ def test_risk_status_reports_the_budget_and_open_risk(tmp_path):
     expected = pos["qty"] * (pos["last"] - pos["stop_price"])
 
     st = a.risk_status()
-    assert st["risk_budget_usd"] == pytest.approx(0.03 * 50.0, abs=0.01)
+    expected_budget = max(0.03 * 50.0, 0.015 * 50.0 * risk.RISK["max_open_positions"])
+    assert st["risk_budget_usd"] == pytest.approx(expected_budget, abs=0.01)
     assert st["open_risk_usd"] == pytest.approx(expected, abs=0.01)
     assert st["over_risk_budget"] is False
 
@@ -234,8 +254,8 @@ def test_risk_status_reports_the_budget_and_open_risk(tmp_path):
 def test_risk_status_flags_an_over_budget_book(tmp_path):
     """The desk must say out loud that it is over budget, not just go quiet."""
     a = _agent(tmp_path)
-    a.paper.buy("M1", "RUG", 3.0, 1.0, "scalp")
-    # qty 3 at last 1.00 with a stop at 0.00 risks $3.00 against a $1.50 budget
+    a.paper.buy("M1", "RUG", 5.0, 1.0, "scalp")
+    # qty 5 at last 1.00 with a stop at 0.01 risks ~$4.95 against a $4.50 budget
     a.paper.s["positions"]["M1"]["last"] = 1.0
     a.paper.s["positions"]["M1"]["stop_price"] = 0.01
     a.paper._save()
@@ -253,4 +273,51 @@ def test_paper_account_carries_the_day_start_equity(tmp_path):
     a = _agent(tmp_path, day_start=50.0)
     acct = a._paper_account()
     assert acct.day_start_equity == pytest.approx(50.0)
-    assert risk_budget_usd(acct) == pytest.approx(1.50, abs=0.01)
+    expected = max(0.03 * 50.0, 0.015 * 50.0 * risk.RISK["max_open_positions"])
+    assert risk_budget_usd(acct) == pytest.approx(expected, abs=0.01)
+
+
+# --------------------------------------------------------------------------
+# regression: the budget must never be smaller than what the slots can deploy
+# --------------------------------------------------------------------------
+
+def test_auto_budget_covers_every_slot():
+    """6 slots x 1.5% risk must fit the auto budget, or the desk deadlocks.
+
+    This is the exact live bug: a $50 book had a $1.50 budget but $0.76 of
+    risk per ticket, so the third entry was refused forever.
+    """
+    a = _acct(equity=50.0, day_start_equity=50.0, realized_equity=50.0, cash=50.0)
+    old = risk.RISK.get("risk_budget_usd")
+    try:
+        risk.RISK["risk_budget_usd"] = 0.0
+        slots = risk.RISK["max_open_positions"]
+        per_trade = per_trade_risk_usd(a)
+        assert per_trade * slots <= risk_budget_usd(a) + 1e-9
+        # and a full six-position book is allowed, not refused after two
+        open_risk = 0.0
+        for i in range(slots):
+            ok, ticket, why = fit_risk_budget(open_risk, per_trade / risk.EXITS["stop_pct"],
+                                              risk.EXITS["stop_pct"], a, 0.20)
+            assert ok is True, f"slot {i+1} refused: {why}"
+            open_risk += ticket * risk.EXITS["stop_pct"]
+    finally:
+        risk.RISK["risk_budget_usd"] = old
+
+
+def test_explicit_budget_override_wins():
+    a = _acct()
+    old = risk.RISK.get("risk_budget_usd")
+    try:
+        risk.RISK["risk_budget_usd"] = 7.25
+        assert risk_budget_usd(a) == pytest.approx(7.25)
+    finally:
+        risk.RISK["risk_budget_usd"] = old
+
+
+def test_config_defaults_unstick_the_desk():
+    """The shipped config must not reproduce the deadlock out of the box."""
+    assert risk.RISK["risk_budget_split_across_slots"] is True
+    assert risk.PAPER["min_ticket_usd"] <= 0.20
+    a = _acct(equity=50.0, day_start_equity=50.0, realized_equity=50.0, cash=50.0)
+    assert risk_budget_usd(a) > 1.50

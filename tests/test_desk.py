@@ -138,8 +138,8 @@ class RiskEngine(unittest.TestCase):
         self.assertEqual(ticket, 3.33)
 
     def test_thin_pool_caps_ticket(self):
-        # 2% of a $10 pool = $0.20, under the configured paper fee floor
-        ok, ticket, reason = check_token_trade(thesis(), self.acct, 10, now=NOON)
+        # 2% of a $5 pool = $0.10, under the configured $0.20 paper fee floor
+        ok, ticket, reason = check_token_trade(thesis(), self.acct, 5, now=NOON)
         self.assertFalse(ok)
         self.assertIn("fee floor", reason)
 

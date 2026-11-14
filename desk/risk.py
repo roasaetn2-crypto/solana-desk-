@@ -97,22 +97,48 @@ def daily_loss_limit_usd(account: Account) -> float:
 def risk_budget_usd(account: Account) -> float:
     """Dollars of OPEN risk the book may carry at once.
 
-    This is the daily stop expressed in cash, but measured against the day's
-    OPENING equity rather than live equity. The distinction matters: live equity
-    falls when open positions are under water, which used to shrink the budget
-    and lock the desk out of every new entry at precisely the moment it was
-    already losing. A budget that moves with the marks is not a budget.
+    Resolution order:
 
-    Falls back to `daily_loss_limit_usd` when no day-start equity is reported
-    (live path, backtests), so callers that never set it behave as before.
+    1. ``RISK["risk_budget_usd"]`` when set above 0 -- an explicit operator
+       dollar budget (dashboard: Risk -> Open-risk budget). This is the escape
+       hatch for a small book where the derived budget is a dollar or two.
+    2. ``RISK["max_daily_loss_usd"]`` when set -- the hard dollar daily stop.
+    3. Otherwise ``max(daily stop, full-book risk)`` measured against the day's
+       OPENING equity.
+
+    Why the ``full_book`` term exists: ``max_risk_per_trade`` is 1.5% and there
+    are 6 slots, so the sizing layer is allowed to put 9% of the book at risk.
+    If the budget were only the 3% daily stop ($1.50 on a $50 book), then after
+    two positions open risk would exceed the budget and EVERY later entry would
+    be refused -- the desk looks alive and never trades. That is the exact
+    "open risk $2.62 vs $1.50 budget" deadlock. The budget must be at least the
+    risk the sizing layer can actually deploy, or the two numbers contradict
+    each other. The daily loss stop still fires and flattens the book at 3%
+    realised loss, so this widens concurrency, not the day's realised loss.
+
+    Anchored to day-start equity, not live marks: a budget that shrinks as open
+    positions go under water locks the desk out exactly when it is already
+    losing (the procyclical trap).
     """
+    explicit = float(RISK.get("risk_budget_usd") or 0.0)
+    if explicit > 0:
+        return explicit
     usd_limit = float(RISK.get("max_daily_loss_usd") or 0.0)
     if usd_limit > 0:
         return usd_limit
+    pct = float(RISK.get("max_daily_loss_pct") or 0.0)
+    if pct <= 0:
+        # Both daily stops disabled: no budget gate at all.
+        return 0.0
     base = account.day_start_equity
     if base is None or base <= 0:
-        return daily_loss_limit_usd(account)
-    return RISK["max_daily_loss_pct"] * base
+        base = account.equity
+    if base <= 0:
+        return 0.0
+    slots = max(1, int(RISK.get("max_open_positions") or 1))
+    day_stop = pct * base
+    full_book = RISK["max_risk_per_trade"] * base * slots
+    return max(day_stop, full_book)
 
 
 def per_trade_risk_usd(account: Account) -> float:
@@ -170,7 +196,8 @@ def fit_risk_budget(open_risk: float, ticket: float, stop_pct: float,
         return False, 0.0, (
             f"book is over its risk budget: open risk ${open_risk:.2f} vs "
             f"${budget:.2f} budget (over by ${open_risk - budget:.2f}). "
-            f"No new entry can fit until open positions close or their stops tighten.")
+            f"No new entry can fit until open positions close, their stops "
+            f"tighten, or you raise Risk -> Open-risk budget in Settings.")
     if stop_pct <= 0:
         return True, ticket, "approved"
     if ticket * stop_pct <= remaining + 1e-9:
