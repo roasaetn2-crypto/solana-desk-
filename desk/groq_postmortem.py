@@ -340,6 +340,11 @@ def run(force: bool = False, path: str | Path | None = None, log=None) -> dict:
     if not force and prev.get("ok") and prev.get("n") == len(cases) and cases:
         return {**prev, "cached": True}
     result = analyse(cases, log=log)
+    if not result.get("ok") and prev.get("ok"):
+        # A failed run (no key, quota, unparseable reply) must not erase the last
+        # good report. Keep the old one on disk and say why this attempt failed.
+        return {**result, "kept_previous": True, "previous_at": prev.get("at"),
+                "previous_n": prev.get("n")}
     save(result)
     return result
 

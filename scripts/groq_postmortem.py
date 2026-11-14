@@ -66,6 +66,9 @@ def main(argv: list[str] | None = None) -> int:
               f"(wins {result.get('wins', 0)} / losses {result.get('losses', 0)})")
         if result.get("n", 0) < pm.MIN_TRADES:
             print(f"  need {pm.MIN_TRADES} before a model is allowed to look for patterns.")
+        if result.get("kept_previous"):
+            print(f"  kept the previous report ({result.get('previous_n')} trades, "
+                  f"{result.get('previous_at')}); the dashboard still shows it.")
         return 1
 
     cached = " (cached)" if result.get("cached") else ""
