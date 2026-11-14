@@ -75,14 +75,20 @@ def size_multiplier(cuts: list[tuple[str, float]]) -> tuple[float, list[str]]:
 
 def pretrade_checklist(*, stop_pct: float | None, ticket: float, max_ticket: float,
                        breaker: dict, block_flags: list[str], quote_confirmed: bool | None,
-                       paper_only: bool = True) -> dict:
-    """The gate before a fill: every line must be true. `quote_confirmed` None = not yet run."""
+                       paper_only: bool = True, live_armed: bool = False) -> dict:
+    """The gate before a fill: every line must be true. `quote_confirmed` None = not yet run.
+
+    The mode line asserts that the fill is permitted in the current mode: either
+    this is the paper desk, or live trading is genuinely armed (the live broker is
+    active and not disabled). It used to read `("paper mode", paper_only)`, which
+    was backwards -- it would have failed every real fill.
+    """
     items = [
         ("plan: stop and horizon set", bool(stop_pct and stop_pct > 0)),
         ("size within the per-trade cap", ticket <= max_ticket + 1e-9),
         ("breaker not tripped", breaker.get("state") != "cooldown"),
         ("no security block flags", not block_flags),
-        ("paper mode", bool(paper_only)),
+        ("mode: paper, or live is armed", bool(paper_only) or bool(live_armed)),
     ]
     if quote_confirmed is not None:
         items.append(("price confirmed on a second read", bool(quote_confirmed)))

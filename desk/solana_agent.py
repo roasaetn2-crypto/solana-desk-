@@ -546,22 +546,32 @@ class SolanaAgent:
         for warning in report.get("warnings") or []:
             self.emit("info", f"scanner: {warning}", stage="scanner")
 
-        # discipline layer: market regime tag and drawdown breaker. Paper only, tighten-only.
+        # discipline layer: market regime tag and drawdown breaker. Tighten-only,
+        # and it must run in BOTH modes. Gating this on `mode != live` meant the
+        # breaker never updated for real money -- self.breaker stayed
+        # {"state":"ok"} forever, so the drawdown stop could not fire on the one
+        # book where it matters. A guard that only guards the simulator is not a
+        # guard.
         brk = {"state": "ok", "mult": 1.0, "reason": "ok"}
-        if self.mode != "live":
+        try:
             self.regime = ({"tag": "UNKNOWN", "halve": False} if (force_demo or offline())
                            else regime.current(self.session))
-            brk = guard.circuit_breaker(self.broker.s["closed"], self.broker.day_pnl(),
-                                        self.broker.s["day_start"])
-            if brk["state"] != self.breaker.get("state"):
-                self.emit("info" if brk["state"] == "ok" else "warn",
-                          f"breaker: {brk['state']} ({brk['reason']})", stage="guard")
-            self.breaker = brk
-            if brk["mult"] <= 0:
-                with self.lock:
-                    for t in tokens:
-                        self.tokens_seen[t["mint"]] = t
-                tokens = []          # positions are still managed; only new entries pause
+        except Exception as e:      # a regime outage must not brick entries; UNKNOWN = no halve
+            self.stats["errors"] += 1
+            self.emit("warn", f"regime unavailable ({type(e).__name__}); treating as UNKNOWN",
+                      stage="guard")
+            self.regime = {"tag": "UNKNOWN", "halve": False}
+        brk = guard.circuit_breaker(self.broker.s["closed"], self.broker.day_pnl(),
+                                    self.broker.s["day_start"])
+        if brk["state"] != self.breaker.get("state"):
+            self.emit("info" if brk["state"] == "ok" else "warn",
+                      f"breaker: {brk['state']} ({brk['reason']})", stage="guard")
+        self.breaker = brk
+        if brk["mult"] <= 0:
+            with self.lock:
+                for t in tokens:
+                    self.tokens_seen[t["mint"]] = t
+            tokens = []          # positions are still managed; only new entries pause
 
         for t in tokens:
             try:
@@ -716,6 +726,8 @@ class SolanaAgent:
 
                 chips = list(sec["chips"])
                 # seat 4: risk engine. Live money gets live caps, not paper percentages.
+                horizon = exits.horizon_for(t.get("age_minutes"))
+                stop = exits.profile(horizon)["stop_pct"]
                 if self.mode == "live":
                     caps = {"max_trade": EXECUTION["live_max_trade_usd"],
                             "max_notional": EXECUTION["live_max_notional_usd"],
@@ -724,10 +736,21 @@ class SolanaAgent:
                     ok, ticket, reason = check_live_trade(
                         th, self.live.day_pnl(), self.live.open_count(),
                         t["liquidity_usd"], caps)
-                    sizes = live_sizing_breakdown(t["liquidity_usd"], caps)
+                    sizes = {**live_sizing_breakdown(t["liquidity_usd"], caps),
+                             "horizon": horizon, "stop_pct": stop}
+                    # The caution layer used to run ONLY on the paper path, so a
+                    # real fill skipped the security halve, the regime halve, the
+                    # breaker cut, the Jupiter impact cut and the pre-trade
+                    # checklist entirely. Run it here too. The per-trade cap is
+                    # the live cap, not a paper percentage of equity.
+                    if ok:
+                        acct = Account(equity=self.live.equity(), day_pnl=self.live.day_pnl(),
+                                       open_positions=self.live.open_count(),
+                                       realized_equity=self.live.realized_equity())
+                        ok, ticket, reason, guard_info, chips = self._caution(
+                            t, ticket, sec, brk, stop, acct, max_ticket=caps["max_trade"])
+                        sizes["guard"] = guard_info
                 else:
-                    horizon = exits.horizon_for(t.get("age_minutes"))
-                    stop = exits.profile(horizon)["stop_pct"]
                     acct = Account(equity=self.broker.equity(), day_pnl=self.broker.day_pnl(),
                                    open_positions=self.broker.open_count(),
                                    realized_equity=self.broker.realized_equity(),
@@ -899,7 +922,10 @@ class SolanaAgent:
                         continue
 
                 cl = (sizes.get("guard") or {}).get("checklist")
-                if cl is not None and self.mode != "live":
+                if cl is not None:
+                    # Both modes confirm the price on a second read before filling:
+                    # paper re-quotes via scanner.quote above, live re-quotes through
+                    # Jupiter inside LiveBroker.buy(). Record it on the checklist.
                     cl["items"].append({"name": "price confirmed on a second read", "ok": True})
                     cl["passed"] += 1
                     cl["total"] += 1
@@ -1034,11 +1060,17 @@ class SolanaAgent:
         self.funnel.clear()
 
     def _caution(self, t: dict, ticket: float, sec: dict, brk: dict, stop: float,
-                 acct: Account) -> tuple[bool, float, str, dict, list]:
-        """Paper-only caution layer. Can shrink or refuse a ticket, never grow or admit one.
+                 acct: Account, *, max_ticket: float | None = None
+                 ) -> tuple[bool, float, str, dict, list]:
+        """The caution layer, run in BOTH paper and live. Tighten-only: it can
+        shrink or refuse a ticket, never grow or admit one.
 
         Cuts: security halve-flags, RISK_OFF regime, drawdown breaker, high Jupiter
-        impact. They multiply (floor 0.25x). Then the pre-trade checklist must pass.
+        impact, and the shrink-only Groq size opinion. They multiply (floor 0.25x).
+        Then the pre-trade checklist must pass.
+
+        `max_ticket` overrides the per-trade cap. Live passes its hard USD cap;
+        paper leaves it None and uses a percentage of the sizing base.
         """
         chips = list(sec["chips"])
         cuts: list[tuple[str, float]] = []
@@ -1071,11 +1103,16 @@ class SolanaAgent:
         mult, names = guard.size_multiplier(cuts)
         new_ticket = round(ticket * mult, 2)
         floor = PAPER.get("min_ticket_usd", RISK["min_ticket_usd"])
+        cap = max_ticket if max_ticket is not None else RISK["max_position_pct"] * sizing_base(acct)
+        # In live mode the checklist must assert the broker really is the live
+        # broker and live trading is not disabled -- not "paper mode", which was
+        # semantically backwards and would have failed every real fill.
+        live_armed = (self.mode == "live" and self.broker is self.live
+                      and not live_mod.LIVE_DISABLED)
         checklist = guard.pretrade_checklist(
-            stop_pct=stop, ticket=new_ticket,
-            max_ticket=RISK["max_position_pct"] * sizing_base(acct),
+            stop_pct=stop, ticket=new_ticket, max_ticket=cap,
             breaker=brk, block_flags=sec["block"], quote_confirmed=None,
-            paper_only=self.mode != "live")
+            paper_only=self.mode != "live", live_armed=live_armed)
         info = {"mult": mult, "cuts": names, "breaker": brk["state"], "ticket_before": ticket,
                 "jupiter_impact_pct": jup.get("impact_pct"), "checklist": checklist}
         if groq_info:

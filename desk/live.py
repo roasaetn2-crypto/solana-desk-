@@ -287,7 +287,7 @@ class LiveBroker(PaperBroker):
 
     # ---------- orders ----------
     def buy(self, mint: str, symbol: str, ticket_usd: float, price: float,
-            horizon: str | None = None) -> dict:
+            horizon: str | None = None, groq_mult: float | None = None) -> dict:
         if LIVE_DISABLED:
             raise LiveError(LIVE_DISABLED_MSG)
         self._guard_buy(mint, ticket_usd)
@@ -307,6 +307,11 @@ class LiveBroker(PaperBroker):
             "opened": time.time(), "cost": ticket_usd, "half_taken": False,
             "tx": sig, "live": True,
         }
+        if groq_mult is not None:
+            # Same measurement hook as the paper broker: tag the position with the
+            # multiplier that sized it so the close can journal realised P&L against
+            # it. groq_sizer.buckets() joins these rows to test for ranking skill.
+            self.s["positions"][mint]["groq_mult"] = float(groq_mult)
         self._save()
         return {"side": "buy", "mint": mint, "symbol": symbol, "qty": qty, "fill": fill,
                 "fee": 0.0, "ticket_usd": ticket_usd, "tx": sig, "live": True,
@@ -337,6 +342,16 @@ class LiveBroker(PaperBroker):
             out["pnl_usd"] = pnl
             self.s["closed"].append({"mint": mint, "symbol": p["symbol"], "pnl_usd": pnl,
                                      "reason": reason, "closed": time.time(), "tx": sig})
+            if p.get("groq_mult") is not None:
+                # Realised live P&L tagged with the multiplier that sized the ticket.
+                try:
+                    from desk.ops import journal
+                    journal("groq_sizer_pnl", mint=mint, symbol=p.get("symbol"),
+                            mult=float(p["groq_mult"]), pnl_usd=pnl, reason=reason,
+                            ticket_usd=p.get("cost"), entry=p.get("entry"),
+                            opened=p.get("opened"), closed=time.time(), live=True)
+                except Exception:
+                    pass
             del self.s["positions"][mint]
         self._save()
         return out

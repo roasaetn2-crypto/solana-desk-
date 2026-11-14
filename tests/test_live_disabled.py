@@ -39,6 +39,30 @@ class LiveDisabled(unittest.TestCase):
         with self.assertRaises(live.LiveError): live._keypair()
         self.assertIsNone(b.pubkey())
 
+    def test_live_buy_accepts_groq_mult(self):
+        """The agent passes groq_mult on every buy. If LiveBroker.buy does not
+        accept it, every real fill would TypeError at the last step."""
+        import inspect
+        params = inspect.signature(live.LiveBroker.buy).parameters
+        self.assertIn("groq_mult", params)
+        self.assertIn("horizon", params)
+
+    def test_breaker_runs_in_live_mode(self):
+        """The drawdown breaker used to be gated on `mode != live`, so it never
+        updated for real money. Seed three losses in a row, force live mode, run
+        one cycle, and assert the breaker actually tripped."""
+        import time as _t
+        from unittest import mock
+        now = _t.time()
+        self.a.paper.s["closed"] = [{"pnl_usd": -1.0, "closed": now - 10},
+                                    {"pnl_usd": -1.0, "closed": now - 20},
+                                    {"pnl_usd": -1.0, "closed": now - 30}]
+        self.a.mode = "live"
+        with mock.patch("desk.solana_agent.scanner.new_tokens", return_value=[]):
+            self.a.run_once()
+        self.assertEqual(self.a.breaker["state"], "cooldown",
+                         "breaker did not run on the live path")
+
 
 if __name__ == "__main__":
     unittest.main()

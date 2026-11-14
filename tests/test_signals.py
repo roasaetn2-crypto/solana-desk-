@@ -588,6 +588,26 @@ class Guard(unittest.TestCase):
                                        quote_confirmed=False, paper_only=False)
         self.assertFalse(bad["ok"])
         self.assertEqual(len(bad["failed"]), 6)
+        # The mode line must permit a real fill when live is genuinely armed, and
+        # refuse it when the desk claims live but the live broker is not active.
+        live = guard.pretrade_checklist(stop_pct=0.35, ticket=3, max_ticket=5,
+                                        breaker={"state": "ok"}, block_flags=[],
+                                        quote_confirmed=None, paper_only=False, live_armed=True)
+        self.assertTrue(live["ok"])
+        not_armed = guard.pretrade_checklist(stop_pct=0.35, ticket=3, max_ticket=5,
+                                             breaker={"state": "ok"}, block_flags=[],
+                                             quote_confirmed=None, paper_only=False)
+        self.assertIn("mode: paper, or live is armed", not_armed["failed"])
+
+    def test_live_path_runs_the_caution_layer(self):
+        """Tripwire: the live branch must call _caution with the live cap, and the
+        breaker must not be gated on paper mode. This regressed once; a source
+        assertion is the cheapest way to keep it from regressing silently."""
+        src = code_only("solana_agent.py")
+        self.assertIn("max_ticket=caps['max_trade']", src)   # _caution runs on live
+        self.assertIn("live_armed=live_armed", src)
+        # circuit_breaker must be called unconditionally, not under `mode != live`
+        self.assertNotIn('if self.mode != "live":\n            self.regime', src)
 
     def test_review_exit(self):
         r = guard.review_exit(symbol="DOG", reason="stop -35%", entry=1.0, exit_price=0.62,
