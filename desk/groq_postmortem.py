@@ -106,11 +106,22 @@ def _read_journal(path: str | Path | None = None) -> list[dict]:
     return rows
 
 
+def _as_dict(v) -> dict:
+    """Journal writers are not uniform: a field may be a dict, a string or None.
+
+    Coercing here keeps one malformed row from taking the whole sample with it.
+    """
+    return v if isinstance(v, dict) else {}
+
+
 def _token_ctx(dec: dict) -> dict:
     """The entry-time view of the token, flattened to what a reviewer can read."""
-    t = dec.get("token") or {}
-    th = dec.get("thesis") or {}
-    sig = dec.get("signal") or {}
+    dec = _as_dict(dec)
+    t = _as_dict(dec.get("token"))
+    th = _as_dict(dec.get("thesis"))
+    sig = _as_dict(dec.get("signal"))
+    # Some writers store the thesis as a bare string rather than a dict.
+    thesis_text = th.get("verdict") or (dec.get("thesis") if isinstance(dec.get("thesis"), str) else None)
     out = {
         "liquidity_usd": _f(t.get("liquidity_usd")),
         "mcap_usd": _f(t.get("mcap_usd")),
@@ -119,7 +130,7 @@ def _token_ctx(dec: dict) -> dict:
         "sells_h1": _f(t.get("sells_h1")),
         "age_minutes": _f(t.get("age_minutes")),
         "score": _f(th.get("score")),
-        "thesis": th.get("verdict"),
+        "thesis": thesis_text,
         "shape": th.get("shape"),
         "red_flags": (th.get("red_flags") or [])[:3],
         "direction": sig.get("direction"),
@@ -175,7 +186,11 @@ def build_cases(path: str | Path | None = None) -> list[dict]:
             "horizon": ent.get("horizon"),
             "win": pnl > 0,
         }
-        case.update(_token_ctx(dec))
+        try:
+            case.update(_token_ctx(dec))
+        except Exception:
+            # A single malformed decision must not erase the other closed trades.
+            pass
         cases.append({k: v for k, v in case.items() if v is not None})
     return cases
 
@@ -258,7 +273,10 @@ def analyse(cases: list[dict] | None = None, path: str | Path | None = None,
                 "reason": f"only {len(cases)} closed trades; need {MIN_TRADES} before a "
                           f"model is allowed to look for patterns"}
     if not enabled():
-        return {**base, "ok": False, "reason": "post-mortem disabled (BRAIN_POSTMORTEM_ON=0)"}
+        off = (os.getenv("BRAIN_POSTMORTEM_ON", "1") or "").lower() in ("0", "off", "false", "no")
+        reason = ("post-mortem disabled (BRAIN_POSTMORTEM_ON=0)" if off
+                  else "post-mortem disabled (no GROQ_API_KEY)")
+        return {**base, "ok": False, "reason": reason}
 
     p = _provider()
     if p is None or not p.available():
