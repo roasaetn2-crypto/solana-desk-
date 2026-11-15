@@ -325,7 +325,10 @@ def index():
 
 @app.get("/api/state")
 def state(request: Request):
-    snap = agent.status()
+    # status() hands back a shared, briefly-cached snapshot, so copy before
+    # adding the per-caller access block. Mutating it in place would leak one
+    # caller's identity (owner / device / open) into the next caller's response.
+    snap = dict(agent.status())
     dev = _device(request)
     snap["access"] = {
         "locked": bool(DESK_TOKEN),
@@ -334,8 +337,6 @@ def state(request: Request):
         "device": dev["name"] if dev else None,
         "paired_devices": devices.count(),
     }
-    # The dashboard polls this every 2s. A cached copy would freeze the whole
-    # page on an old snapshot while the desk keeps trading underneath it.
     return JSONResponse(snap, headers={"Cache-Control": "no-store, max-age=0"})
 
 

@@ -484,6 +484,31 @@ class DevicePairing(unittest.TestCase):
         self.assertEqual(other.get("/api/state").status_code, 401)
         self.assertEqual(other.get("/", follow_redirects=False).status_code, 303)
 
+    def test_cached_snapshot_does_not_leak_access_between_callers(self):
+        """status() is memoised, so the per-caller access block must be added to
+        a copy. If it were written into the shared dict, the owner's identity
+        would come back in the next anonymous caller's response."""
+        from fastapi.testclient import TestClient
+        self.appmod.agent._status_cache = None
+        owner = self.client
+        owner.post("/login", data={"token": "k3y"}, follow_redirects=False)
+        anon = TestClient(self.appmod.app)
+        self.assertEqual(owner.get("/api/state").json()["access"]["mode"], "key")
+        # Same cached snapshot, different caller: must not inherit "key".
+        r = anon.get("/api/state")
+        self.assertEqual(r.status_code, 401)
+        # And the cached object itself must not have been mutated.
+        self.assertNotIn("access", self.appmod.agent._status_cache[1])
+
+    def test_status_is_memoised_but_expires(self):
+        import time
+        a = self.appmod.agent
+        a._status_cache = None
+        first = a.status()
+        self.assertIs(a.status(), first)          # served from cache
+        a._status_cache = (time.time() - 10, first)
+        self.assertIsNot(a.status(), first)       # stale entry is rebuilt
+
     def test_wrong_key_cannot_pair(self):
         r = self.client.post("/pair", data={"name": "X", "token": "nope"}, follow_redirects=False)
         self.assertIn("error=1", r.headers.get("location", ""))

@@ -141,6 +141,9 @@ class CautionLayer(Base):
             import json
             snap = json.dumps(a.status())
         self.assertNotIn("SECRET", snap)
+        # status() memoises for a couple of seconds, so drop the snapshot taken
+        # inside the patch before asking again with the env restored.
+        a._status_cache = None
         ig = a.status()["integrations"]
         self.assertEqual(ig["healthchecks"]["status"], "code ready, waiting on signup")
         self.assertEqual(ig["gmgn"]["status"], "waiting on key")

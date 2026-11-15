@@ -21,6 +21,11 @@ import hashlib
 import random
 import threading
 import time
+
+# How long a status() snapshot may be reused. Kept short: long enough that a
+# burst of dashboard polls costs one build, short enough that the screen is
+# never visibly behind the desk.
+_STATUS_TTL = 2.0
 from collections import Counter, deque
 from datetime import date, datetime, timezone
 
@@ -1350,6 +1355,15 @@ class SolanaAgent:
 
     def status(self) -> dict:
         import config
+        # status() takes the agent lock, and the cycle holds that same lock for
+        # the whole scan (many seconds of network). The dashboard polls this, so
+        # without a cache every poll queues behind a scan, and on the 512MB free
+        # instance that queue is what got OOM-killed. A couple of seconds of
+        # staleness is invisible on screen and keeps polls off the lock.
+        now = time.time()
+        hit = getattr(self, "_status_cache", None)
+        if hit and now - hit[0] < _STATUS_TTL:
+            return hit[1]
         with self.lock:
             broker = self.broker.snapshot()
             seen = self.tokens_seen
@@ -1399,7 +1413,7 @@ class SolanaAgent:
                         "created_at": created,
                     })
                     break
-            return {
+            snap = {
                 "running": self.running,
                 "cycle": self.cycle_no,
                 "last_cycle_at": self.last_cycle_at,
@@ -1459,6 +1473,8 @@ class SolanaAgent:
                     "hold_horizons": config.HOLD_HORIZONS,
                 },
             }
+        self._status_cache = (now, snap)
+        return snap
 
     def integrations(self) -> dict:
         """Status of each optional free source. Never includes a URL or a key."""
