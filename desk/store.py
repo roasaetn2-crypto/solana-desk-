@@ -28,6 +28,10 @@ _ready = False
 # "persistence is on" is a measurement from the live box rather than a guess
 # made from the Environment tab. Cheap: no network, just the last result.
 _last: dict = {"at": None, "pulled": [], "pushed": [], "error": None}
+# Local journal row count, computed once at boot. status() must never re-read
+# the journal file: on the free box that file is large and every health check
+# would drag it back into page cache.
+_LOCAL_ROWS: dict = {"n": 0}
 # probe() hits Turso, so it is cached: an unauthenticated endpoint that does a
 # round trip per call is a free way to burn someone else's quota.
 _probe_cache: dict = {"at": 0.0, "body": None}
@@ -391,6 +395,7 @@ def restore() -> dict:
         except Exception:
             remote_n = None
         local_n = _local_journal_rows()
+        _LOCAL_ROWS["n"] = local_n
 
         if remote_n == 0:
             # Remote is empty: first-time hookup on a box that already has
@@ -413,6 +418,7 @@ def restore() -> dict:
                     written += 1
             if written:
                 tmp.replace(local_path)
+                _LOCAL_ROWS["n"] = written
                 out["pulled"].append(f"journal:{written}")
             else:
                 tmp.unlink(missing_ok=True)
@@ -473,7 +479,11 @@ def status() -> dict:
         "last_restore_error": _last["error"],
         "pulled": list(_last["pulled"]),
         "pushed": list(_last["pushed"]),
-        "journal_rows_local": _local_journal_rows(),
+        # Cached at boot. Re-reading the whole journal file here (as this used
+        # to) meant every /api/health check -- Render's healthCheckPath -- pulled
+        # the entire ~140 MB journal back into page cache, which counts toward
+        # the 512 Mi cgroup limit and OOM-killed the box at ~85 MB process RSS.
+        "journal_rows_local": _LOCAL_ROWS["n"],
     }
 
 

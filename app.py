@@ -74,7 +74,7 @@ from desk.ops import KILL_FILE, load_env
 # desk kept calling the slow default model. Import order is load-bearing here.
 load_env()
 
-from desk import devices, keepalive, meme_tactics, pumpportal, store  # noqa: E402
+from desk import devices, keepalive, meme_tactics, meminfo, pumpportal, store  # noqa: E402
 from desk.solana_agent import SolanaAgent  # noqa: E402
 from desk.store import restore as restore_store  # noqa: E402
 from desk.intent import maybe_autostart  # noqa: E402
