@@ -188,8 +188,9 @@ _R: list[Setting] = [
     _num("risk.max_position_pct", "Max position size", "Risk", "pct", _d(RISK, "max_position_pct"), 0.02, 0.50, "of book"),
     _num("risk.max_pool_share", "Max share of pool", "Risk", "pct", _d(RISK, "max_pool_share"), 0.002, 0.05, "of pool"),
     _num("risk.max_open_positions", "Max open positions", "Risk", "int", _d(RISK, "max_open_positions", int), 1, 10),
-    _num("risk.max_daily_loss_pct", "Daily loss stop", "Risk", "pct", _d(RISK, "max_daily_loss_pct"), 0.005, 0.10, "of book",
-         "the desk halts new entries for the day past this; capped at 10%"),
+    _num("risk.max_daily_loss_pct", "Daily loss stop", "Risk", "pct", _d(RISK, "max_daily_loss_pct"), 0.0, 0.10, "of book",
+         "the desk halts new entries for the day past this; capped at 10%. 0 = OFF: no daily halt, "
+         "the desk trades through a losing day (per-trade stops and the breaker still apply)."),
     Setting("risk.enforce_risk_budget", "Enforce open-risk budget", "Risk", "bool",
             lambda: bool(RISK.get("enforce_risk_budget", True)),
             lambda v: RISK.__setitem__("enforce_risk_budget", bool(v)),
@@ -550,7 +551,11 @@ def _cross_check(vals: dict[str, Any]) -> list[str]:
         bad.append("min market cap must be below max market cap")
     if vals["scan.min_age_minutes"] >= vals["scan.max_age_hours"] * 60:
         bad.append("min coin age must be below max coin age")
-    if vals["breaker.reduce_day_loss_pct"] > vals["risk.max_daily_loss_pct"]:
+    # Only cross-check when a daily stop is actually armed. With the stop OFF
+    # (0) the breaker's half-size threshold has nothing to sit under, and the
+    # old check rejected every proposal that disabled the daily stop.
+    if (vals["risk.max_daily_loss_pct"] > 0
+            and vals["breaker.reduce_day_loss_pct"] > vals["risk.max_daily_loss_pct"]):
         bad.append("breaker half-size loss can't be above the daily loss stop")
     if vals["breaker.streak_reduce"] >= vals["breaker.streak_pause"]:
         bad.append("breaker half-size streak must be shorter than the pause streak")

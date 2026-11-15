@@ -398,11 +398,16 @@ function renderRisk(s) {
   const txt = $("riskText");
   if (!banner || !btn || !txt) return;
   const paper = (rk.mode || (s.execution || {}).mode) === "paper";
-  const pct = Math.round((rk.daily_loss_limit_pct || 0.03) * 100);
+  // `|| 0.03` used to resurrect a 3% label whenever the stop was set to 0
+  // (off), so the dashboard lied about a stop that was not armed. Use nullish
+  // coalescing and render an explicit "Off" when both the % and USD stops are 0.
+  const pctRaw = Number(rk.daily_loss_limit_pct ?? 0);
+  const pct = Math.round(pctRaw * 100);
   const usdSet = Number(rk.daily_loss_limit_usd_setting || 0);
   const usd = Number(rk.daily_loss_limit_usd || 0);
-  const limitLabel = usdSet > 0 ? "$" + usd.toFixed(2) : pct + "%";
-  if (paper && rk.override_today) {
+  const stopOff = !(usdSet > 0) && !(pctRaw > 0);
+  const limitLabel = usdSet > 0 ? "$" + usd.toFixed(2) : (stopOff ? "Off" : pct + "%");
+  if (paper && !stopOff && rk.override_today) {
     banner.hidden = false;
     banner.classList.add("overridden");
     txt.textContent = rk.auto_continue
@@ -431,49 +436,6 @@ function renderRisk(s) {
     banner.hidden = true;
     btn.hidden = true;
   }
-  // Daily-stop summary line. Kept inline: the old renderDailyStop() helper was
-  // removed with the self-tune cleanup but this call stayed behind, throwing a
-  // ReferenceError that aborted render() before the agent cards could paint.
-  const dsNow = $("dailyStopNow");
-  if (dsNow) dsNow.textContent = limitLabel + (rk.hit ? " \u2014 hit" : "");
-}
-
-function initDailyStop() {
-  const usd = $("dsUsd");
-  const auto = $("dsAuto");
-  const save = $("dsSave");
-  const note = $("dsNote");
-  if (!usd || !auto || !save) return;
-  const touch = () => { dsTouched = true; };
-  usd.addEventListener("input", touch);
-  auto.addEventListener("change", touch);
-  save.onclick = async () => {
-    const values = {
-      "risk.max_daily_loss_usd": Number(usd.value || 0),
-      "risk.auto_continue_after_daily_stop": !!auto.checked
-    };
-    const r = await api("/api/proposals", "POST", { values: values, title: "Daily loss stop" });
-    if (!r || !r.ok) {
-      if (note) note.textContent = (r && (r.error || r.detail)) || "Could not propose that change";
-      toast((r && (r.error || r.detail)) || "Could not propose that change");
-      return;
-    }
-    const p = r.proposal || {};
-    const changes = (p.changes || []).map((c) => c.label + ": " + c.current + " \u2192 " + c.proposed);
-    if (note) note.textContent = "Proposed \u2014 confirm below to apply.";
-    toast("Proposed. Confirm it to apply.");
-    if (changes.length && confirm("Apply these changes?\n\n" + changes.join("\n"))) {
-      const c = await api("/api/proposals/" + encodeURIComponent(p.id) + "/confirm", "POST", null);
-      if (c && c.ok) {
-        dsTouched = false;
-        if (note) note.textContent = "Applied.";
-        toast("Daily stop updated");
-        refresh && refresh();
-      } else {
-        toast((c && (c.error || c.detail)) || "Confirm refused");
-      }
-    }
-  };
 }
 
 async function api(path, method = "GET", body = null) {
@@ -1779,7 +1741,6 @@ if (equityTabs) {
 }
 window.addEventListener("resize", () => { if (lastState) drawEquity(lastState); });
 
-initDailyStop();
 refresh();
 if (researchVisible()) refreshBacktest(true);
 // Self-scheduling instead of setInterval: the next poll is only queued once the
