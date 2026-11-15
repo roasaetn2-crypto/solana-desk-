@@ -140,6 +140,15 @@ def _jitter(seconds: float) -> float:
     return seconds * random.uniform(1.0, 1.0 + j)
 
 
+def cache_stats() -> dict:
+    """Sizes of the module-level caches. Diagnostics only; cheap and read-only."""
+    return {
+        "ep": len(_EP_CACHE), "pool": len(_POOL), "pair": len(_PAIR_CACHE),
+        "quote": len(_QUOTE_CACHE), "jup": len(_JUP_ROWS),
+        "cool": len(_COOL), "host_cool": len(_HOST_COOL),
+    }
+
+
 def reset_runtime() -> None:
     """Clear limiter / cache / cooldown / cycle state. Used by tests."""
     global _cycle, _BUCKETS
