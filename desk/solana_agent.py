@@ -17,8 +17,10 @@ from __future__ import annotations
 
 import os
 
+import gc
 import hashlib
 import random
+import sys
 import threading
 import time
 
@@ -591,7 +593,7 @@ class SolanaAgent:
 
         for t in tokens:
             try:
-                print(f"[desk] mem: token {t.get('symbol')} rss={rss_mb()}MB", flush=True)
+                print(f"[desk] mem: token {t.get('symbol')} rss={rss_mb()}MB blocks={sys.getallocatedblocks()} objs={len(gc.get_objects())}", flush=True)
                 with self.lock:
                     self.stats["seen"] += 1
                     self.tokens_seen[t["mint"]] = t
@@ -1033,7 +1035,7 @@ class SolanaAgent:
                 journal("error", stage="cycle", mint=t.get("mint"), error=str(e))
                 continue
 
-        print(f"[desk] mem: after token loop rss={rss_mb()}MB", flush=True)
+        print(f"[desk] mem: after token loop rss={rss_mb()}MB blocks={sys.getallocatedblocks()} objs={len(gc.get_objects())}", flush=True)
         self.last_cycle_at = _now()
         journal("cycle", **self.stats, equity=self.broker.equity())
         self._snapshot_equity()
