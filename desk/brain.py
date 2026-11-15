@@ -76,10 +76,38 @@ PROVIDERS: dict[str, Provider] = {
 
 
 # ---------- which provider is active ----------
+def ollama_host() -> str:
+    """Base URL of the Ollama server, resolved at CALL time.
+
+    OLLAMA_BASE_URL wins, then OLLAMA_HOST (the variable the ollama CLI itself
+    sets), then localhost. brain_advisor.py already resolves the same way, so
+    one variable now configures BOTH the advisory layer and this analyst seat.
+    Before this, setting OLLAMA_BASE_URL (the documented variable, and the one
+    the Termux script writes) left the analyst seat pointed at localhost and
+    silently falling back to the heuristic -- the desk looked like it had an
+    Ollama brain and did not.
+
+    Read at call time, not import time: app.py loads .env after import.
+    """
+    host = (os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_HOST") or "").strip()
+    return (host or "http://localhost:11434").rstrip("/")
+
+
+def ollama_model() -> str:
+    """Model name for the analyst seat, resolved at call time.
+
+    BRAIN_OLLAMA_LOCAL_MODEL (what brain_advisor.py uses) wins, then
+    OLLAMA_MODEL, then llama3.2.
+    """
+    return (os.getenv("BRAIN_OLLAMA_LOCAL_MODEL")
+            or os.getenv("OLLAMA_MODEL")
+            or PROVIDERS["ollama"].model
+            or "llama3.2").strip()
+
+
 def _ollama_up() -> bool:
     try:
-        r = requests.get(os.getenv("OLLAMA_HOST", "http://localhost:11434") + "/api/tags",
-                         timeout=2)
+        r = requests.get(ollama_host() + "/api/tags", timeout=2)
         return r.status_code == 200
     except Exception:
         return False
@@ -109,6 +137,11 @@ def describe() -> str:
     name = active()
     if name == "heuristic":
         return "heuristic (no model configured)"
+    if name == "ollama":
+        # Show the model and host actually in use, not the import-time default:
+        # the dashboard used to say "llama3.2" even when the operator had set
+        # BRAIN_OLLAMA_LOCAL_MODEL to something else.
+        return f"Ollama (local) \u00b7 {ollama_model()} @ {ollama_host()}"
     p = PROVIDERS[name]
     return f"{p.label} \u00b7 {p.model}"
 
@@ -122,9 +155,9 @@ def _post(url: str, *, headers=None, json_body=None, timeout=TIMEOUT):
 
 
 def _ollama(system: str, messages: list[dict], max_tokens: int) -> str:
-    host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+    host = ollama_host()
     body = {
-        "model": PROVIDERS["ollama"].model,
+        "model": ollama_model(),
         "stream": False,
         "format": "json",
         "options": {"temperature": 0.2, "num_predict": max_tokens},
