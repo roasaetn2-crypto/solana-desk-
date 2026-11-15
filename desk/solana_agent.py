@@ -43,7 +43,7 @@ from desk import equity_curve
 from desk import live as live_mod
 from desk.broker import PaperBroker
 from desk.netutil import offline
-from desk.ops import Bench, alert, data_file, journal, killed
+from desk.ops import Bench, alert, data_file, journal, killed, rss_mb
 from desk.risk import daily_loss_hit, daily_loss_limit_usd, daily_override_active
 from desk.risk import (Account, check_live_trade, check_token_trade,
                        fit_risk_budget, live_sizing_breakdown, open_risk_usd,
@@ -560,6 +560,7 @@ class SolanaAgent:
               f"cooling={report.get('cooling') or {}})", flush=True)
         for warning in report.get("warnings") or []:
             self.emit("info", f"scanner: {warning}", stage="scanner")
+        print(f"[desk] mem: after scan rss={rss_mb()}MB tokens={len(tokens)}", flush=True)
 
         # discipline layer: market regime tag and drawdown breaker. Tighten-only,
         # and it must run in BOTH modes. Gating this on `mode != live` meant the
@@ -590,6 +591,7 @@ class SolanaAgent:
 
         for t in tokens:
             try:
+                print(f"[desk] mem: token {t.get('symbol')} rss={rss_mb()}MB", flush=True)
                 with self.lock:
                     self.stats["seen"] += 1
                     self.tokens_seen[t["mint"]] = t
@@ -1024,6 +1026,7 @@ class SolanaAgent:
                 journal("error", stage="cycle", mint=t.get("mint"), error=str(e))
                 continue
 
+        print(f"[desk] mem: after token loop rss={rss_mb()}MB", flush=True)
         self.last_cycle_at = _now()
         journal("cycle", **self.stats, equity=self.broker.equity())
         self._snapshot_equity()
