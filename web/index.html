@@ -297,7 +297,7 @@
       </div>
 
 
-      <div class="panel">
+      <div class="panel" id="posPanel">
         <div class="panel-head"><span class="icon">💼</span><h2>Open positions</h2><span class="badge" id="posBadge">0</span></div>
         <div class="panel-body" style="padding: 12px 10px">
           <div class="pos-cards" id="posCards"><div class="empty">No open positions. Start the agent.</div></div>
@@ -324,6 +324,18 @@
           <span class="pnl-pct" id="heroPnlPct">0.00%</span>
           <span class="chip" id="heroMult" hidden>1.00x</span>
           <span class="chip realized" id="heroRealized" hidden></span>
+        </div>
+        <!-- Phone-only summary strip. On Android the hero is the first thing on
+             screen, so the three numbers a scalper checks before anything else
+             (how many entries, how many closed, how many still open) belong
+             right under the equity figure rather than scattered in KPI tiles
+             further down. Hidden on desktop. -->
+        <div class="hero-strip" id="heroStrip">
+          <span><b id="sumEntries">0</b> entries</span>
+          <span class="sep">·</span>
+          <span><b id="sumClosed">0</b> closed</span>
+          <span class="sep">·</span>
+          <span><b id="sumOpen">0</b> open</span>
         </div>
         <div class="equity-chart-wrap">
           <canvas class="equity-chart" id="equityChart" width="824" height="280"></canvas>

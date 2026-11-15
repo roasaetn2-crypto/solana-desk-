@@ -1005,6 +1005,15 @@ function render(s) {
   $("kWin").textContent = closed.length ? Math.round((wins / closed.length) * 100) + "%" : "—";
   $("kClosed").textContent = closed.length + " closed";
 
+  // phone summary strip under the hero equity figure
+  const sumEntries = $("sumEntries");
+  if (sumEntries) {
+    const entries = closed.length + (b.open_count || 0);
+    sumEntries.textContent = entries;
+    $("sumClosed").textContent = closed.length;
+    $("sumOpen").textContent = b.open_count || 0;
+  }
+
   // pipeline
   $("cSeen").textContent = fmtNum(st.seen);
   $("cChain").textContent = fmtNum(st.chain_rejects);

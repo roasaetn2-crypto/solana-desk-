@@ -1074,7 +1074,45 @@ body.desk-page { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); 
   .hero-equity { font-size: 40px; letter-spacing: -1.2px; }
   .hero-pnl { font-size: 13px; margin-bottom: 8px; }
   .equity-chart-wrap { height: 120px; }
+
+  /* ---------- Android: stack the Live tab the way a phone wants it ----------
+     Desktop keeps its three-column reading order. On a phone the old order was
+     KPI tiles -> book -> hero, so the equity curve (the one thing you open the
+     app to see) sat below the fold. This flips it: the hero card is first, then
+     the four metrics become a swipeable strip, then the book. Everything else
+     keeps its natural order underneath. */
+  .col-center > * { order: 5; }
+  .col-center > .hero { order: 1; }
+  .col-center > .kpis { order: 2; }
+  .col-center > #posPanel { order: 3; }
+  .col-center > .buy-banner { order: 4; }
+
+  /* The 2x2 grid became a horizontal filmstrip: two tiles visible, the third
+     peeking, so the row reads as "there is more to the right" without a
+     scrollbar eating vertical space. */
+  .kpis {
+    display: flex; gap: 8px; margin: 0 -12px; padding: 2px 12px 6px;
+    overflow-x: auto; scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  }
+  .kpis::-webkit-scrollbar { display: none; }
+  .kpi { flex: 0 0 46%; scroll-snap-align: start; padding: 11px 12px; border-radius: 13px; }
+  .kpi .k { font-size: 9.5px; letter-spacing: 0.5px; }
+  .kpi .v { font-size: 20px; margin-top: 2px; letter-spacing: -0.3px; }
+  .kpi .s { font-size: 10px; }
+
+  /* specificity beats the base `.hero-strip{display:none}` that follows */
+  .hero .hero-strip { display: flex; }
 }
+
+/* Phone-only summary strip under the hero equity figure. */
+.hero-strip {
+  display: none; align-items: center; gap: 7px;
+  margin: 2px 0 8px; font-size: 11px; color: var(--muted);
+  font-variant-numeric: tabular-nums; letter-spacing: 0.2px;
+}
+.hero-strip b { color: var(--text); font-weight: 700; }
+.hero-strip .sep { color: var(--border); }
 
 /* The equity curve now lives in the Live column beside the panels, so it gets
    the same surface as them instead of floating as a full-bleed section. */

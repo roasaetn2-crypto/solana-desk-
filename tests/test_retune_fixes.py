@@ -252,7 +252,9 @@ class Retune(unittest.TestCase):
         S, R, E, M = config.SCAN, config.RISK, config.EXITS, config.MEME
         self.assertEqual((S["min_age_minutes"], S["max_age_hours"], S["min_liquidity_usd"],
                           S["min_volume_h1_usd"], S["min_mcap_usd"], S["min_trades_h1"], S["pages"]),
-                         (1, 48, 3_000, 3_000, 8_000, 30, 1))
+                         (1, 48, 3_000, 3_000, 100_000, 30, 1))
+        # mcap ceiling retuned 2026-11-15: nothing profitable above $2M
+        self.assertEqual(S["max_mcap_usd"], 2_000_000)
         self.assertEqual((R["max_open_positions"], R["max_risk_per_trade"]), (6, 0.015))
         self.assertEqual((E["stop_pct"], E["max_hold_hours"]), (0.30, 4))
         self.assertEqual(M["min_community_score"], 35)
