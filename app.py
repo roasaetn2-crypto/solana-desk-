@@ -57,6 +57,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 import hashlib
 import hmac
+import html
 import os
 import re
 import time
@@ -142,10 +143,19 @@ _SESSION = hashlib.sha256(("desk::" + DESK_TOKEN).encode()).hexdigest() if DESK_
 PUBLIC_PATHS = {"/login", "/logout", "/pair", "/api/health", "/api/store"}
 
 
+def _safe_eq(a: str, b: str) -> bool:
+    """Constant-time compare that also accepts non-ASCII input.
+
+    hmac.compare_digest on two str values raises TypeError if either contains a
+    non-ASCII character, which turned an odd password into a 500 error.
+    """
+    return hmac.compare_digest(a.encode("utf-8"), b.encode("utf-8"))
+
+
 def _master(request: Request) -> bool:
     if not DESK_TOKEN:
         return True
-    return hmac.compare_digest(request.cookies.get(SESSION_COOKIE, ""), _SESSION)
+    return _safe_eq(request.cookies.get(SESSION_COOKIE, ""), _SESSION)
 
 
 def _device(request: Request) -> dict | None:
@@ -236,7 +246,7 @@ def login_form(error: int = 0):
 def login_submit(token: str = Form("")):
     if not DESK_TOKEN:
         return RedirectResponse("/", status_code=303)
-    if not hmac.compare_digest(token.strip(), DESK_TOKEN):
+    if not _safe_eq(token.strip(), DESK_TOKEN):
         return RedirectResponse("/login?error=1", status_code=303)
     resp = RedirectResponse("/", status_code=303)
     resp.set_cookie(SESSION_COOKIE, _SESSION, httponly=True, samesite="lax",
@@ -249,7 +259,7 @@ def pair_device(name: str = Form(""), token: str = Form("")):
     """Bind this browser to the desk. Requires the key once."""
     if not DESK_TOKEN:
         return RedirectResponse("/", status_code=303)
-    if not hmac.compare_digest(token.strip(), DESK_TOKEN):
+    if not _safe_eq(token.strip(), DESK_TOKEN):
         return RedirectResponse("/login?error=1", status_code=303)
     raw, rec = devices.pair(name or "unnamed device")
     resp = RedirectResponse("/", status_code=303)
@@ -277,7 +287,7 @@ def devices_page():
         body = '<div class="empty">No devices paired yet. Use \u201cPair this device\u201d on the login screen.</div>'
     else:
         body = "".join(
-            f'<div class="row"><div><div class="n">{r["name"]}</div>'
+            f'<div class="row"><div><div class="n">{html.escape(str(r["name"]))}</div>'
             f'<div class="m">id {r["id"]} \u00b7 paired {r["created"][:10]} \u00b7 last seen {r["last_seen"][:16].replace("T", " ")}</div></div>'
             f'<div class="sp"></div>'
             f'<form method="post" action="/devices/{r["id"]}/revoke">'
@@ -655,6 +665,11 @@ def get_mode():
 
 @app.post("/api/mode")
 def set_mode(payload: dict = Body(...)):
+    # The confirm phrase is public (it is in config and the README), so with no
+    # DESK_TOKEN anyone who can reach the port could arm live trading with a
+    # funded key in the environment. Real money requires a locked desk.
+    if str(payload.get("mode", "")).strip().lower() == "live" and not DESK_TOKEN:
+        return {"ok": False, "error": "set DESK_TOKEN before arming live: an open desk cannot trade real money"}
     return agent.set_mode(str(payload.get("mode", "")), str(payload.get("confirm", "")))
 
 
