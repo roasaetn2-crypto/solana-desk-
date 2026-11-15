@@ -13,8 +13,13 @@ SCAN = {
     "max_age_hours": 48,           # older with no new move: not a launch any more (retune: was 24)
     "min_liquidity_usd": 3_000,    # retune: was 5_000
     "min_volume_h1_usd": 3_000,    # retune: was 8_000
-    "min_mcap_usd": 8_000,         # retune: was 15_000
-    "max_mcap_usd": 25_000_000,
+    # mcap band, retuned 2026-11-15 from the journal's own reviews (23 closed
+    # trades joined to their decision-time mcap). Sub-100k was the bleed:
+    # 16 trades, 6% win rate, -$17.55. The 100k-500k band was the edge:
+    # 5 trades, 60% win, +$6.36. 500k-2M was flat (-$0.20 over 2). So we
+    # refuse to buy below 100k and stop chasing above 2M. Small sample -- revisit.
+    "min_mcap_usd": 100_000,       # retune 2026-11-15: was 8_000 (sub-100k bled)
+    "max_mcap_usd": 2_000_000,     # retune 2026-11-15: was 25_000_000 (dead above 2M)
     "min_trades_h1": 30,           # retune: was 60
     "max_h1_change_pct": 250.0,    # MERGE (old desk scanner.max_h1_change_pct, paper 250): do not buy a vertical chart
     "min_sells_ratio_h1": 0.10,    # sells / buys. Below this nobody can sell = honeypot smell

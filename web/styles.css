@@ -1060,7 +1060,11 @@ body.desk-page { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); 
   .brand { width: auto; }
   .titles .title { font-size: 14px; }
   .titles .sub { font-size: 9px; letter-spacing: 0.5px; }
-  .speech { display: none; }
+  /* The cat's speech bubble was hidden outright on phones, which is why it
+     never showed on Android. Keep it, just compact and wrapping so it cannot
+     push the header off-screen. */
+  .speech { display: block; max-width: min(230px, calc(100vw - 116px)); font-size: 11px;
+    margin-top: 4px; padding: 6px 9px; border-radius: 12px 12px 12px 5px; }
   .pill { font-size: 10.5px; padding: 3px 8px; gap: 5px; }
   #lockPill { display: none; }
   .controls { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
