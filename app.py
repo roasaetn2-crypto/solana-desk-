@@ -57,8 +57,10 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 import hashlib
 import hmac
+import html
 import os
 import re
+import secrets
 import time
 from pathlib import Path
 
@@ -66,7 +68,7 @@ from fastapi import Body, FastAPI, Form, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from desk.ops import KILL_FILE, load_env
+from desk.ops import KILL_FILE, data_file, load_env
 
 # load_env() must run BEFORE anything imports desk.brain_advisor. That module
 # reads BRAIN_GEMINI_MODEL / BRAIN_OPENROUTER_MODEL at import time to build its
@@ -133,7 +135,75 @@ SESSION_COOKIE = "desk_session"
 DEVICE_COOKIE = "desk_device"
 
 DESK_TOKEN = os.environ.get("DESK_TOKEN", "").strip()
-_SESSION = hashlib.sha256(("desk::" + DESK_TOKEN).encode()).hexdigest() if DESK_TOKEN else ""
+
+
+def _session_secret() -> bytes:
+    """A random server-side secret the session cookie is signed with.
+
+    The cookie used to be sha256("desk::" + DESK_TOKEN): unsalted, so anyone who
+    saw the cookie could crack a weak key offline, and the value never changed.
+    Now it is an HMAC under a random secret that is never derived from the key.
+    Order: DESK_SESSION_SECRET env, then a persisted file (so sessions survive a
+    restart), then an in-memory secret (sessions end on restart, still safe).
+    """
+    env = os.environ.get("DESK_SESSION_SECRET", "").strip()
+    if env:
+        return env.encode("utf-8")
+    try:
+        p = data_file("session_secret.key")
+        if p.exists():
+            v = p.read_text().strip()
+            if len(v) >= 32:
+                return v.encode("utf-8")
+        p.parent.mkdir(parents=True, exist_ok=True)
+        v = secrets.token_hex(32)
+        p.write_text(v)
+        try:
+            os.chmod(p, 0o600)
+        except OSError:
+            pass
+        return v.encode("utf-8")
+    except OSError:
+        return secrets.token_hex(32).encode("utf-8")
+
+
+# Rotating DESK_TOKEN changes this value, so it also signs every old session out.
+_SESSION = (hmac.new(_session_secret(), b"session::" + DESK_TOKEN.encode("utf-8"),
+                     hashlib.sha256).hexdigest() if DESK_TOKEN else "")
+
+# Brute-force guard for /login and /pair: this many wrong keys from one address
+# inside the window locks that address out (the right key is refused too, or the
+# attacker could keep guessing through the lockout).
+_FAIL_LIMIT = int(os.environ.get("DESK_LOGIN_MAX_FAILS", "5"))
+_FAIL_WINDOW = 10 * 60
+_FAILS: dict[str, list[float]] = {}
+
+
+def _client_ip(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
+
+
+def _locked_out(ip: str) -> bool:
+    now = time.time()
+    recent = [t for t in _FAILS.get(ip, []) if now - t < _FAIL_WINDOW]
+    if recent:
+        _FAILS[ip] = recent
+    else:
+        _FAILS.pop(ip, None)
+    return len(recent) >= _FAIL_LIMIT
+
+
+def _note_fail(ip: str) -> None:
+    if len(_FAILS) > 5000:       # never let a flood of addresses grow this forever
+        _FAILS.clear()
+    _FAILS.setdefault(ip, []).append(time.time())
+
+
+def _secure_cookie(request: Request) -> bool:
+    """Mark cookies Secure when the request came in over HTTPS (also behind a proxy)."""
+    if request.url.scheme == "https":
+        return True
+    return request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower() == "https"
 
 # /api/store is here for the same reason /api/health is: it exists to answer
 # "is my deployment actually persisting?", and requiring DESK_TOKEN to ask that
@@ -142,10 +212,19 @@ _SESSION = hashlib.sha256(("desk::" + DESK_TOKEN).encode()).hexdigest() if DESK_
 PUBLIC_PATHS = {"/login", "/logout", "/pair", "/api/health", "/api/store"}
 
 
+def _safe_eq(a: str, b: str) -> bool:
+    """Constant-time compare that also accepts non-ASCII input.
+
+    hmac.compare_digest on two str values raises TypeError if either contains a
+    non-ASCII character, which turned an odd password into a 500 error.
+    """
+    return hmac.compare_digest(a.encode("utf-8"), b.encode("utf-8"))
+
+
 def _master(request: Request) -> bool:
     if not DESK_TOKEN:
         return True
-    return hmac.compare_digest(request.cookies.get(SESSION_COOKIE, ""), _SESSION)
+    return _safe_eq(request.cookies.get(SESSION_COOKIE, ""), _SESSION)
 
 
 def _device(request: Request) -> dict | None:
@@ -226,37 +305,50 @@ async def gate(request: Request, call_next):
 def login_form(error: int = 0):
     if not DESK_TOKEN:
         return RedirectResponse("/", status_code=303)
-    body = LOGIN_HTML.replace(
-        "__ERROR__", '<div class="err">Wrong key. Try again.</div>' if error else ""
-    )
-    return body
+    msg = ""
+    if error == 2:
+        msg = '<div class="err">Too many wrong keys. Try again in about 10 minutes.</div>'
+    elif error:
+        msg = '<div class="err">Wrong key. Try again.</div>'
+    return LOGIN_HTML.replace("__ERROR__", msg)
 
 
 @app.post("/login", response_class=HTMLResponse)
-def login_submit(token: str = Form("")):
+def login_submit(request: Request, token: str = Form("")):
     if not DESK_TOKEN:
         return RedirectResponse("/", status_code=303)
-    if not hmac.compare_digest(token.strip(), DESK_TOKEN):
+    ip = _client_ip(request)
+    if _locked_out(ip):
+        return RedirectResponse("/login?error=2", status_code=303)
+    if not _safe_eq(token.strip(), DESK_TOKEN):
+        _note_fail(ip)
         return RedirectResponse("/login?error=1", status_code=303)
+    _FAILS.pop(ip, None)
     resp = RedirectResponse("/", status_code=303)
     resp.set_cookie(SESSION_COOKIE, _SESSION, httponly=True, samesite="lax",
-                    max_age=60 * 60 * 24 * 7)
+                    secure=_secure_cookie(request), max_age=60 * 60 * 24 * 7)
     return resp
 
 
 @app.post("/pair", response_class=HTMLResponse)
-def pair_device(name: str = Form(""), token: str = Form("")):
+def pair_device(request: Request, name: str = Form(""), token: str = Form("")):
     """Bind this browser to the desk. Requires the key once."""
     if not DESK_TOKEN:
         return RedirectResponse("/", status_code=303)
-    if not hmac.compare_digest(token.strip(), DESK_TOKEN):
+    ip = _client_ip(request)
+    if _locked_out(ip):
+        return RedirectResponse("/login?error=2", status_code=303)
+    if not _safe_eq(token.strip(), DESK_TOKEN):
+        _note_fail(ip)
         return RedirectResponse("/login?error=1", status_code=303)
+    _FAILS.pop(ip, None)
     raw, rec = devices.pair(name or "unnamed device")
     resp = RedirectResponse("/", status_code=303)
+    secure = _secure_cookie(request)
     # One year, HttpOnly: the token never touches JavaScript.
-    resp.set_cookie(DEVICE_COOKIE, raw, httponly=True, samesite="lax",
+    resp.set_cookie(DEVICE_COOKIE, raw, httponly=True, samesite="lax", secure=secure,
                     max_age=60 * 60 * 24 * 365)
-    resp.set_cookie(SESSION_COOKIE, _SESSION, httponly=True, samesite="lax",
+    resp.set_cookie(SESSION_COOKIE, _SESSION, httponly=True, samesite="lax", secure=secure,
                     max_age=60 * 60 * 24 * 7)
     print(f"[desk] paired device {rec['id']} \u2014 {rec['name']}")
     return resp
@@ -277,7 +369,7 @@ def devices_page():
         body = '<div class="empty">No devices paired yet. Use \u201cPair this device\u201d on the login screen.</div>'
     else:
         body = "".join(
-            f'<div class="row"><div><div class="n">{r["name"]}</div>'
+            f'<div class="row"><div><div class="n">{html.escape(str(r["name"]))}</div>'
             f'<div class="m">id {r["id"]} \u00b7 paired {r["created"][:10]} \u00b7 last seen {r["last_seen"][:16].replace("T", " ")}</div></div>'
             f'<div class="sp"></div>'
             f'<form method="post" action="/devices/{r["id"]}/revoke">'
@@ -655,6 +747,11 @@ def get_mode():
 
 @app.post("/api/mode")
 def set_mode(payload: dict = Body(...)):
+    # The confirm phrase is public (it is in config and the README), so with no
+    # DESK_TOKEN anyone who can reach the port could arm live trading with a
+    # funded key in the environment. Real money requires a locked desk.
+    if str(payload.get("mode", "")).strip().lower() == "live" and not DESK_TOKEN:
+        return {"ok": False, "error": "set DESK_TOKEN before arming live: an open desk cannot trade real money"}
     return agent.set_mode(str(payload.get("mode", "")), str(payload.get("confirm", "")))
 
 

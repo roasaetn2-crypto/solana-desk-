@@ -11,6 +11,7 @@ for the signing code, it is there, and it is off by default.
 from __future__ import annotations
 
 import json
+import os
 import time
 from datetime import date
 from pathlib import Path
@@ -135,7 +136,11 @@ class PaperBroker:
             self.path.parent.mkdir(parents=True, exist_ok=True)
         except Exception:
             pass
-        self.path.write_text(json.dumps(self.s, indent=1))
+        # Write to a temp file then swap it in, so a crash mid-write can never
+        # leave a half-written (unparseable) ledger behind.
+        tmp = self.path.with_name(self.path.name + ".tmp")
+        tmp.write_text(json.dumps(self.s, indent=1))
+        os.replace(tmp, self.path)
         # paper book only; the live ledger is never pushed here
         if self.path.name == "paper_ledger.json" or self.path.name.endswith("paper_ledger.json"):
             try:
@@ -197,6 +202,9 @@ class PaperBroker:
         return round(start + sum(c.get("pnl_usd", 0.0) for c in self.s["closed"]), 2)
 
     def day_pnl(self) -> float:
+        # Roll the day here too: _roll_day() used to run only at construction, so
+        # a desk left running past midnight never reset its daily loss stop.
+        self._roll_day()
         return round(self.equity() - self.s["day_start"], 2)
 
     def open_count(self) -> int:
@@ -212,6 +220,10 @@ class PaperBroker:
     def buy(self, mint: str, symbol: str, ticket_usd: float, price: float,
             horizon: str = "swing", groq_mult: float | None = None,
             meta: dict | None = None) -> dict:
+        # A second buy of the same mint used to overwrite the open position and
+        # still debit cash, silently losing the first lot.
+        if mint in self.s["positions"]:
+            raise ValueError(f"already holding {symbol}; refusing to overwrite the position")
         fill = price * (1 + PAPER["slippage_pct"])
         fee = ticket_usd * PAPER["fee_pct"]
         qty = (ticket_usd - fee) / fill
