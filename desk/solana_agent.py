@@ -253,6 +253,13 @@ class SolanaAgent:
                 "fraction": ev.get("fraction"),
                 "entry": ev.get("entry"),
                 "fill": ev.get("fill"),
+                # How many tokens the fill actually bought. The entry event has
+                # always carried it, but this row dropped it, so the tape could
+                # say "Bought $WIF - $12" and never how much WIF that was. On a
+                # memecoin the token count IS the position: $12 of a 8.8e-7
+                # token is ~13.5M units, and the size of that number is what
+                # tells you whether the fill was sane or a decimals mismatch.
+                "qty": ev.get("qty"),
                 "message": ev.get("message"),
                 "review": ev.get("review"),
             }
@@ -1406,6 +1413,7 @@ class SolanaAgent:
                         "mint": ev["mint"],
                         "ticket_usd": ev.get("ticket_usd"),
                         "fill": ev.get("fill"),
+                        "qty": ev.get("qty"),
                         "score": ev.get("score"),
                         "message": ev.get("message"),
                         "time": ev.get("time"),

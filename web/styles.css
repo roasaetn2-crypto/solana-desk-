@@ -367,6 +367,12 @@ tbody tr:hover { background: rgba(255,255,255,0.015); }
   font-size: 11px; color: var(--muted);
 }
 .pos-card .pos-meta b { color: var(--text); font-family: var(--mono); font-weight: 600; }
+/* the token count on a decision row: an estimate at the scan price, so it is
+   deliberately quieter than the ticket it sits next to */
+.qty-est {
+  font-family: var(--mono); font-size: 10.5px; color: var(--muted);
+  opacity: .85; white-space: nowrap;
+}
 /* a quote that fell outside the sane band: the card shows the entry price */
 .pos-card .pos-meta .mark-bad {
   font-style: normal; font-weight: 700; color: var(--amber, #ff9f0a);

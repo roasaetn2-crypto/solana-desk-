@@ -29,6 +29,26 @@ function priceFmt(p) {
   if (n < 1) return n.toFixed(6);
   return n.toFixed(4);
 }
+// How many tokens a fill bought. Memecoin quantities are the size of the
+// position -- $12 of an 8.8e-7 token is ~13.5M units -- so the raw number is
+// unreadable in a card and has to be compacted. Precision drops as the number
+// grows: 13.56M is a useful size, 13,560,431 is noise. Anything under 1 is a
+// high-priced token (SOL, JUP) where fractional units are normal.
+function qtyFmt(n) {
+  const v = Number(n || 0);
+  if (!isFinite(v) || v <= 0) return "0";
+  const units = [[1e15, "Q"], [1e12, "T"], [1e9, "B"], [1e6, "M"], [1e3, "K"]];
+  for (const [div, suffix] of units) {
+    if (v >= div) {
+      const x = v / div;
+      return (x >= 100 ? x.toFixed(0) : x >= 10 ? x.toFixed(1) : x.toFixed(2)) + suffix;
+    }
+  }
+  if (v >= 1) return v.toFixed(v >= 100 ? 0 : 2);
+  return v.toPrecision(3);
+}
+// Full count for the tooltip, so the compacted number never hides the truth.
+const qtyExact = (n) => Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 6 });
 
 // The exit ladder in force, from /api/state. A position card needs the rung
 // thresholds to say which ones it has cleared and how far the next one is --
@@ -835,8 +855,12 @@ function renderActivity(s) {
       cls = n > 0 ? "pos" : n < 0 ? "neg" : "";
     } else amt = r.usd != null ? fmtMoney(r.usd) : "";
     let extra = "";
-    if (r.mult != null && isFinite(Number(r.mult))) extra = Number(r.mult).toFixed(2) + "x";
+    // On an entry the multiplier is always 1.00x (entry == fill), so it told the
+    // reader nothing. The token count is the number that matters there.
+    if (bought && r.qty != null) extra = qtyFmt(r.qty) + " tok";
+    else if (r.mult != null && isFinite(Number(r.mult))) extra = Number(r.mult).toFixed(2) + "x";
     else if (r.mcap_usd != null) extra = "mc " + fmtMoney(r.mcap_usd, 0);
+    const extraTitle = bought && r.qty != null ? qtyExact(r.qty) + " tokens" : "";
     return `<div class="activity-row">
       <div class="face" style="background:${bought ? "#00d35a" : "#ff453a"}">${bought ? "B" : "S"}</div>
       <div>
@@ -846,7 +870,7 @@ function renderActivity(s) {
       </div>
       <div>
         <div class="amt ${cls}">${amt}</div>
-        <div class="meta">${esc(extra)}</div>
+        <div class="meta"${extraTitle ? ` title="${esc(extraTitle)}"` : ""}>${esc(extra)}</div>
       </div>
     </div>`;
   }).join("");
@@ -1054,7 +1078,8 @@ function render(s) {
     if (latestBuy && latestBuy.mint) {
       banner.hidden = false;
       $("buyBannerText").textContent = "$" + (latestBuy.symbol || "") +
-        (latestBuy.ticket_usd != null ? " \u2014 " + fmtMoney(latestBuy.ticket_usd) : "");
+        (latestBuy.ticket_usd != null ? " \u2014 " + fmtMoney(latestBuy.ticket_usd) : "") +
+        (latestBuy.qty != null ? " \u00b7 " + qtyFmt(latestBuy.qty) + " tok" : "");
       const meta = $("buyBannerMeta");
       if (meta) { meta.innerHTML = tokenMetaHtml(latestBuy); bindCaCopy(meta); }
       const link = $("buyBannerLink");
@@ -1093,6 +1118,7 @@ function render(s) {
             <span>Entry <b>${priceFmt(p.entry)}</b></span>
             <span>Last <b>${priceFmt(p.last)}</b>${p.mark_clamped ? ' <em class="mark-bad" title="quote was outside the sane band; showing the entry price">?</em>' : ''}</span>
             <span>Cost <b>${fmtMoney(p.cost)}</b></span>
+            <span>Qty <b title="${esc(qtyExact(p.qty))}">${qtyFmt(p.qty)}</b></span>
             <span>Held <b>${heldFor(p.opened)}</b></span>
           </div>
           ${ladderHtml(p)}
@@ -1135,6 +1161,16 @@ function render(s) {
         ? `${esc(sgAct || "\u2014")}${sg.confidence != null ? " " + Math.round(sg.confidence) + "%" : ""}${sg.win_probability != null ? " \u00b7 win " + Math.round(sg.win_probability * 100) + "%" : ""}`
         : "\u2014";
       const sgTitle = sg && sg.prompt ? esc(sg.prompt) : "";
+      // What this ticket would buy at the scan price. Approximate on purpose:
+      // the fill re-quotes and pays slippage, so the real count lands on the
+      // position card. This is here to answer "how many tokens is $12 of this"
+      // before the entry happens, not to be the ledger.
+      const px = Number((d.token && d.token.price_usd) || 0);
+      const estQty = d.approved && px > 0 && d.ticket_usd ? Number(d.ticket_usd) / px : null;
+      const ticketCell = d.approved
+        ? fmtMoney(d.ticket_usd) + groqChip(d) + fomoBtn(d.fomo_url) +
+          (estQty ? ` <span class="qty-est" title="\u2248 tokens at the scan price; the fill re-quotes">~${qtyFmt(estQty)}</span>` : "")
+        : "\u2014";
       return `<tr data-mint="${esc(d.mint || "")}">
         <td><span class="sym">${esc(d.symbol)}</span>${tokenMetaHtml(d)}</td>
         <td><span class="tag ${sgCls}" title="${sgTitle}">${sgTxt}</span></td>
@@ -1142,7 +1178,7 @@ function render(s) {
         <td>${d.thesis ? d.thesis.score : "—"}</td>
         <td>${memeCell}</td>
         <td>${devCell}</td>
-        <td>${d.approved ? fmtMoney(d.ticket_usd) + " " + groqChip(d) + fomoBtn(d.fomo_url) : "—"}</td>
+        <td>${ticketCell}</td>
         <td class="muted" style="font-family:var(--sans);font-size:11.5px">${esc(d.reason || "")} <span class="tag ${d.source === "demo" ? "demo" : "live"}">${esc(d.source || "—")}</span></td>
       </tr>`;
     }).join("");
