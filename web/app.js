@@ -1634,6 +1634,70 @@ function paintSync(ok) {
 // Which exit ladder is running, and who chose it. Env beats config.py, so a
 // stale BRAIN_EXIT_LADDER makes a config edit look like it did nothing. Showing
 // the source turns that silent override into a visible one.
+// The Strategy panel: the entry/exit numbers actually in force, on the trading
+// screen. These used to be visible only inside Desk AI, so "what is the desk
+// doing right now" meant opening a chat. Values come from /api/settings, which
+// reads the live config -- not from a preset label that could be stale.
+let stratInflight = null;
+let stratLast = 0;
+function renderStrategy(d) {
+  const badge = $("stratBadge");
+  if (!badge || !d) return;
+  const g = d.groups || {};
+  const flat = {};
+  Object.values(g).forEach((list) => (list || []).forEach((x) => { flat[x.key] = x; }));
+  const num = (k) => (flat[k] ? flat[k].current : null);
+  const pct = (v) => (v == null ? "\u2014" : Math.round(v * 100) + "%");
+
+  const pb = num("meme.pullback_min_drop");
+  const pbOn = num("meme.pullback_entry");
+  const stop = num("exits.scalp.stop_pct");
+  const vol = num("meme.vol_confirm");
+  const volK = num("meme.vol_confirm_k");
+  const plan = num("exits.tp_plan");
+
+  $("stratPullback").textContent = pbOn === false ? "off" : pct(pb);
+  $("stratStop").textContent = pct(stop);
+  $("stratTargets").textContent = plan === "single"
+    ? "single +" + pct(num("exits.single.tp_at") ? num("exits.single.tp_at") - 1 : null)
+    : (plan || "\u2014");
+  $("stratVol").textContent = vol ? "\u2265 " + (volK == null ? "?" : volK) + "\u00d7" : "off";
+
+  // Name the arm only when the numbers actually match a shipped preset.
+  const preset = (d.presets && Object.keys(d.presets)) || [];
+  let name = "custom";
+  if (pbOn !== false && vol && Math.abs((pb || 0) - 0.25) < 1e-9 && plan === "profile") name = "PF-1.1";
+  else if (pbOn !== false && !vol && Math.abs((pb || 0) - 0.15) < 1e-9) name = "WR-60";
+  else if (pbOn !== false && vol && Math.abs((pb || 0) - 0.15) < 1e-9) name = "WR-65";
+  badge.textContent = name;
+  badge.style.color = name === "custom" ? "var(--muted)" : "var(--green)";
+  $("stratBlurb").textContent = name === "custom"
+    ? "Custom mix \u2014 these numbers do not match a shipped preset."
+    : "Running the " + name + " arm. Read from the live config, not a label.";
+  $("stratMsg").textContent = preset.length
+    ? "Presets: " + preset.join(" \u00b7 ")
+    : "";
+}
+
+async function refreshStrategy(force) {
+  const now = Date.now();
+  if (!force && now - stratLast < 8000) return;
+  if (stratInflight) return stratInflight;
+  stratInflight = (async () => {
+    try {
+      const d = await api("/api/settings");
+      stratLast = Date.now();
+      renderStrategy(d);
+    } catch (e) {
+      const m = $("stratMsg");
+      if (m) m.textContent = "Could not read settings.";
+    } finally {
+      stratInflight = null;
+    }
+  })();
+  return stratInflight;
+}
+
 function renderExits(x) {
   const pill = $("exitPill");
   const txt = $("exitText");
@@ -1671,6 +1735,31 @@ function researchVisible() {
 }
 
 let refreshInflight = null;
+// Which code is this desk serving? The header chip answers "is it showing
+// yet?" without opening anything. Green = every feature present; amber = the
+// process is running older files than the ones on disk.
+let buildDone = false;
+async function refreshBuild() {
+  if (buildDone) return;
+  const el = $("buildText");
+  const pill = $("buildPill");
+  if (!el) return;
+  try {
+    const b = await api("/api/build");
+    buildDone = true;
+    el.textContent = "build: " + (b.version || "?");
+    const missing = Object.entries(b.features || {}).filter(([, ok]) => !ok).map(([k]) => k);
+    if (pill) {
+      pill.style.color = b.complete ? "var(--green)" : "var(--amber, #d9a441)";
+      pill.title = b.complete
+        ? "all features present · built " + (b.web_modified || "?") + " · tap for the raw report"
+        : "MISSING: " + missing.join(", ") + " · tap for the raw report";
+    }
+  } catch (e) {
+    el.textContent = "build: ?";
+  }
+}
+
 function refresh() {
   if (refreshInflight) return refreshInflight;
   refreshInflight = (async () => {
@@ -1686,6 +1775,8 @@ function refresh() {
       // screen; on a phone that means the Research tab, not every Live poll.
       if (researchVisible()) refreshBacktest(false);
       refreshQuota(false);
+      refreshStrategy(false);
+      refreshBuild();
     } catch (e) {
       console.error(e);
       paintSync(false);
@@ -1706,6 +1797,17 @@ async function act(path, method, msg) {
     toast("Action failed");
   }
 }
+
+// "Change in Desk AI" opens the chat view where the preset row and the full
+// settings panel live. Without it the Strategy panel is read-only and a dead end.
+const _stratOpen = $("stratOpen");
+if (_stratOpen) {
+  _stratOpen.onclick = () => {
+    const fab = $("aiFab");
+    if (fab) fab.click();
+  };
+}
+refreshStrategy(true);
 
 $("btnStart").onclick = () => act("/api/agent/start", "POST", "Agent started");
 $("btnContinue").onclick = async () => {

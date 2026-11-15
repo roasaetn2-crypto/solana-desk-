@@ -307,6 +307,88 @@ else
   bad "_asset_version() broken -> python -m pytest tests/test_asset_cache.py"
 fi
 
+say ""
+say "=== 4j. win-rate presets + volume gate (WR-60 / WR-65 / PF-1.1) ==="
+grep -q '"vol_confirm"' config.py && ok "config.py has MEME vol_confirm" || bad "config.py missing MEME['vol_confirm']"
+grep -q '"vol_confirm_k"' config.py && ok "config.py has MEME vol_confirm_k" || bad "config.py missing MEME['vol_confirm_k']"
+grep -q "def vol_ratio_from" desk/meme_tactics.py && ok "meme_tactics has vol_ratio_from()" || bad "meme_tactics.py missing vol_ratio_from()"
+grep -q "def vol_confirm_ok" desk/meme_tactics.py && ok "meme_tactics has vol_confirm_ok()" || bad "meme_tactics.py missing vol_confirm_ok()"
+grep -q '"wr60"' desk/settings.py && ok "settings.py registers the wr60 preset" || bad "settings.py missing the wr60 preset"
+grep -q '"wr65"' desk/settings.py && ok "settings.py registers the wr65 preset" || bad "settings.py missing the wr65 preset"
+grep -q '"pf11"' desk/settings.py && ok "settings.py registers the pf11 preset" || bad "settings.py missing the pf11 preset"
+grep -q "meme.vol_confirm" desk/settings.py && ok "the volume gate is reachable from Settings" || bad "meme.vol_confirm not in the settings registry"
+[ -f desk/preset_ab.py ] && ok "desk/preset_ab.py present (A/B tagging)" || bad "desk/preset_ab.py missing"
+[ -f scripts/preset_ab_report.py ] && ok "scripts/preset_ab_report.py present" || bad "scripts/preset_ab_report.py missing"
+grep -q 'data-preset="pf11"' web/index.html && ok "the PF-1.1 button is in the dashboard" || bad "web/index.html missing the PF-1.1 button"
+grep -q 'data-preset="wr60"' web/index.html && ok "the WR-60 button is in the dashboard" || bad "web/index.html missing the WR-60 button"
+grep -q 'data-preset="wr65"' web/index.html && ok "the WR-65 button is in the dashboard" || bad "web/index.html missing the WR-65 button"
+grep -q 'flex-wrap: wrap' web/ai-chat.css && ok "the preset row wraps (buttons cannot hide off-screen)" || bad "web/ai-chat.css preset row still clips -> the last buttons are unreachable"
+grep -q 'grid-template-columns: repeat(auto-fit' web/ai-chat.css && ok "the preset row is a grid with 44px tap targets" || bad "web/ai-chat.css preset row is not a grid -> buttons too small to tap"
+grep -q 'id="strategyPanel"' web/index.html && ok "the trading screen has a Strategy panel" || bad "web/index.html missing #strategyPanel -> settings only visible in chat"
+grep -q "function renderStrategy" web/app.js && ok "the Strategy panel is wired to /api/settings" || bad "web/app.js missing renderStrategy()"
+grep -q 'id="stratBadge"' web/index.html && ok "the Strategy panel shows the active arm" || bad "web/index.html missing #stratBadge"
+grep -q 'ai-chat.css' app.py && ok "ai-chat.css is in the asset hash (a CSS fix cannot hide behind cache)" || bad "app.py _asset_version() ignores ai-chat.css -> stale CSS after a pull"
+if python -c "
+from desk import settings as s
+snap = s.snapshot(owner=True)
+p = snap['presets']
+assert {'wr60','wr65','pf11'} <= set(p), sorted(p)
+keys = {x['key'] for g in snap['groups'].values() for x in g}
+for k in ('meme.vol_confirm','meme.vol_confirm_k','meme.pullback_min_drop'):
+    assert k in keys, k
+print('   ', len(p), 'presets,', len(keys), 'settings')
+" 2>/dev/null; then
+  ok "all three presets and the volume gate load from the registry"
+else
+  bad "preset registry broken -> python -c 'from desk import settings; settings.snapshot(owner=True)'"
+fi
+if python -c "
+from desk import meme_tactics as m
+ok1, _ = m.vol_confirm_ok(2.0, 1.5)
+ok2, _ = m.vol_confirm_ok(1.0, 1.5)
+ok3, _ = m.vol_confirm_ok(None, 1.5)
+assert ok1 is True and ok2 is False and ok3 is True
+" 2>/dev/null; then
+  ok "volume gate: 2.0x passes, 1.0x blocks, unknown fails open"
+else
+  bad "vol_confirm_ok logic wrong -> python -m pytest tests/test_meme_tactics.py"
+fi
+if python -c "
+from desk import preset_ab
+assert preset_ab.active_preset() in ('wr60','wr65','pf11','other')
+" 2>/dev/null; then
+  ok "preset_ab classifies the running config"
+else
+  bad "preset_ab.active_preset() failed"
+fi
+
+say "=== 4k. the desk can say which build it is serving ==="
+if grep -q '"/api/build"' app.py; then
+  ok "app.py exposes /api/build"
+else
+  bad "app.py has no /api/build endpoint"
+fi
+if grep -q 'id="buildPill"' web/index.html; then
+  ok "header carries the build chip"
+else
+  bad "web/index.html has no buildPill chip"
+fi
+if python -c "
+import app
+d = app.build_info()
+assert d['version'], 'no version'
+missing = [k for k, v in d['features'].items() if not v]
+assert not missing, 'missing: ' + ', '.join(missing)
+assert d['complete'] is True
+" 2>/dev/null; then
+  ok "every feature is present on disk (build_info reports complete)"
+else
+  bad "build_info() reports missing features -> python -c 'import app; print(app.build_info())'"
+fi
+if running && curl -s --max-time 5 "http://127.0.0.1:$PORT/api/build" >/dev/null 2>&1; then
+  ok "the RUNNING process answers /api/build (open it on the phone to check the version)"
+fi
+
 say "=== 5. does the code import cleanly? ==="
 if python -c "from desk import signal_engine, signal_backtest; from desk import settings; print('   ', len(settings.REGISTRY), 'settings')" 2>/dev/null; then
   ok "signal_engine + signal_backtest import, settings registry loads"

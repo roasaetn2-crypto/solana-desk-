@@ -94,7 +94,16 @@ body.ai-open .ai-fab { display: none; }
 
 /* setting proposals (PAPER, confirm / reject) */
 .ai-app { position: relative; }
-.ai-quick-set { padding-top: 0; }
+/* The preset row carries eight buttons. As a single-line scroller (the default
+   .ai-quick rule) the last three -- WR-60, WR-65, PF-1.1 -- sat off the right
+   edge with the scrollbar hidden, so they looked like they had never shipped.
+   A grid instead: predictable rows at every width, and every button gets a
+   44px tap target (the old flex row was 33px, under the touch minimum). */
+.ai-quick-set { padding-top: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  gap: 6px; overflow: visible; }
+.ai-quick-set button { min-height: 44px; padding: 6px 8px; font-size: 12px; text-align: center;
+  display: flex; align-items: center; justify-content: center; gap: 4px; }
+.ai-quick-set button span { margin-right: 0; }
 .ai-quick-set button { background: #0d1f1a; border-color: rgba(20,241,149,.45); color: #c9ffe9; }
 .ai-quick-set button.hot { background: linear-gradient(135deg, #2a1650, #0f2f28); border-color: rgba(153,69,255,.7); color: #fff; }
 .ai-prop { margin-top: 9px; white-space: normal; border: 1px solid rgba(153,69,255,.55); border-radius: 14px; padding: 10px;

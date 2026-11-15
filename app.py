@@ -106,8 +106,24 @@ app = FastAPI(title="AI Trading Desk \u2014 Solana Agent", version="1.3.0", life
 agent = SolanaAgent()
 
 
-WEB = Path(__file__).parent / "web"
+ROOT = Path(__file__).parent
+WEB = ROOT / "web"
 app.mount("/static", StaticFiles(directory=WEB), name="static")
+
+# Presence checks for /api/build. Each entry is (needle, file relative to ROOT).
+# The phone kept showing an older desk and there was no way to tell from the
+# screen which files were live, so the process now reports on itself.
+BUILD_FEATURES = {
+    "strategy_panel": ('id="strategyPanel"', "web/index.html"),
+    "preset_row": ("ai-quick-set", "web/index.html"),
+    "preset_grid_css": ("repeat(auto-fit, minmax(92px", "web/ai-chat.css"),
+    "wr60_preset": ('"wr60"', "desk/settings.py"),
+    "wr65_preset": ('"wr65"', "desk/settings.py"),
+    "pf11_preset": ('"pf11"', "desk/settings.py"),
+    "volume_gate": ("vol_confirm_ok", "desk/meme_tactics.py"),
+    "preset_ab": ("def active_preset", "desk/preset_ab.py"),
+    "css_cache_bust": ('"ai-chat.css"', "app.py"),
+}
 
 
 def _asset_version() -> str:
@@ -120,7 +136,10 @@ def _asset_version() -> str:
     changes, and the browser is forced to fetch it.
     """
     h = hashlib.sha256()
-    for name in ("app.js", "styles.css"):
+    # ai-chat.css belongs here: the Desk AI view (settings panel, preset row)
+    # is styled entirely by it, so leaving it out meant a CSS-only fix shipped
+    # behind a stale cache and the change looked like it had never landed.
+    for name in ("app.js", "styles.css", "ai-chat.css"):
         f = WEB / name
         try:
             st = f.stat()
@@ -312,7 +331,7 @@ def index():
         return HTMLResponse("<h1>web/index.html missing</h1>", status_code=500)
     v = _asset_version()
     # Rewrite whatever version the file happens to carry with the real one.
-    html = re.sub(r'(/static/(?:app\.js|styles\.css))\?v=[^"\']*', rf"\1?v={v}", html)
+    html = re.sub(r'(/static/(?:app\.js|styles\.css|ai-chat\.css))\?v=[^"\']*', rf"\1?v={v}", html)
     return HTMLResponse(
         html,
         headers={
@@ -321,6 +340,41 @@ def index():
             "X-Desk-Assets": v,
         },
     )
+
+
+@app.get("/api/build")
+def build_info():
+    """What code is this process actually serving?
+
+    Open this on the phone to settle "is it showing yet?" without guessing:
+    it reports the asset version, the newest web-file timestamp, and whether
+    each feature added in this round is present on disk.
+    """
+    feats = {}
+    for name, (needle, rel) in BUILD_FEATURES.items():
+        try:
+            feats[name] = needle in (ROOT / rel).read_text(encoding="utf-8")
+        except OSError:
+            feats[name] = False
+    newest = 0.0
+    for n in ("app.js", "styles.css", "ai-chat.css"):
+        try:
+            newest = max(newest, (WEB / n).stat().st_mtime)
+        except OSError:
+            pass
+    try:
+        from desk import settings as desk_settings
+        presets = sorted(desk_settings.PRESETS.keys())
+    except Exception:
+        presets = []
+    return {
+        "version": _asset_version(),
+        "web_modified": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(newest)) if newest else None,
+        "features": feats,
+        "complete": all(feats.values()),
+        "presets": presets,
+        "root": str(ROOT),
+    }
 
 
 @app.get("/api/state")
@@ -620,7 +674,7 @@ def new_proposal(request: Request, payload: dict = Body(...)):
                                           owner=owner)
     else:
         preset = str(payload.get("preset", ""))[:20]
-        out = desk_settings.create_preset(preset, "operator")
+        out = desk_settings.create_preset(preset, "operator", owner=owner)
     return JSONResponse(out, status_code=200 if out.get("ok") else 400)
 
 

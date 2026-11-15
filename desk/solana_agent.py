@@ -35,7 +35,7 @@ from config import AGENT, ENTRY, EXECUTION, EXITS, FOMO, MEME, PAPER, RISK
 from desk.brain_advisor import ADVISOR, should_advise, wants_entry, wants_exit
 from desk import (analyst, brain, chain, dexscreener, devcheck, dialogue, exits, fomo, goplus, gmgn,
                   groq_postmortem, groq_sizer, guard, heartbeat, helius, meme, meme_tactics,
-                  pumpportal, regime, risk, scanner, signal_engine, signals, social)
+                  preset_ab, pumpportal, regime, risk, scanner, signal_engine, signals, social)
 from desk import chart as candle_chart
 from desk import links as fomo_links
 from desk.age import created_at_of
@@ -698,7 +698,8 @@ class SolanaAgent:
                 # different, much twitchier rule than the one that was tested.
                 # Unknown values stay neutral (never a veto).
                 if (MEME.get("pullback_entry") or MEME.get("pullback_shadow")
-                        or MEME.get("atr_stop") or MEME.get("vol_ceiling")) \
+                        or MEME.get("atr_stop") or MEME.get("vol_ceiling")
+                        or MEME.get("vol_confirm")) \
                         and not t["mint"].startswith("DEMO"):
                     try:
                         cs = candle_chart.series(t["mint"], "5m", session=self.session)
@@ -710,6 +711,10 @@ class SolanaAgent:
                         a = meme_tactics.atr_pct_from(candles)
                         if a is not None:
                             f["atr_pct"] = a
+                        # Rule E: entry-bar volume vs the prior 20-bar average.
+                        vr = meme_tactics.vol_ratio_from(candles)
+                        if vr is not None:
+                            f["vol_ratio"] = vr
                         f["candle_tf"] = cs.get("tf")
                         f["candle_n"] = len(candles)
                     except Exception:
@@ -997,10 +1002,11 @@ class SolanaAgent:
                         t["mint"], t["symbol"], ticket, buy_price,
                         horizon=sizes.get("horizon", "swing"),
                         groq_mult=(sizes.get("guard", {}).get("groq") or {}).get("mult"),
-                        meta=({"shadow_block": bool(_sh.get("would_block")),
-                               "shadow_why": _sh.get("why"),
-                               "shadow_drop": _sh.get("drop_pct")}
-                              if _sh else None))
+                        meta=({**({"shadow_block": bool(_sh.get("would_block")),
+                                   "shadow_why": _sh.get("why"),
+                                   "shadow_drop": _sh.get("drop_pct")}
+                                  if _sh else {}),
+                               **preset_ab.tag()}))
                 except live_mod.LiveError as e:
                     self.stats["errors"] += 1
                     self.emit("error", f"{t['symbol']}: live order refused \u2014 {e}",

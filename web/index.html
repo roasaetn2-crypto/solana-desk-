@@ -13,7 +13,7 @@
   <link rel="manifest" href="/static/manifest.webmanifest" />
   <link rel="apple-touch-icon" href="/static/assets/icon-192.png" />
   <link rel="stylesheet" href="/static/styles.css?v=20261115ds" />
-  <link rel="stylesheet" href="/static/ai-chat.css?v=20261112d" />
+  <link rel="stylesheet" href="/static/ai-chat.css?v=20261115a" />
 </head>
 <body class="desk-page">
   <header class="topbar">
@@ -55,6 +55,9 @@
     <span class="pill" id="exitPill" title="exit ladder in force"><span class="dot"></span><span id="exitText">exit: —</span></span>
     <span class="pill" id="syncPill" title="last successful refresh from the desk"><span class="dot"></span><span id="syncText">sync: —</span></span>
     <a class="pill" id="lockPill" href="/devices" title="access control" style="text-decoration:none"><span class="dot"></span><span id="lockText">access: —</span></a>
+    <a class="pill" id="buildPill" href="/api/build" target="_blank" rel="noopener"
+       title="which code this desk is actually serving — tap to open the raw report"
+       style="text-decoration:none"><span class="dot"></span><span id="buildText">build: —</span></a>
 
     <div class="spacer"></div>
 
@@ -132,6 +135,27 @@
             </div>
           </div>
           <div class="tiny" id="modeMsg" style="margin-top:8px"></div>
+        </div>
+      </div>
+
+      <div class="panel" id="strategyPanel">
+        <div class="panel-head">
+          <span class="icon">🎯</span>
+          <h2>Strategy</h2>
+          <span class="badge" id="stratBadge">—</span>
+        </div>
+        <div class="panel-body">
+          <div class="tiny muted" id="stratBlurb">What the desk is actually trading right now. Read from the live config, not a label.</div>
+          <div class="stat-grid" style="margin-top:10px">
+            <div class="stat"><div class="k">Pullback</div><div class="v" id="stratPullback">—</div></div>
+            <div class="stat"><div class="k">Stop</div><div class="v" id="stratStop">—</div></div>
+            <div class="stat"><div class="k">Targets</div><div class="v" id="stratTargets" style="font-size:12px">—</div></div>
+            <div class="stat"><div class="k">Volume gate</div><div class="v" id="stratVol">—</div></div>
+          </div>
+          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn" id="stratOpen">Change in Desk AI</button>
+          </div>
+          <div class="tiny" id="stratMsg" style="margin-top:8px"></div>
         </div>
       </div>
 
@@ -463,6 +487,9 @@
           <button type="button" data-preset="scalper"><span>⚡</span>Scalper mode</button>
           <button type="button" data-preset="swing"><span>🌊</span>Swing mode</button>
           <button type="button" data-preset="balanced"><span>⚖️</span>Both</button>
+          <button type="button" data-preset="wr60" title="A/B arm, not a recommendation. 15% pullback, 30% stop, sell 100% at +15%. High win rate but PF 0.69 on wide data."><span>📉</span>WR-60</button>
+          <button type="button" data-preset="wr65" class="hot" title="A/B arm. WR-60 + volume ≥ 1.5× the 20-bar average. PF 0.67 on wide data — still a loser."><span>📈</span>WR-65</button>
+          <button type="button" data-preset="pf11" title="Wide-validated: 25% pullback, 30% stop, patient 2x/3x ladder, volume gate. PF 1.08, 40.9% win. Marginal but not a guaranteed loser."><span>⚖️</span>PF-1.1</button>
         </div>
         <form class="ai-composer" id="aiForm" autocomplete="off">
           <input id="aiInput" placeholder="Message Desk AI…" aria-label="Message" maxlength="500" enterkeyhint="send">

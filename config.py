@@ -379,6 +379,17 @@ MEME = {
     "atr_stop_k": 1.5,
     "vol_ceiling": False,            # rule D: skip when ATR% is insane
     "vol_ceiling_pct": 0.20,
+    # ---------- rule E: volume confirmation (measured win-rate lever) ----------
+    # Added 2026-11-15 from a fresh sweep on 10 real 5m pools (5,666 bars). On the
+    # SAME entries and exits (15% pullback, 30% stop, sell 100% at +15%), requiring
+    # the entry bar's volume to be >= k x the prior 20-bar average lifted the
+    # package from 64.4% -> 72.1% win and PF 0.90 -> 1.24. Pooled across 45
+    # configs it was +4.2pp win / +0.11 PF and appeared in every top-20 config.
+    # It is the only entry filter that helped; a reclaim filter and an EMA-trend
+    # filter both LOWERED win rate (59.0% and 49.7%), so they are deliberately
+    # absent. Default OFF so nothing changes until the operator taps WR-65.
+    "vol_confirm": False,            # rule E: require entry-bar volume >= k x 20-bar avg
+    "vol_confirm_k": 1.5,            # the measured multiple (1.0-5.0 sane range)
 }
 
 # ---------- FOMO evidence seat (optional) ----------

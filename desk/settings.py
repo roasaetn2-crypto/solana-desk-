@@ -315,6 +315,23 @@ _R += [
                  "overrides the per-profile TP rungs. OFF: entries no longer wait for a dip AND "
                  "the ladder stops overriding, so the Scalp/Swing TP1/TP2/trail rows take over. "
                  "Turn OFF only if you want the profile ladders to be the source of truth."),
+    _num("meme.pullback_min_drop", "Pullback depth", "Entry", "pct",
+         _d(MEME, "pullback_min_drop"), 0.05, 0.80, "below high",
+         "How far below the 20-bar high price must sit before the pullback entry fires. "
+         "0.15 is the measured default for the WR presets; 0.20 is the older one."),
+    # ---------- volume confirmation (the WR-65 preset's edge) ----------    # Measured on 10 real 5m pools: requiring the entry bar's volume to be at
+    # least k x the prior 20-bar average lifted the pullback package from
+    # 64.4% to 72.1% win (PF 0.90 -> 1.24) on the exact same entries/exits.
+    Setting("meme.vol_confirm", "Volume confirmation", "Entry", "bool",
+            lambda: bool(MEME.get("vol_confirm", False)),
+            lambda v: MEME.__setitem__("vol_confirm", bool(v)),
+            help="ON: only take a pullback entry when the entry candle's volume is >= "
+                 "Volume multiple x the prior 20-bar average. This is the single biggest "
+                 "win-rate lever measured (64.4% -> 72.1%). OFF: take every pullback."),
+    _num("meme.vol_confirm_k", "Volume multiple", "Entry", "float",
+         _d(MEME, "vol_confirm_k"), 1.0, 5.0, "x avg",
+         "How many times the 20-bar average volume the entry bar must print. 1.5 is the "
+         "measured default; raising it means fewer, higher-conviction entries."),
     # ---------- take-profit mode (operator-selectable) ----------
     Setting("exits.tp_plan", "Take-profit plan", "Exits", "choice",
             lambda: str(EXITS.get("take_profit_mode") or "profile"),
@@ -434,8 +451,9 @@ _OWNER_R: list[Setting] = [
     Setting("meme.flash_pump_guard", "Flash-pump guard", "Owner \u00b7 Meme", "bool",
             lambda: bool(MEME.get("flash_pump_guard", False)),
             lambda v: MEME.__setitem__("flash_pump_guard", bool(v)), owner_only=True),
-    _own("meme.pullback_min_drop", "Pullback depth", "Owner \u00b7 Meme", "pct",
-         _d(MEME, "pullback_min_drop"), 0.05, 0.80, "below high"),
+    # Pullback depth moved to the PUBLIC tier (see the Entry group above): it is
+    # a strategy knob, not a bankroll / live-cap / scam-kill, so the WR-60 and
+    # WR-65 presets must apply from any signed-in operator session.
     # scanner breadth
     _own("scan.pages", "Scanner pages", "Owner \u00b7 Scanner", "int", _d(SCAN, "pages", int), 1, 5),
     # loop budgets
@@ -483,6 +501,52 @@ PRESETS: dict[str, dict] = {
                             "exits.scalp.max_hold_hours": 4.0, "exits.swing.stop_pct": 0.30,
                             "exits.swing.tp1_at": 1.5, "exits.swing.tp2_at": 2.0, "exits.swing.trail_pct": 0.30,
                             "exits.swing.timeout_hours": 3.0, "exits.swing.max_hold_hours": 4.0}},
+    # ---------- measured win-rate presets (see WINRATE-IMPROVEMENTS.md) ----------
+    # Both presets run the SAME entry/exit package (15% pullback, 30% stop,
+    # sell 100% at +15%, 10% trail). The ONLY difference is the volume gate, so
+    # they are a clean A/B of the one lever that moved win rate.
+    #
+    # HONESTY UPDATE (wide validation, 27 pools / 70,308 bars / 6,531 trades):
+    # this package needs a 72.3% win rate to break even after costs (risking 30%
+    # to make 15%). On the small 10-pool sample it measured 72.1% -- i.e. exactly
+    # break-even, which is why PF was only 1.24. On the wide set the true win rate
+    # is 46.5% and PF is 0.69, and it loses on all 27 leave-one-pool-out folds.
+    # These two stay as the A/B arms for the live preset test, NOT as a
+    # recommendation. The profitable arm is "pf11" below.
+    "wr60": {"label": "WR-60 \u00b7 pullback only", "reason":
+             "A/B arm, not a recommendation. 15% pullback, 30% stop, sell 100% at "
+             "+15%. High win rate (46.5% wide) but PF 0.69: risking 30% to make 15% "
+             "needs a 72.3% win rate just to break even. Kept to A/B the volume gate.",
+             "values": {"meme.pullback_entry": True, "meme.vol_confirm": False,
+                        "meme.pullback_min_drop": 0.15, "exits.tp_plan": "single",
+                        "exits.single.tp_at": 1.15, "exits.single.tp_frac": 1.0,
+                        "exits.single.trail_pct": 0.10,
+                        "exits.scalp.stop_pct": 0.30, "exits.swing.stop_pct": 0.30,
+                        "exits.ladder": "fast"}},
+    "wr65": {"label": "WR-65 \u00b7 pullback + volume", "reason":
+             "A/B arm, not a recommendation. WR-60 plus: only enter when the bar's "
+             "volume is >= 1.5x the 20-bar average. On the wide set the gate adds "
+             "+1.3pp win but PF is 0.67 -- still a loser. Useful as the A/B control.",
+             "values": {"meme.pullback_entry": True, "meme.vol_confirm": True,
+                        "meme.vol_confirm_k": 1.5, "meme.pullback_min_drop": 0.15,
+                        "exits.tp_plan": "single", "exits.single.tp_at": 1.15,
+                        "exits.single.tp_frac": 1.0, "exits.single.trail_pct": 0.10,
+                        "exits.scalp.stop_pct": 0.30, "exits.swing.stop_pct": 0.30,
+                        "exits.ladder": "fast"}},
+    # The only arm that did not lose on the wide validation. Lower win rate
+    # (40.9%), PF 1.08, and leave-one-pool-out worst 0.98 -- i.e. marginally
+    # profitable, right at the edge, NOT a strong edge. It is here because it is
+    # the honest alternative to a package that is structurally doomed, and because
+    # it demonstrates the actual lesson: reward:risk pays, win rate does not.
+    "pf11": {"label": "PF-1.1 \u00b7 deep dip, big target", "reason":
+             "Wide-validated (27 pools, 70k bars, 276 trades): PF 1.08, +0.80%/trade, "
+             "40.9% win, leave-one-pool-out worst PF 0.98. 25% pullback, 30% stop, "
+             "patient ladder (2x/3x), volume gate on. Lower win rate than WR-65, but "
+             "the only arm that is not a guaranteed loser. Marginal, not magic.",
+             "values": {"meme.pullback_entry": True, "meme.vol_confirm": True,
+                        "meme.vol_confirm_k": 1.5, "meme.pullback_min_drop": 0.25,
+                        "exits.tp_plan": "profile", "exits.ladder": "patient",
+                        "exits.scalp.stop_pct": 0.30, "exits.swing.stop_pct": 0.30}},
 }
 
 
@@ -733,12 +797,12 @@ def create(changes_raw: list[dict], reason: str, source: str, title: str = "",
     return {"ok": True, "proposal": public(p)}
 
 
-def create_preset(name: str, source: str = "operator") -> dict:
+def create_preset(name: str, source: str = "operator", owner: bool = False) -> dict:
     pr = PRESETS.get(str(name or "").lower())
     if not pr:
         return {"ok": False, "error": f"unknown preset; pick one of {', '.join(PRESETS)}"}
     out = create([{"setting": k, "proposed": v} for k, v in pr["values"].items()],
-                 pr["reason"], source, pr["label"], preset=name)
+                 pr["reason"], source, pr["label"], preset=name, owner=owner)
     if not out["ok"] and not out.get("dropped"):
         out["error"] = f"{pr['label']} is already what the desk runs"
     return out

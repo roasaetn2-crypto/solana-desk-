@@ -311,6 +311,19 @@ class PaperBroker:
                             opened=p.get("opened"), closed=time.time())
                 except Exception:
                     pass
+            if p.get("preset") is not None:
+                # The preset A/B measurement: realised P&L tagged with the shipped
+                # package that was active at entry. scripts/preset_ab_report.py
+                # reads these rows. Like the shadow tag, this is a label only --
+                # it cannot change a trade.
+                try:
+                    from desk.ops import journal
+                    journal("preset_pnl", mint=mint, symbol=p.get("symbol"),
+                            preset=p.get("preset"), pnl_usd=pnl, reason=reason,
+                            ticket_usd=p.get("cost"), entry=p.get("entry"),
+                            opened=p.get("opened"), closed=time.time())
+                except Exception:
+                    pass
             del self.s["positions"][mint]
         self._save()
         return out
