@@ -1353,22 +1353,30 @@ function renderBacktest(data) {
   </table>${caveat}`;
 }
 
+let backtestInflight = null;
 async function refreshBacktest(force) {
   const now = Date.now();
   if (!force && lastBacktest && now - backtestAt < 60000) {
     renderBacktest(lastBacktest);
     return;
   }
-  try {
-    const data = await api("/api/backtest");
-    lastBacktest = data;
-    backtestAt = now;
-    renderBacktest(data);
-  } catch (e) {
-    if (!lastBacktest && $("backtestBody")) {
-      $("backtestBody").innerHTML = '<div class="empty">Backtest unavailable.</div>';
+  // Same reasoning as refresh(): never let two journal replays stack.
+  if (backtestInflight) return backtestInflight;
+  backtestInflight = (async () => {
+    try {
+      const data = await api("/api/backtest");
+      lastBacktest = data;
+      backtestAt = now;
+      renderBacktest(data);
+    } catch (e) {
+      if (!lastBacktest && $("backtestBody")) {
+        $("backtestBody").innerHTML = '<div class="empty">Backtest unavailable.</div>';
+      }
+    } finally {
+      backtestInflight = null;
     }
-  }
+  })();
+  return backtestInflight;
 }
 
 // ---------- AI quota ----------
@@ -1654,20 +1662,40 @@ function renderExits(x) {
   pill.style.color = x.fallback_used ? "var(--amber)" : "var(--green)";
 }
 
-async function refresh() {
-  try {
-    const s = await api("/api/state");
-    render(s);
-    renderGroq(s && s.groq_sizer);
-    renderPostmortem(s && s.groq_postmortem);
-    renderExits(s && s.exits);
-    paintSync(true);
-    refreshBacktest(false);
-    refreshQuota(false);
-  } catch (e) {
-    console.error(e);
-    paintSync(false);
-  }
+// /api/state can take several seconds while the agent cycle holds its lock, but
+// this poll fires every 2s. Without coalescing, requests stack up: each one
+// holds a full snapshot and waits on the lock, and on the 512MB free instance
+// that pile-up ends in an OOM kill. Keep one request in flight and let every
+// caller share its result.
+function researchVisible() {
+  const col = document.querySelector('.col-right[data-col="research"]');
+  return !!(col && col.offsetParent !== null);
+}
+
+let refreshInflight = null;
+function refresh() {
+  if (refreshInflight) return refreshInflight;
+  refreshInflight = (async () => {
+    try {
+      const s = await api("/api/state");
+      render(s);
+      renderGroq(s && s.groq_sizer);
+      renderPostmortem(s && s.groq_postmortem);
+      renderExits(s && s.exits);
+      paintSync(true);
+      // The backtest replays the whole journal server-side, which is the
+      // heaviest read the desk has. Only ask for it when its column is on
+      // screen; on a phone that means the Research tab, not every Live poll.
+      if (researchVisible()) refreshBacktest(false);
+      refreshQuota(false);
+    } catch (e) {
+      console.error(e);
+      paintSync(false);
+    } finally {
+      refreshInflight = null;
+    }
+  })();
+  return refreshInflight;
 }
 
 async function act(path, method, msg) {
@@ -1753,9 +1781,22 @@ window.addEventListener("resize", () => { if (lastState) drawEquity(lastState); 
 
 initDailyStop();
 refresh();
-refreshBacktest(true);
-setInterval(refresh, 2000);
-setInterval(() => refreshBacktest(false), 60000);
+if (researchVisible()) refreshBacktest(true);
+// Self-scheduling instead of setInterval: the next poll is only queued once the
+// current one has finished, and it backs off when the desk is slow (the agent
+// cycle holds a lock, so a state read can take many seconds). A fixed 2s timer
+// on top of a slow endpoint is what queued up the requests that OOM'd the
+// 512MB free instance.
+function pollState() {
+  const started = Date.now();
+  Promise.resolve(refresh()).finally(() => {
+    const took = Date.now() - started;
+    const wait = took > 8000 ? 15000 : took > 4000 ? 6000 : 2000;
+    setTimeout(pollState, wait);
+  });
+}
+pollState();
+setInterval(() => { if (researchVisible()) refreshBacktest(false); }, 60000);
 setInterval(tickAges, 1000);
 
 /* ---------- desk tabs: Control / Live / Research ---------- */
@@ -1778,6 +1819,8 @@ setInterval(tickAges, 1000);
       t.setAttribute("aria-selected", on ? "true" : "false");
     });
     try { localStorage.setItem(KEY, name); } catch (e) {}
+    // Opening Research is the moment the backtest becomes worth its cost.
+    if (name === "research") refreshBacktest(false);
     if (scroll) {
       if (narrow()) {
         window.scrollTo({ top: 0, behavior: "smooth" });

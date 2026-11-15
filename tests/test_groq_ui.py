@@ -90,7 +90,7 @@ class GroqPanel(unittest.TestCase):
         self.assertIn("function groqChip(", js)
         # refresh() is the only thing that runs on the poll timer. If renderGroq
         # is not called from it, the panel is static HTML forever.
-        refresh = js.split("async function refresh()", 1)[1]
+        refresh = js.split("function refresh()", 1)[1]
         self.assertIn("renderGroq(s && s.groq_sizer)", refresh)
         # The chip reads the multiplier the agent stored, never re-derives one.
         chip = js.split("function groqChip(", 1)[1].split("function ", 1)[0]
