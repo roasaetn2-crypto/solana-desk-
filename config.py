@@ -359,9 +359,11 @@ MEME = {
     # Which exit ladder the pullback package uses: fast | patient | slow | single.
     # scripts/ladder_replay.py measured all four on real candles with entries held
     # constant (LADDER-REPLAY.md): win rate is within 1pt across every ladder at
-    # every stop width, but `patient` earns ~3x the expectancy of `fast`. Kept on
-    # "fast" so this key changes nothing until you choose to switch it.
-    "exit_ladder": "fast",
+    # every stop width, but `patient` earns ~3x the expectancy of `fast`.
+    # Operator choice ("I changed patient"): the dashboard change was dropped by
+    # the OOM crash-loop before it could be confirmed, so it is pinned here as
+    # the durable default. Set BRAIN_EXIT_LADDER or use the dashboard to change.
+    "exit_ladder": "patient",
     "flash_pump_guard": False,       # rule C: skip entries right after a spike
     "flash_pump_pct": 0.25,          # a >25% 5m candle = do not chase
     # Rules A and D read facts["atr_pct"] (ATR14 / close on 5-minute bars),

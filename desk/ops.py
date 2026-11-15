@@ -26,18 +26,34 @@ JOURNAL = Path("journal.jsonl")  # default; journal() uses data_file so DESK_DAT
 KILL_FILE = Path("KILL")
 
 
+def local_journal_on() -> bool:
+    """Whether to mirror the journal to the local disk.
+
+    Turso is the source of truth (append_journal writes every row there). On an
+    ephemeral disk -- the Render free tier, where DESK_DATA_DIR is unset -- the
+    local journal.jsonl is pure overhead: it was rewritten in full (~140 MB) on
+    every boot and re-read on every health check, and that file cache is what
+    pushed the 512 Mi cgroup into OOM at ~85 MB process RSS. Mirror locally only
+    when a real disk is mounted, or when JOURNAL_LOCAL is set for offline tools.
+    """
+    if (os.environ.get("DESK_DATA_DIR") or "").strip():
+        return True
+    return (os.environ.get("JOURNAL_LOCAL") or "").strip().lower() in ("1", "true", "yes")
+
+
 # ---------- journal: every decision, including every rejection ----------
 def journal(kind: str, **fields) -> dict:
     row = {"time": datetime.now(timezone.utc).isoformat(), "kind": kind, **fields}
-    try:
-        path = data_file("journal.jsonl")
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(row, default=str) + "\n")
-    except Exception as e:
-        # The journal is an audit trail, not a gate. A read-only volume must not
-        # stop the desk from trading.
-        print(f"[desk] journal write failed ({e}); decision not persisted")
+    if local_journal_on():
+        try:
+            path = data_file("journal.jsonl")
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(row, default=str) + "\n")
+        except Exception as e:
+            # The journal is an audit trail, not a gate. A read-only volume must
+            # not stop the desk from trading.
+            print(f"[desk] journal write failed ({e}); decision not persisted")
     try:
         from desk.store import append_journal
         append_journal(row)

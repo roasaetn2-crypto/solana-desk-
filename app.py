@@ -382,6 +382,10 @@ def health():
         # schema. The Environment tab cannot tell you that; this can. Cheap:
         # no network, just the result of the boot-time restore.
         "store": store.status(),
+        # Cgroup memory: the number the OOM killer actually acts on. Process
+        # RSS alone hid the real cause (file cache from the journal), so this
+        # is the honest read of how close the box is to 512 Mi.
+        "mem": meminfo.cgroup(),
         "running": agent.running,
         "cycle": agent.cycle_no,
         "pumpportal": {

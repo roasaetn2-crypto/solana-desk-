@@ -20,7 +20,7 @@ from urllib.parse import urlparse
 
 import requests
 
-from desk.ops import data_file
+from desk.ops import data_file, local_journal_on
 
 _lock = threading.Lock()
 _ready = False
@@ -385,47 +385,61 @@ def restore() -> dict:
 
     # journal -- streamed, never materialised. See iter_journal_rows().
     try:
-        local_path = data_file("journal.jsonl")
-        local_path.parent.mkdir(parents=True, exist_ok=True)
-        # If the local copy already covers the remote, there is nothing to pull.
-        # On a box with a mounted disk that turns every restart into zero work;
-        # on an ephemeral disk local is empty and this is one cheap COUNT.
-        try:
-            remote_n = journal_count()
-        except Exception:
-            remote_n = None
-        local_n = _local_journal_rows()
-        _LOCAL_ROWS["n"] = local_n
-
-        if remote_n == 0:
-            # Remote is empty: first-time hookup on a box that already has
-            # history. Push the local file up instead of wiping it.
-            if local_n and local_path.exists():
-                n = push_local_journal(local_path)
-                if n:
-                    out["pushed"].append(f"journal:{n}")
-        elif remote_n is not None and local_n >= remote_n:
-            # Local already covers the remote (mounted disk): no pull, no rewrite.
-            out["pulled"].append(f"journal:cached:{remote_n}")
+        if not local_journal_on():
+            # Ephemeral disk (Render free tier): Turso is authoritative and
+            # journal() appends new rows there. Do NOT materialise the whole
+            # journal locally -- that full rewrite (~140 MB) on every boot is
+            # what the 512 Mi cgroup OOM-killed the box on. Report the remote
+            # count for the dashboard; keep no local copy.
+            try:
+                remote_n = journal_count()
+            except Exception:
+                remote_n = None
+            _LOCAL_ROWS["n"] = remote_n or 0
+            out["pulled"].append(f"journal:remote:{remote_n}")
         else:
-            # Stream to a temp file and swap it in, so peak memory is one page
-            # and a kill mid-write leaves the previous journal intact.
-            tmp = local_path.with_name(local_path.name + ".tmp")
-            written = 0
-            with tmp.open("w", encoding="utf-8") as f:
-                for row in iter_journal_rows():
-                    f.write(json.dumps(row, default=str) + "\n")
-                    written += 1
-            if written:
-                tmp.replace(local_path)
-                _LOCAL_ROWS["n"] = written
-                out["pulled"].append(f"journal:{written}")
-            else:
-                tmp.unlink(missing_ok=True)
-                if local_path.exists():
+            local_path = data_file("journal.jsonl")
+            local_path.parent.mkdir(parents=True, exist_ok=True)
+            # If the local copy already covers the remote, there is nothing to
+            # pull. On a box with a mounted disk that turns every restart into
+            # zero work; on an ephemeral disk local is empty and this is one
+            # cheap COUNT.
+            try:
+                remote_n = journal_count()
+            except Exception:
+                remote_n = None
+            local_n = _local_journal_rows()
+            _LOCAL_ROWS["n"] = local_n
+
+            if remote_n == 0:
+                # Remote is empty: first-time hookup on a box that already has
+                # history. Push the local file up instead of wiping it.
+                if local_n and local_path.exists():
                     n = push_local_journal(local_path)
                     if n:
                         out["pushed"].append(f"journal:{n}")
+            elif remote_n is not None and local_n >= remote_n:
+                # Local already covers the remote (mounted disk): no pull, no rewrite.
+                out["pulled"].append(f"journal:cached:{remote_n}")
+            else:
+                # Stream to a temp file and swap it in, so peak memory is one
+                # page and a kill mid-write leaves the previous journal intact.
+                tmp = local_path.with_name(local_path.name + ".tmp")
+                written = 0
+                with tmp.open("w", encoding="utf-8") as f:
+                    for row in iter_journal_rows():
+                        f.write(json.dumps(row, default=str) + "\n")
+                        written += 1
+                if written:
+                    tmp.replace(local_path)
+                    _LOCAL_ROWS["n"] = written
+                    out["pulled"].append(f"journal:{written}")
+                else:
+                    tmp.unlink(missing_ok=True)
+                    if local_path.exists():
+                        n = push_local_journal(local_path)
+                        if n:
+                            out["pushed"].append(f"journal:{n}")
     except Exception as e:
         print(f"[desk] store: journal restore failed ({_redact(str(e))})")
 

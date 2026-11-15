@@ -22,9 +22,18 @@ def _read(path: str) -> str | None:
         return None
 
 
-def _mb(v) -> float | None:
+def _mb_bytes(v) -> float | None:
+    """Bytes -> MiB."""
     try:
         return round(int(v) / 1024 / 1024, 1)
+    except (TypeError, ValueError):
+        return None
+
+
+def _mb_kb(v) -> float | None:
+    """KiB -> MiB (VmRSS and friends are reported in kB)."""
+    try:
+        return round(int(v) / 1024, 1)
     except (TypeError, ValueError):
         return None
 
@@ -33,7 +42,7 @@ def _rss_mb() -> float | None:
     raw = _read("/proc/self/status") or ""
     for line in raw.splitlines():
         if line.startswith("VmRSS:"):
-            return _mb(line.split()[1])
+            return _mb_kb(line.split()[1])
     return None
 
 
@@ -45,35 +54,67 @@ def journal_size_mb() -> float | None:
         return None
 
 
+def _candidates() -> list[tuple[str, str]]:
+    """(label, path) pairs to try, v2 first then v1, root then the process's own
+    cgroup path from /proc/self/cgroup."""
+    out: list[tuple[str, str]] = [
+        ("v2", "/sys/fs/cgroup/memory.current"),
+        ("v1", "/sys/fs/cgroup/memory/memory.usage_in_bytes"),
+    ]
+    rel = ""
+    for line in (_read("/proc/self/cgroup") or "").splitlines():
+        # v2: "0::/path"   v1: "N:memory:/path"
+        parts = line.split(":", 2)
+        if len(parts) == 3 and (parts[1] == "" or "memory" in parts[1]):
+            rel = parts[2].strip()
+            break
+    if rel:
+        base = "/sys/fs/cgroup" + rel
+        out += [
+            ("v2-path", base + "/memory.current"),
+            ("v1-path", base + "/memory.usage_in_bytes"),
+        ]
+    return out
+
+
 def cgroup() -> dict:
     """Current cgroup memory use and the breakdown that matters for OOM.
 
     ``current_mb`` vs ``max_mb`` is the number the kernel acts on. ``anon_mb``
     is real process memory; ``file_mb`` is page cache (the journal); ``slab_mb``
-    and ``kernel_mb`` are kernel-side. If the box dies with current near max but
-    anon low, the leak is file cache, not the Python heap.
+    is kernel-side. If the box dies with current near max but anon low, the leak
+    is file cache, not the Python heap.
     """
-    cur = _read("/sys/fs/cgroup/memory.current")
-    mx = _read("/sys/fs/cgroup/memory.max")
+    current = None
+    source = None
+    for label, path in _candidates():
+        raw = _read(path)
+        if raw is not None:
+            current = _mb_bytes(raw)
+            source = path
+            break
+
+    mx_raw = _read("/sys/fs/cgroup/memory.max")
+    if mx_raw is None:
+        mx_raw = _read("/sys/fs/cgroup/memory/memory.limit_in_bytes")
+    max_mb = None if mx_raw in (None, "max") else _mb_bytes(mx_raw)
+
     stat: dict[str, str] = {}
-    for line in (_read("/sys/fs/cgroup/memory.stat") or "").splitlines():
+    stat_raw = _read("/sys/fs/cgroup/memory.stat") or _read("/sys/fs/cgroup/memory/memory.stat") or ""
+    for line in stat_raw.splitlines():
         parts = line.split()
         if len(parts) == 2:
             stat[parts[0]] = parts[1]
 
-    out = {
-        "current_mb": _mb(cur),
-        "max_mb": None if mx in (None, "max") else _mb(mx),
-        "anon_mb": _mb(stat.get("anon")),
-        "file_mb": _mb(stat.get("file")),
-        "slab_mb": _mb(stat.get("slab")),
-        "sock_mb": _mb(stat.get("sock")),
-        "shmem_mb": _mb(stat.get("shmem")),
+    return {
+        "current_mb": current,
+        "max_mb": max_mb,
+        "anon_mb": _mb_bytes(stat.get("anon") or stat.get("total_rss")),
+        "file_mb": _mb_bytes(stat.get("file") or stat.get("total_cache")),
+        "slab_mb": _mb_bytes(stat.get("slab") or stat.get("total_slab")),
+        "sock_mb": _mb_bytes(stat.get("sock")),
+        "shmem_mb": _mb_bytes(stat.get("shmem")),
         "rss_mb": _rss_mb(),
         "journal_file_mb": journal_size_mb(),
+        "source": source,
     }
-    # cgroup v1 fallback
-    if out["current_mb"] is None:
-        out["current_mb"] = _mb(_read("/sys/fs/cgroup/memory/memory.usage_in_bytes"))
-        out["max_mb"] = _mb(_read("/sys/fs/cgroup/memory/memory.limit_in_bytes"))
-    return out
