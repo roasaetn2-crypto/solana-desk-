@@ -207,7 +207,7 @@ DEADLINE_S = 40.0               # whole review incl. debate
 #   PER_CYCLE coins x OPINIONS providers  +  DEBATES_PER_CYCLE x 3 debate turns
 #   1 x 1 + 0 x 3 = 1 call per review, and MIN_INTERVAL_S keeps reviews apart.
 PER_CYCLE = int(os.getenv("BRAIN_PER_CYCLE", "2"))       # coins reviewed per cycle
-OPINIONS = max(1, min(2, int(os.getenv("BRAIN_OPINIONS", "2"))))  # providers per review
+OPINIONS = max(1, min(3, int(os.getenv("BRAIN_OPINIONS", "2"))))  # providers per review
 # A debate is 3 extra calls (B, A, B) and is the most expensive thing here.
 # 0 = opinions only, no back-and-forth.
 DEBATES_PER_CYCLE = int(os.getenv("BRAIN_DEBATES_PER_CYCLE", "1"))
@@ -247,6 +247,15 @@ BUDGETS = {"gemini": int(os.getenv("BRAIN_BUDGET_GEMINI", "200")),
            # Paid bucket: 200 reviews/day is a spend guard, not a free-tier limit.
            "ollama": int(os.getenv("BRAIN_BUDGET_OLLAMA", "200"))}
 OPENROUTER_DEBATE_MIN_LEFT = 10   # no debate when OpenRouter has fewer calls than this left
+# ---------- third voice (tie-break) ----------
+# A third opinion is worth its quota in exactly one situation: the first two
+# bots disagree and the debate did not converge them. Everywhere else it is
+# noise. OpenRouter's free tier is ~50 calls/day shared across all ":free"
+# models, so asking it on every coin would exhaust the day in about five
+# reviews; asking it only on a split keeps it inside budget for weeks.
+# BRAIN_TIEBREAK=off disables it entirely and restores the old two-bot
+# "take the more cautious call" behaviour.
+TIEBREAK_MIN_LEFT = int(os.getenv("BRAIN_TIEBREAK_MIN_LEFT", "8"))
 VERDICTS = ("buy", "watch", "skip")
 _CAUTION = {"skip": 0, "watch": 1, "buy": 2}
 
@@ -1436,6 +1445,41 @@ class Advisor:
         with self._lock:
             return self.cycle_debates < DEBATES_PER_CYCLE
 
+    # -- third voice --
+    def tiebreaker(self) -> Provider | None:
+        """The provider used to break a two-way split, or None when disabled.
+
+        BRAIN_TIEBREAK names it (default openrouter); "off"/"none"/"0" turns the
+        whole mechanism off. Resolved at call time so the env can change without
+        a restart, matching how the rest of this module reads config.
+        """
+        name = (os.getenv("BRAIN_TIEBREAK", "openrouter") or "openrouter").strip().lower()
+        if name in ("", "off", "none", "0", "false", "no"):
+            return None
+        return {"gemini": self.gemini, "groq": self.groq, "openrouter": self.openrouter,
+                "cerebras": self.cerebras, "cloudflare": self.cloudflare,
+                "ollama": self.ollama}.get(name)
+
+    def _tiebreak(self, summary: dict, A: Provider, B: Provider, a: dict, b: dict,
+                  deadline: float) -> dict | None:
+        """Ask a third bot for one opinion. Only called when A and B are split.
+
+        Deliberately cheap: one call, no follow-up turns, and it is skipped
+        outright when the provider is one of the two already asked, is cooling,
+        or is under TIEBREAK_MIN_LEFT calls for the day. A failure here is not
+        an error -- the split simply stands and the cautious pick wins, which is
+        the old behaviour.
+        """
+        p = self.tiebreaker()
+        if p is None or p in (A, B):
+            return None
+        if not p.available(1) or p.left() < max(1, TIEBREAK_MIN_LEFT):
+            return None
+        o = self._opinion(p, summary, deadline)
+        if not o or "error" in o:
+            return None
+        return o
+
     # -- one full review (blocking; run in a worker thread) --
     def review(self, mint: str, summary: dict, log: Callable[[str], None] | None = None) -> dict | None:
         log = log or (lambda s: None)
@@ -1531,6 +1575,33 @@ class Advisor:
                             res["final"] = {"verdict": final, "votes": fin, "agree": fv.count(final)}
                             res["verdict"] = final
                             log(f"brain final: ${sym} {final} ({fv.count(final)}/2)")
+                # Third voice: only when the two are still split after the debate.
+                # A converged debate needs no tie-break, and agreeing bots never
+                # reach this branch at all, so OpenRouter is asked rarely.
+                still_split = True
+                if res.get("final"):
+                    still_split = len(set(res["final"]["votes"].values())) > 1
+                if still_split:
+                    tb = self._tiebreak(summary, A, B, a, b, deadline)
+                    if tb:
+                        res["tiebreak"] = tb
+                        log(f"brain({tb['provider']}): ${sym} tiebreak -> "
+                            f"{tb['verdict']} {tb['confidence']}% \u2014 "
+                            + ("; ".join(tb["reasons"]) or "no reason given"))
+                        votes = {A.name: a["verdict"], B.name: b["verdict"],
+                                 tb["provider"]: tb["verdict"]}
+                        counts: dict[str, int] = {}
+                        for v in votes.values():
+                            counts[v] = counts.get(v, 0) + 1
+                        top = max(counts.values())
+                        winners = [v for v, c in counts.items() if c == top]
+                        # A three-way tie (or a 1-1-1) still resolves cautiously.
+                        final = min(winners, key=_CAUTION.get)
+                        res["final"] = {"verdict": final, "votes": votes,
+                                        "agree": counts[final], "tiebreak": True}
+                        res["verdict"] = final
+                        res["agreement"] = "tiebreak"
+                        log(f"brain final: ${sym} {final} ({counts[final]}/3, tiebreak)")
         self._store(mint, res, summary)
         return res
 

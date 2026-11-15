@@ -1485,3 +1485,97 @@ class OllamaLocalProbe(unittest.TestCase):
         with mock.patch.dict(os.environ, {"OLLAMA_HOST": "http://192.168.1.40:11434"}):
             self.assertEqual(ba.ollama_local_host(), "http://192.168.1.40:11434")
             self.assertEqual(ba.ollama_mode(), "local")
+
+
+class TieBreak(Base):
+    """Third voice: Gemini + Groq debate, OpenRouter only when they still split.
+
+    The whole point is that OpenRouter's free tier is ~50 calls/day, so it must
+    be asked rarely. These tests pin down exactly when it is and is not called.
+    """
+
+    def setUp(self):
+        super().setUp()
+        os.environ["OPENROUTER_API_KEY"] = ORKEY
+        self.addCleanup(os.environ.pop, "OPENROUTER_API_KEY", None)
+        self.addCleanup(os.environ.pop, "BRAIN_TIEBREAK", None)
+        self.adv = ba.Advisor()
+        for p in self.adv.providers():
+            p.rpm = 1000
+
+    def split_that_never_converges(self, orr=()):
+        """Gemini says watch, Groq says skip, and the debate ends the same way."""
+        g = [gem(opinion("watch", 62, ("liquidity thin but volume real",))),
+             gem(chat("still think it is worth a look", "watch"))]
+        q = [groq(opinion("skip", 70, ("dev holds 18%",))),
+             groq(chat("dev holds 18%, that is a rug setup, skip", "skip")),
+             groq(chat("still skip", "skip"))]
+        return Net(gemini=g, groq_=q, orr=orr)
+
+    def test_openrouter_breaks_a_split_the_debate_could_not_settle(self):
+        net = self.split_that_never_converges(
+            orr=[groq(opinion("skip", 75, ("dev wallet is the whole story",)))])
+        r = self.run_review(net)
+        self.assertEqual(net.n("openrouter"), 1, "the third voice must be asked exactly once")
+        self.assertEqual(r["agreement"], "tiebreak")
+        self.assertEqual(r["tiebreak"]["provider"], "openrouter")
+        self.assertEqual(r["verdict"], "skip")          # 2 of 3
+        self.assertEqual(r["final"]["votes"],
+                         {"gemini": "watch", "groq": "skip", "openrouter": "skip"})
+        self.assertEqual(r["final"]["agree"], 2)
+        self.assertTrue(r["final"]["tiebreak"])
+        self.assertIn("brain final: $SYM skip (2/3, tiebreak)", self.lines)
+
+    def test_no_tiebreak_when_the_two_agree(self):
+        net = Net(gemini=[gem(opinion("skip", 60))], groq_=[groq(opinion("skip", 80))],
+                  orr=[groq(opinion("skip", 70))])
+        r = self.run_review(net)
+        self.assertEqual(net.n("openrouter"), 0)
+        self.assertNotIn("tiebreak", r)
+
+    def test_no_tiebreak_when_the_debate_converges(self):
+        # Split at first, but both end on skip: the debate settled it.
+        net = Net(gemini=[gem(opinion("watch", 62)), gem(chat("fine, skip", "skip"))],
+                  groq_=[groq(opinion("skip", 70)), groq(chat("skip", "skip")),
+                         groq(chat("skip", "skip"))],
+                  orr=[groq(opinion("skip", 70))])
+        r = self.run_review(net)
+        self.assertEqual(net.n("openrouter"), 0, "a settled debate needs no third voice")
+        self.assertNotIn("tiebreak", r)
+
+    def test_tiebreak_can_be_switched_off(self):
+        os.environ["BRAIN_TIEBREAK"] = "off"
+        net = self.split_that_never_converges(orr=[groq(opinion("skip", 75))])
+        r = self.run_review(net)
+        self.assertEqual(net.n("openrouter"), 0)
+        self.assertNotIn("tiebreak", r)
+        self.assertEqual(r["verdict"], "skip")          # old cautious behaviour stands
+
+    def test_tiebreak_respects_the_daily_budget(self):
+        self.adv.openrouter.budget = 45
+        self.adv.openrouter.used = 45 - (ba.TIEBREAK_MIN_LEFT - 1)
+        net = self.split_that_never_converges(orr=[groq(opinion("skip", 75))])
+        r = self.run_review(net)
+        self.assertEqual(net.n("openrouter"), 0, "must not spend the last few calls")
+        self.assertNotIn("tiebreak", r)
+
+    def test_a_failed_tiebreak_leaves_the_cautious_pick(self):
+        net = self.split_that_never_converges(orr=[Resp(429)])
+        r = self.run_review(net)
+        self.assertEqual(net.n("openrouter"), 1)
+        self.assertNotIn("tiebreak", r)
+        self.assertEqual(r["verdict"], "skip")
+
+    def test_tiebreak_is_not_asked_when_it_is_already_one_of_the_pair(self):
+        # Groq removed: the pair is Gemini + OpenRouter, so OpenRouter cannot
+        # also be the tie-breaker.
+        os.environ.pop("GROQ_API_KEY", None)
+        self.adv = ba.Advisor()
+        for p in self.adv.providers():
+            p.rpm = 1000
+        net = Net(gemini=[gem(opinion("watch", 62)), gem(chat("still watch", "watch"))],
+                  orr=[groq(opinion("skip", 70)), groq(chat("skip", "skip")),
+                       groq(chat("skip", "skip"))])
+        r = self.run_review(net)
+        self.assertNotIn("tiebreak", r)
+        self.assertEqual(r["agreement"], "split")
