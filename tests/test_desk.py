@@ -434,6 +434,40 @@ class AccessGate(unittest.TestCase):
         self.assertEqual(c.get("/api/state").status_code, 200)
         self.assertTrue(c.get("/api/state").json()["access"]["locked"])
 
+    def test_repeated_wrong_keys_lock_the_address_out(self):
+        c = self._client("s3cret")
+        for _ in range(5):
+            c.post("/login", data={"token": "nope"}, follow_redirects=False)
+        # even the RIGHT key is refused during the lockout, or guessing would continue
+        r = c.post("/login", data={"token": "s3cret"}, follow_redirects=False)
+        self.assertIn("error=2", r.headers.get("location", ""))
+        self.assertEqual(c.get("/api/state").status_code, 401)
+        p = c.post("/pair", data={"token": "s3cret", "name": "x"}, follow_redirects=False)
+        self.assertIn("error=2", p.headers.get("location", ""))
+
+    def test_non_ascii_key_is_a_wrong_key_not_a_server_error(self):
+        c = self._client("s3cret")
+        r = c.post("/login", data={"token": "pässwörd"}, follow_redirects=False)
+        self.assertEqual(r.status_code, 303)
+        self.assertIn("error=1", r.headers.get("location", ""))
+
+    def test_session_cookie_is_not_a_bare_hash_of_the_key(self):
+        import hashlib
+        c = self._client("s3cret")
+        r = c.post("/login", data={"token": "s3cret"}, follow_redirects=False)
+        val = r.cookies.get("desk_session")
+        self.assertTrue(val)
+        self.assertNotEqual(val, hashlib.sha256(b"desk::s3cret").hexdigest())
+
+    def test_cookies_are_secure_only_over_https(self):
+        c = self._client("s3cret")
+        plain = c.post("/login", data={"token": "s3cret"}, follow_redirects=False)
+        self.assertNotIn("secure", plain.headers.get("set-cookie", "").lower())
+        c2 = self._client("s3cret")
+        tls = c2.post("/login", data={"token": "s3cret"}, follow_redirects=False,
+                      headers={"x-forwarded-proto": "https"})
+        self.assertIn("secure", tls.headers.get("set-cookie", "").lower())
+
 
 class DevicePairing(unittest.TestCase):
     """Only a paired device should open without a key."""
