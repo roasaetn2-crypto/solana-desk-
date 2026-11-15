@@ -127,7 +127,12 @@ body.ai-open .ai-fab { display: none; }
 .ai-set-r { display: flex; justify-content: space-between; gap: 10px; padding: 9px 10px; border: 1px solid var(--ai-line);
   border-radius: 10px; margin-bottom: 6px; background: var(--ai-card); font-size: 13px; }
 .ai-set-r .l small { display: block; color: #7d7690; font-size: 10.5px; margin-top: 2px; }
-.ai-set-r .v { font-family: ui-monospace, monospace; color: #fff; white-space: nowrap; align-self: center; }
+.ai-set-r .v { font-family: ui-monospace, monospace; color: #fff; white-space: nowrap; align-self: center;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.ai-set-opts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.ai-set-opts button { border: 1px solid rgba(153,69,255,.55); background: #1b1030; color: #d9c9ff;
+  border-radius: 999px; padding: 4px 10px; font: 700 11px var(--sans); cursor: pointer; white-space: nowrap; }
+.ai-set-opts button:hover, .ai-set-opts button:focus { border-color: var(--ai-teal); color: #fff; }
 .ai-set-note { font-size: 12px; color: var(--muted); padding: 8px 2px; line-height: 1.5; }
 .ai-set-presets { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0; }
 .ai-set-presets button { flex: 1 1 30%; min-height: 42px; border-radius: 12px; border: 1px solid rgba(20,241,149,.45); background: #0d1f1a;

@@ -145,8 +145,16 @@
           types[x.key] = x.type;
           const lim = x.type === "choice" ? (x.choices || []).join(" / ") : x.type === "bool" ? "on / off"
             : `${fmt(x.min, x.type, x.unit)} – ${fmt(x.max, x.type, x.unit)}`;
+          // Choice settings (e.g. the exit ladder fast/patient/slow/single) get
+          // tappable buttons so they are actually reachable from Options, not
+          // just displayed. Tapping one proposes the value; Confirm still applies.
+          let opts = "";
+          if (x.type === "choice") {
+            opts = `<div class="ai-set-opts">` + (x.choices || []).filter((c) => c !== x.current)
+              .map((c) => `<button type="button" data-set="${esc(x.key)}" data-val="${esc(c)}">${esc(c)}</button>`).join("") + `</div>`;
+          }
           h += `<div class="ai-set-r"><div class="l">${esc(x.label)}<small>${esc(x.key)} · ${esc(lim)}</small></div>
-            <div class="v">${esc(fmt(x.current, x.type, x.unit))}</div></div>`;
+            <div class="v">${esc(fmt(x.current, x.type, x.unit))}${opts}</div></div>`;
         });
       });
       h += `<div class="ai-set-note">Locked here (never proposable): ${esc((d.excluded || []).join(", "))}.</div>`;
@@ -159,6 +167,7 @@
   function closeSettings() { setPanel.hidden = true; }
   const recommend = () => { closeSettings(); post("/api/ai/recommend", {}, "✨ Recommend settings"); };
   const preset = (k, label) => { closeSettings(); post("/api/proposals", { preset: k }, label || k); };
+  const setValue = (key, val) => { closeSettings(); post("/api/proposals", { values: { [key]: val }, title: key }, `Set ${key} \u2192 ${val}`); };
 
   function render() {
     const intro = {
@@ -298,7 +307,10 @@
     else if (b.id === "aiSettingsBtn") openSettings();
     else if (b.dataset.preset) preset(b.dataset.preset, b.textContent.trim());
   });
-  setBody.addEventListener("click", (e) => { const b = e.target.closest("button[data-preset]"); if (b) preset(b.dataset.preset, b.textContent.trim()); });
+  setBody.addEventListener("click", (e) => {
+    const pb = e.target.closest("button[data-preset]"); if (pb) { preset(pb.dataset.preset, pb.textContent.trim()); return; }
+    const sb = e.target.closest("button[data-set]"); if (sb) setValue(sb.dataset.set, sb.dataset.val);
+  });
   document.getElementById("aiSetBack").onclick = closeSettings;
   document.getElementById("aiSetRec").onclick = recommend;
   const clearBtn = document.getElementById("aiClear");

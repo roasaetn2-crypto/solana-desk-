@@ -137,6 +137,28 @@ def active_ladder() -> dict:
     return ladder_info()["ladder"]
 
 
+def current_ladder() -> str:
+    """Name of the ladder actually in force right now (env -> config -> default)."""
+    return ladder_info()["name"]
+
+
+def set_ladder(name: str) -> str:
+    """Operator-chosen ladder, applied live and persisted by desk.settings.
+
+    BRAIN_EXIT_LADDER (env) outranks config.py, so a choice made in the dashboard
+    must clear the env override or it would silently do nothing. This writes
+    config.MEME["exit_ladder"] and drops the env var, then returns the name now
+    in force. Raises ValueError on an unknown name so the settings layer can
+    reject it cleanly instead of storing a typo.
+    """
+    n = str(name or "").strip().lower()
+    if n not in LADDERS:
+        raise ValueError(f"unknown ladder '{str(name)[:20]}'; pick one of {', '.join(sorted(LADDERS))}")
+    MEME["exit_ladder"] = n
+    os.environ.pop("BRAIN_EXIT_LADDER", None)
+    return n
+
+
 EXIT_OVERRIDES = dict(LADDERS[DEFAULT_LADDER])
 
 

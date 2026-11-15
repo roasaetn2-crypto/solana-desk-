@@ -24,6 +24,7 @@ from typing import Any, Callable
 
 import config
 from config import AGENT, ENTRY, EXITS, MEME, PAPER, RISK, SCAN, SIGNAL
+from desk import meme_tactics
 from desk.ops import data_file
 
 PROPOSAL_TTL_S = 24 * 3600
@@ -258,6 +259,28 @@ _R += [
                  "saved to .env, so re-apply it after a restart."),
 ]
 _R += [
+    # ---------- exit ladder (the TP geometry that actually runs) ----------
+    # The pullback package ships its own ladder (fast/patient/slow/single) and,
+    # while MEME["pullback_entry"] is on, it OVERRIDES the per-profile scalp/swing
+    # take-profit rungs in exits.profile(). That made the visible "Scalp TP1/TP2"
+    # rows look editable but do nothing. This setting exposes the ladder that is
+    # really in force, so "fast" (and the rest) can be chosen from the dashboard.
+    Setting("exits.ladder", "Exit ladder", "Exits", "choice",
+            lambda: meme_tactics.current_ladder(),
+            lambda v: meme_tactics.set_ladder(str(v)),
+            choices=("fast", "patient", "slow", "single"),
+            help="the take-profit geometry applied to every trade while the pullback package "
+                 "is on. fast = TP1 +25% (sell 50%), TP2 +60%, trail 15%, stop 30%. "
+                 "patient = TP1 +100%, TP2 +200%, trail 20%. slow = TP1 +50%, TP2 +100%. "
+                 "single = one TP +35% then trail. Changing this clears any BRAIN_EXIT_LADDER "
+                 "env override so the choice actually takes effect."),
+    Setting("meme.pullback_entry", "Pullback entry + ladder", "Entry", "bool",
+            lambda: bool(MEME.get("pullback_entry", False)),
+            lambda v: MEME.__setitem__("pullback_entry", bool(v)),
+            help="ON (default): only buy >=20% below the 20-bar high, and the Exit ladder above "
+                 "overrides the per-profile TP rungs. OFF: entries no longer wait for a dip AND "
+                 "the ladder stops overriding, so the Scalp/Swing TP1/TP2/trail rows take over. "
+                 "Turn OFF only if you want the profile ladders to be the source of truth."),
     # ---------- take-profit mode (operator-selectable) ----------
     Setting("exits.tp_plan", "Take-profit plan", "Exits", "choice",
             lambda: str(EXITS.get("take_profit_mode") or "profile"),
@@ -310,7 +333,8 @@ for _k in REGISTRY:  # belt and braces: nothing excluded may sneak into the regi
 
 _ALIASES = {"stop_loss": "exits.scalp.stop_pct", "stop": "exits.scalp.stop_pct", "risk": "risk.max_risk_per_trade",
             "style": "trading.style", "min_score": "analyst.valid_score", "max_positions": "risk.max_open_positions",
-            "daily_loss": "risk.max_daily_loss_pct", "risk_budget": "risk.risk_budget_usd", "enforce_budget": "risk.enforce_risk_budget", "trailing_stop": "exits.scalp.trail_pct"}
+            "daily_loss": "risk.max_daily_loss_pct", "risk_budget": "risk.risk_budget_usd", "enforce_budget": "risk.enforce_risk_budget", "trailing_stop": "exits.scalp.trail_pct",
+            "ladder": "exits.ladder", "exit_ladder": "exits.ladder"}
 
 # ---------- presets: one card, every value that changes ----------
 PRESETS: dict[str, dict] = {
@@ -319,20 +343,20 @@ PRESETS: dict[str, dict] = {
                 # can never leave scalper mode without its 1.3x/1.8x ladder. The
                 # fractions are pinned too, so a tampered value cannot neuter TP.
                 "values": {"trading.style": "scalp", "scan.max_age_hours": 6, "exits.scalp_max_age_hours": 6,
-                           "exits.tp_plan": "profile",
+                           "exits.tp_plan": "profile", "exits.ladder": "fast",
                            "exits.scalp.stop_pct": 0.15, "exits.scalp.tp1_at": 1.3, "exits.scalp.tp2_at": 1.8,
                            "exits.scalp.tp1_frac": 0.33, "exits.scalp.tp2_frac": 0.5,
                            "exits.scalp.trail_pct": 0.15, "exits.scalp.timeout_hours": 1.5,
                            "exits.scalp.max_hold_hours": 4, "agent.cycle_seconds": 30}},
     "swing": {"label": "Swing mode", "reason": "Swing only: coins older than the scalp window, wider stop, 4h max hold.",
               "values": {"trading.style": "swing", "scan.max_age_hours": 72, "exits.scalp_max_age_hours": 6,
-                         "exits.tp_plan": "profile",
+                         "exits.tp_plan": "profile", "exits.ladder": "patient",
                          "exits.swing.stop_pct": 0.30, "exits.swing.tp1_at": 1.5, "exits.swing.tp2_at": 2.5,
                          "exits.swing.trail_pct": 0.30, "exits.swing.timeout_hours": 3,
                          "exits.swing.max_hold_hours": 4}},
     "balanced": {"label": "Both (desk default)", "reason": "Back to the desk's default mix: scalp young coins, swing older ones.",
                  "values": {"trading.style": "both", "scan.max_age_hours": 48, "exits.scalp_max_age_hours": 6.0,
-                            "exits.tp_plan": "profile",
+                            "exits.tp_plan": "profile", "exits.ladder": "fast",
                             "exits.scalp.stop_pct": 0.20, "exits.scalp.tp1_at": 1.5, "exits.scalp.tp2_at": 2.0,
                             "exits.scalp.tp1_frac": 0.33, "exits.scalp.tp2_frac": 0.5,
                             "exits.scalp.trail_pct": 0.20, "exits.scalp.timeout_hours": 3.0,
