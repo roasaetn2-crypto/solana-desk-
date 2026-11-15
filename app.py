@@ -126,6 +126,9 @@ BUILD_FEATURES = {
 }
 
 
+_ASSET_HASH_CACHE: dict = {}
+
+
 def _asset_version() -> str:
     """A cache-buster derived from the files themselves.
 
@@ -139,11 +142,22 @@ def _asset_version() -> str:
     # ai-chat.css belongs here: the Desk AI view (settings panel, preset row)
     # is styled entirely by it, so leaving it out meant a CSS-only fix shipped
     # behind a stale cache and the change looked like it had never landed.
+    #
+    # Hash the BYTES, not size+mtime. A git clone stamps every file with the
+    # checkout time, so an mtime-derived version differed on the phone from the
+    # one on the machine that built it -- which made the header chip useless for
+    # the one thing it exists to answer: "is this the same code?"
     for name in ("app.js", "styles.css", "ai-chat.css"):
         f = WEB / name
         try:
             st = f.stat()
-            h.update(f"{name}:{st.st_size}:{int(st.st_mtime)}".encode())
+            key = (str(f), st.st_size, int(st.st_mtime))
+            digest = _ASSET_HASH_CACHE.get(key)
+            if digest is None:
+                digest = hashlib.sha256(f.read_bytes()).hexdigest()
+                _ASSET_HASH_CACHE.clear()
+                _ASSET_HASH_CACHE[key] = digest
+            h.update(f"{name}:{digest}".encode())
         except OSError:
             h.update(f"{name}:missing".encode())
     return h.hexdigest()[:10]
