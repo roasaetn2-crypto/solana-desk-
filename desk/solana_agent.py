@@ -602,14 +602,18 @@ class SolanaAgent:
             try:
                 try:
                     import tracemalloc as _tm
+                    import os as _os
                     _cur, _peak = _tm.get_traced_memory()
-                    _snap = _tm.take_snapshot()
+                    try:
+                        _fds = len(_os.listdir("/proc/self/fd"))
+                    except Exception:
+                        _fds = -1
+                    try:
+                        _thr = len(_os.listdir("/proc/self/task"))
+                    except Exception:
+                        _thr = -1
                     print(f"[desk] mem: token {t.get('symbol')} rss={rss_mb()}MB objs={len(gc.get_objects())} "
-                          f"traced_cur={_cur//1024}KB traced_peak={_peak//1024}KB", flush=True)
-                    for _st in _snap.statistics("traceback")[:4]:
-                        print(f"[desk] mem:   {_st.size//1024}KB count={_st.count}", flush=True)
-                        for _ln in _st.traceback.format()[-6:]:
-                            print(f"[desk] mem:     {_ln.strip()[:160]}", flush=True)
+                          f"fds={_fds} threads={_thr} traced_cur={_cur//1024}KB traced_peak={_peak//1024}KB", flush=True)
                 except Exception as _e:
                     print(f"[desk] mem: token {t.get('symbol')} probe failed {_e}", flush=True)
                 with self.lock:
