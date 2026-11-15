@@ -37,9 +37,12 @@ Endpoints
     POST /api/ai/chat          Desk AI: advisory answer; may return PENDING setting proposals
     POST /api/ai/chat/clear    wipe the persisted Desk AI conversation
     POST /api/ai/recommend     Desk AI: recommend paper settings from recent performance (pending only)
-    GET  /api/settings         every proposable PAPER setting: value, type, bounds; exclusions
+    GET  /api/settings         every setting this session may propose: value, type, bounds.
+                               An owner session also gets the owner-only registry (bankroll,
+                               live caps, scam/dev kills, loop budgets); secrets never appear.
     GET  /api/proposals        pending + recent setting proposals
-    POST /api/proposals        operator preset (scalper / swing / balanced) -> pending proposal
+    POST /api/proposals        operator preset (scalper / swing / balanced) or explicit values
+                               -> pending proposal (owner-only keys accepted only for an owner)
     POST /api/proposals/{id}/confirm   apply a proposal (re-validated, persisted, journaled)
     POST /api/proposals/{id}/reject    drop a proposal (journaled)
     POST /api/agent/step       run exactly one cycle (query: ?demo=1)
@@ -153,6 +156,24 @@ def _authed(request: Request) -> bool:
     if not DESK_TOKEN:
         return True
     return _master(request) or _device(request) is not None
+
+
+def _owner(request: Request) -> bool:
+    """The owner is whoever has proved the desk key.
+
+    Both ways in prove it: typing DESK_TOKEN at /login, and pairing a device
+    (which also needs the key). So a signed-in browser and a paired phone are
+    both owners and both see the full settings list. What "owner" buys is the
+    owner-only registry -- the bankroll, the live caps, the scam/dev kills, the
+    quote confirmation and the loop budgets -- which the Desk AI and an
+    unauthenticated caller can never propose.
+
+    It does NOT buy the two things nobody gets through this path: secrets (the
+    module refuses them before any role check) and the mode switch (its own
+    endpoint, which still demands the confirm phrase and live_mod.ready()).
+    With no DESK_TOKEN the desk is open, so the open desk counts as the owner.
+    """
+    return _authed(request)
 
 
 LOGIN_HTML = (WEB / "login.html").read_text(encoding="utf-8")
@@ -309,6 +330,7 @@ def state(request: Request):
     snap["access"] = {
         "locked": bool(DESK_TOKEN),
         "mode": "device" if dev else ("key" if _master(request) else "open"),
+        "owner": _owner(request),
         "device": dev["name"] if dev else None,
         "paired_devices": devices.count(),
     }
@@ -560,15 +582,15 @@ def ai_recommend():
 
 def _who(request: Request) -> str:
     dev = _device(request)
-    if dev:
+    if dev and not _master(request):
         return f"device:{dev['name']}"[:40]
-    return "operator key" if DESK_TOKEN else "open desk"
+    return "owner" if DESK_TOKEN else "open desk"
 
 
 @app.get("/api/settings")
-def get_settings():
+def get_settings(request: Request):
     from desk import settings as desk_settings
-    return desk_settings.snapshot()
+    return desk_settings.snapshot(owner=_owner(request))
 
 
 @app.get("/api/proposals")
@@ -578,13 +600,19 @@ def get_proposals():
 
 
 @app.post("/api/proposals")
-def new_proposal(payload: dict = Body(...)):
-    """Operator-made proposal from a preset button. Still needs Confirm."""
+def new_proposal(request: Request, payload: dict = Body(...)):
+    """Operator-made proposal from a preset button or an explicit value.
+
+    Still needs Confirm. An owner session may name owner-only settings here;
+    a paired device gets them dropped with a reason, exactly like the AI does.
+    """
     from desk import settings as desk_settings
     payload = payload or {}
+    owner = _owner(request)
     values = payload.get("values")
     if isinstance(values, dict) and values:
-        out = desk_settings.create_values(values, str(payload.get("title") or "Operator change")[:80])
+        out = desk_settings.create_values(values, str(payload.get("title") or "Operator change")[:80],
+                                          owner=owner)
     else:
         preset = str(payload.get("preset", ""))[:20]
         out = desk_settings.create_preset(preset, "operator")
@@ -595,6 +623,9 @@ def new_proposal(payload: dict = Body(...)):
 def confirm_proposal(pid: str, request: Request):
     from desk import settings as desk_settings
     who = _who(request)
+    if desk_settings.proposal_owner(pid[:20]) and not _owner(request):
+        return JSONResponse({"ok": False, "error": "this is an owner-only change; sign in with the desk key to confirm it"},
+                            status_code=403)
     out = desk_settings.confirm(pid[:20], who)
     if out.get("ok"):
         agent.emit("warn", "settings confirmed by " + who + ": " + ", ".join(

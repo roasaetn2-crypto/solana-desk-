@@ -137,6 +137,9 @@
       if (!r.ok) { setBody.innerHTML = '<div class="ai-set-note">Sign in again to see settings.</div>'; return; }
       const d = await r.json();
       let h = '<div class="ai-set-note">Current PAPER values with their hard limits. To change one, ask Desk AI (e.g. "set scalp stop loss to 15%"), tap Recommend, or pick a style below. Every change needs your Confirm.</div>';
+      if (d.owner) {
+        h += '<div class="ai-set-note ai-set-own">Owner session: every setting is editable here, including the bankroll, live caps and the scam/dev kills. Changes are still proposals until you tap Confirm, and every one is journaled.</div>';
+      }
       h += '<div class="ai-set-g">TRADING STYLE PRESETS</div><div class="ai-set-presets">' +
         Object.entries(d.presets || {}).map(([k, v]) => `<button type="button" data-preset="${esc(k)}">${esc(v.label)}</button>`).join("") + "</div>";
       Object.entries(d.groups || {}).forEach(([g, list]) => {
@@ -152,6 +155,21 @@
           if (x.type === "choice") {
             opts = `<div class="ai-set-opts">` + (x.choices || []).filter((c) => c !== x.current)
               .map((c) => `<button type="button" data-set="${esc(x.key)}" data-val="${esc(c)}">${esc(c)}</button>`).join("") + `</div>`;
+          } else if (x.type === "bool") {
+            // A bool has no meaningful "number", so give it a single toggle.
+            opts = `<div class="ai-set-opts"><button type="button" data-set="${esc(x.key)}" data-val="${x.current ? "false" : "true"}">turn ${x.current ? "off" : "on"}</button></div>`;
+          } else if (d.owner) {
+            // Owner session: numeric settings get a real input. Percent settings
+            // are shown and typed as percent (15 = 15%) and sent with a "%" so
+            // the server's coerce() divides exactly once.
+            const isPct = x.type === "pct";
+            const shown = isPct ? +(x.current * 100).toFixed(2) : x.current;
+            const lo = isPct ? +(x.min * 100).toFixed(2) : x.min;
+            const hi = isPct ? +(x.max * 100).toFixed(2) : x.max;
+            const step = x.type === "int" ? "1" : "0.01";
+            opts = `<div class="ai-set-edit"><input type="number" inputmode="decimal" step="${step}"`
+              + ` min="${lo}" max="${hi}" value="${shown}" data-num="${esc(x.key)}" data-kind="${esc(x.type)}"`
+              + ` aria-label="${esc(x.label)}"><button type="button" data-send="${esc(x.key)}">Set</button></div>`;
           }
           h += `<div class="ai-set-r"><div class="l">${esc(x.label)}<small>${esc(x.key)} · ${esc(lim)}</small></div>
             <div class="v">${esc(fmt(x.current, x.type, x.unit))}${opts}</div></div>`;
@@ -309,7 +327,25 @@
   });
   setBody.addEventListener("click", (e) => {
     const pb = e.target.closest("button[data-preset]"); if (pb) { preset(pb.dataset.preset, pb.textContent.trim()); return; }
-    const sb = e.target.closest("button[data-set]"); if (sb) setValue(sb.dataset.set, sb.dataset.val);
+    const sb = e.target.closest("button[data-set]"); if (sb) { setValue(sb.dataset.set, sb.dataset.val); return; }
+    const nb = e.target.closest("button[data-send]");
+    if (nb) {
+      const key = nb.dataset.send;
+      const inp = setBody.querySelector(`input[data-num="${key.replace(/"/g, '\\"')}"]`);
+      if (!inp || inp.value === "") return;
+      // Percent fields are typed as percent; send "15%" so the server divides once.
+      const val = inp.dataset.kind === "pct" ? `${inp.value}%` : inp.value;
+      setValue(key, val);
+    }
+  });
+  // Enter inside a numeric field sets it, same as tapping Set.
+  setBody.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    const inp = e.target.closest("input[data-num]");
+    if (!inp) return;
+    e.preventDefault();
+    const btn = inp.parentElement.querySelector("button[data-send]");
+    if (btn) btn.click();
   });
   document.getElementById("aiSetBack").onclick = closeSettings;
   document.getElementById("aiSetRec").onclick = recommend;

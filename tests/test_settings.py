@@ -10,7 +10,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import config                                             # noqa: E402
-from config import EXITS, RISK, SCAN                      # noqa: E402
+from config import EXITS, PAPER, RISK, SCAN               # noqa: E402
 from desk import desk_chat as dc                          # noqa: E402
 from desk import settings as st                           # noqa: E402
 from desk.brain_advisor import ADVISOR                    # noqa: E402
@@ -213,6 +213,80 @@ class ChatProposals(Base):
             self.assertNotIn(v, seen["p"])
 
 
+class Owner(Base):
+    """An owner session (the DESK_TOKEN login) may reach the owner-only registry.
+
+    Everything still goes through a pending proposal + Confirm, secrets are
+    still refused, and the mode switch is still not a setting.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.owner_saved = {k: s.get() for k, s in st.OWNER_REGISTRY.items()}
+
+    def tearDown(self):
+        for k, v in self.owner_saved.items():
+            st.OWNER_REGISTRY[k].set(v)
+        super().tearDown()
+
+    def test_owner_registry_is_not_public(self):
+        for k in ("paper.starting_equity_usd", "execution.live_max_trade_usd",
+                  "chain.max_top_10", "meme.max_dev_hold_pct", "entry.require_confirm_quote"):
+            self.assertNotIn(k, st.REGISTRY)
+            self.assertIn(k, st.OWNER_REGISTRY)
+            with self.assertRaises(st.Rejected):
+                st.resolve(k)
+            self.assertEqual(st.resolve(k, owner=True).key, k)
+
+    def test_secrets_and_mode_refused_even_for_owner(self):
+        for k in ("SOLANA_PRIVATE_KEY", "GEMINI_API_KEY", "desk_token",
+                  "execution.live_confirm_phrase", "desk.mode", "mode"):
+            with self.assertRaises(st.Rejected, msg=k):
+                st.resolve(k, owner=True)
+
+    def test_owner_bankroll_proposal_confirm_persists_and_journals(self):
+        out = st.create_values({"paper.starting_equity_usd": 80}, owner=True)
+        self.assertTrue(out["ok"], out)
+        self.assertTrue(out["proposal"]["owner"])
+        self.assertEqual(PAPER["starting_equity_usd"], 50)   # not applied yet
+        r = st.confirm(out["proposal"]["id"], "owner")
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(PAPER["starting_equity_usd"], 80)
+        saved = json.loads((Path(self.tmp.name) / "operator_settings.json").read_text())
+        self.assertEqual(saved["values"]["paper.starting_equity_usd"], 80)
+        rows = [json.loads(x) for x in (Path(self.tmp.name) / "journal.jsonl").read_text().splitlines()]
+        row = [x for x in rows if x["kind"] == "settings_change"][-1]
+        self.assertTrue(row["owner"])
+        # survives a restart
+        PAPER["starting_equity_usd"] = 50
+        st.apply_saved()
+        self.assertEqual(PAPER["starting_equity_usd"], 80)
+
+    def test_non_owner_proposal_drops_owner_settings(self):
+        out = st.create_values({"paper.starting_equity_usd": 80,
+                                "risk.max_open_positions": 3}, owner=False)
+        self.assertTrue(out["ok"])
+        self.assertEqual([c["setting"] for c in out["proposal"]["changes"]], ["risk.max_open_positions"])
+        self.assertFalse(out["proposal"]["owner"])
+        self.assertTrue(any("owner-only" in d["why"] for d in out["proposal"]["dropped"]))
+
+    def test_owner_snapshot_lists_owner_groups_and_never_secrets(self):
+        s = st.snapshot(owner=True)
+        self.assertTrue(s["owner"])
+        self.assertIn("Owner \u00b7 Bankroll", s["groups"])
+        self.assertIn("Owner \u00b7 Live caps", s["groups"])
+        blob = json.dumps(s)
+        for secret in ("SOLANA_PRIVATE_KEY", "GEMINI_API_KEY", "DESK_TOKEN", "confirm_phrase"):
+            self.assertNotIn(secret, blob)
+        self.assertIn("desk.mode", s["excluded"])
+
+    def test_owner_cross_check_still_applies(self):
+        ok, dropped = st.validate_changes([{"setting": "scan.min_mcap_usd", "proposed": 3_000_000},
+                                           {"setting": "scan.max_mcap_usd", "proposed": 2_000_000}], owner=True)
+        self.assertEqual(ok, [])
+        self.assertTrue(any("min market cap" in d["why"] for d in dropped))
+
+
 class Endpoints(Base):
     def _client(self, token):
         os.environ.pop("DESK_TOKEN", None)
@@ -262,6 +336,45 @@ class Endpoints(Base):
         lst = c.get("/api/proposals").json()
         self.assertEqual(lst["pending"], [])
         self.assertNotIn("s3cretSETTINGS", json.dumps(lst))
+
+    def test_signed_in_owner_sees_and_can_propose_owner_settings(self):
+        c = self._client("s3cretSETTINGS")
+        c.post("/login", data={"token": "s3cretSETTINGS"}, follow_redirects=False)
+        s = c.get("/api/settings").json()
+        self.assertTrue(s["owner"])
+        self.assertIn("Owner \u00b7 Bankroll", s["groups"])
+        r = c.post("/api/proposals", json={"values": {"paper.starting_equity_usd": 75}})
+        self.assertEqual(r.status_code, 200, r.text)
+        pid = r.json()["proposal"]["id"]
+        self.assertTrue(r.json()["proposal"]["owner"])
+        self.assertEqual(c.post(f"/api/proposals/{pid}/confirm").status_code, 200)
+        self.assertEqual(PAPER["starting_equity_usd"], 75)
+
+    def test_paired_device_is_owner_but_unauthenticated_is_not(self):
+        # Pairing needs the key, so a paired phone is an owner: it sees and can
+        # change the owner-only settings. The desk AI is not an owner, and an
+        # unauthenticated caller cannot even read the list.
+        phone = self._client("s3cretSETTINGS")
+        phone.post("/pair", data={"name": "phone", "token": "s3cretSETTINGS"}, follow_redirects=False)
+        s = phone.get("/api/settings").json()
+        self.assertTrue(s["owner"])
+        self.assertIn("Owner \u00b7 Bankroll", s["groups"])
+        r = phone.post("/api/proposals", json={"values": {"paper.starting_equity_usd": 90}})
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(phone.post(f"/api/proposals/{r.json()['proposal']['id']}/confirm").status_code, 200)
+        self.assertEqual(PAPER["starting_equity_usd"], 90)
+
+        anon = self._client("s3cretSETTINGS")
+        self.assertEqual(anon.get("/api/settings").status_code, 401)
+
+    def test_ai_proposal_cannot_reach_owner_settings(self):
+        # The Desk AI path calls create() with owner=False, so an owner-only key
+        # is dropped exactly like the old exclusions were.
+        out = st.create([{"setting": "execution.live_max_trade_usd", "proposed": 200},
+                         {"setting": "risk.max_open_positions", "proposed": 4}], "x", "desk_ai")
+        self.assertTrue(out["ok"])
+        self.assertEqual([c["setting"] for c in out["proposal"]["changes"]], ["risk.max_open_positions"])
+        self.assertTrue(any("owner-only" in d["why"] for d in out["proposal"]["dropped"]))
 
     def test_chat_creates_pending_only(self):
         c = self._client(None)

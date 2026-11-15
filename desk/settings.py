@@ -5,11 +5,24 @@ taps Confirm, which re-validates every value against the registry bounds below, 
 the running paper config, persists it (local file + Turso kv when configured) so it survives a
 redeploy, and journals it as a "settings_change" row.
 
-Never proposable or changeable through this path (not in the registry, and refused by name):
-  * desk.mode / execution / anything live (EXECUTION, live caps, the confirm phrase)
-  * the scam and dev kills (CHAIN mint/freeze authority, top wallet, top 10; MEME dev hold,
-    sniper share, creator prior rugs; ENTRY.require_confirm_quote)
-  * keys, tokens, secrets, SOLANA_PRIVATE_KEY, and the paper bankroll (starting equity)
+Two tiers of setting:
+
+  * PUBLIC (REGISTRY). The Desk AI, a preset, and any signed-in browser may propose
+    these. They are the trading knobs: style, risk, exits, scanner gates, signal.
+  * OWNER (OWNER_REGISTRY). Only an owner session (see app._owner) may propose these:
+    the paper bankroll, the live caps, the chain scam kills, the dev/sniper kills,
+    the quote confirmation, and the loop's call budgets. The AI never sees them and
+    create() drops them unless owner=True.
+
+Neither tier can ever reach:
+  * secrets: keys, tokens, passwords, SOLANA_PRIVATE_KEY, the live confirm phrase
+    (refused by _SECRET_RE before any role check; never listed in a snapshot)
+  * desk.mode: the mode switch is its own endpoint and still needs the confirm
+    phrase and live_mod.ready(), so no settings proposal can arm live trading.
+
+Every change in either tier is still a PENDING proposal that must be Confirmed,
+is re-validated against the registry bounds, and is journaled as settings_change
+with owner=True/False so the audit trail shows who changed what.
 """
 from __future__ import annotations
 
@@ -19,11 +32,11 @@ import re
 import threading
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Callable
 
 import config
-from config import AGENT, ENTRY, EXITS, MEME, PAPER, RISK, SCAN, SIGNAL
+from config import AGENT, CHAIN, ENTRY, EXECUTION, EXITS, MEME, PAPER, RISK, SCAN, SIGNAL
 from desk import meme_tactics
 from desk.ops import data_file
 
@@ -44,6 +57,20 @@ EXCLUDED = (
     "meme.max_creator_prev_rugs", "entry.require_confirm_quote", "paper.starting_equity_usd",
 )
 
+# A secret is refused for EVERY role, owner included. There is no code path in
+# this module that can read a key back out or write one in: the desk reads keys
+# from the environment at boot and never exposes them. Matched against the key.
+_SECRET_RE = re.compile(
+    r"(private|secret|token|password|passphrase|api_?key|confirm_phrase|seed|mnemonic"
+    r"|(^|[._])key($|[._]))", re.I)
+SECRETS = ("SOLANA_PRIVATE_KEY", "GEMINI_API_KEY", "GROQ_API_KEY", "HELIUS_API_KEY",
+           "DESK_TOKEN", "the live confirm phrase", "any paired-device token")
+
+# What an owner still cannot reach through the settings path, and why.
+OWNER_EXCLUDED = (
+    "desk.mode", "keys / tokens / secrets", "the live confirm phrase",
+)
+
 
 @dataclass(frozen=True)
 class Setting:
@@ -58,6 +85,7 @@ class Setting:
     choices: tuple = ()
     unit: str = ""
     help: str = ""
+    owner_only: bool = False   # reachable only through an owner session
 
     def coerce(self, v: Any) -> tuple[Any, str | None]:
         """(value clamped into bounds, note) or raise ValueError when it can't be read at all."""
@@ -140,6 +168,11 @@ def _prof(name: str, k: str):
 def _num(key, label, group, kind, getset, lo, hi, unit="", help=""):
     g, s = getset
     return Setting(key, label, group, kind, g, s, lo, hi, (), unit, help)
+
+
+def _own(key, label, group, kind, getset, lo, hi, unit="", help=""):
+    """A setting only an owner session may propose (still needs Confirm)."""
+    return replace(_num(key, label, group, kind, getset, lo, hi, unit, help), owner_only=True)
 
 
 EXITS.setdefault("style", "both")
@@ -331,6 +364,92 @@ REGISTRY: dict[str, Setting] = {s.key: s for s in _R}
 for _k in REGISTRY:  # belt and braces: nothing excluded may sneak into the registry
     assert not _EXCLUDED_RE.search(_k), _k
 
+# ---------------------------------------------------------------------------
+# OWNER-ONLY SETTINGS
+# ---------------------------------------------------------------------------
+# These are the knobs the AI and a paired phone are deliberately kept away
+# from: the paper bankroll, the live caps, the scam/dev kills, the quote
+# confirmation, and the loop's call budgets. They are reachable ONLY from the
+# master session (the DESK_TOKEN login), and even then a change is still a
+# pending proposal that must be Confirmed and is journaled. Nothing here can
+# arm live trading: /api/mode still demands EXECUTION["live_confirm_phrase"]
+# and live_mod.ready(), and no secret is ever settable or readable.
+_OWNER_R: list[Setting] = [
+    # bankroll
+    _own("paper.starting_equity_usd", "Paper starting equity", "Owner \u00b7 Bankroll", "float",
+         _d(PAPER, "starting_equity_usd"), 5.0, 100_000.0, "USD",
+         "the paper book's starting balance. Changing it does NOT rewrite the ledger; "
+         "reset the desk if you want a clean run from the new number."),
+    # live caps (arming still needs the phrase)
+    _own("execution.live_max_trade_usd", "Live max per trade", "Owner \u00b7 Live caps", "float",
+         _d(EXECUTION, "live_max_trade_usd"), 1.0, 500.0, "USD",
+         "hard per-ticket cap for real money. Live arming still needs the confirm phrase."),
+    _own("execution.live_max_notional_usd", "Live max notional", "Owner \u00b7 Live caps", "float",
+         _d(EXECUTION, "live_max_notional_usd"), 1.0, 5_000.0, "USD",
+         "total real-money notional the desk may hold at once."),
+    _own("execution.live_daily_loss_pct", "Live daily loss stop", "Owner \u00b7 Live caps", "pct",
+         _d(EXECUTION, "live_daily_loss_pct"), 0.005, 0.25, "of book",
+         "real-money daily stop. This one is never disabled by the paper override."),
+    _own("execution.live_max_slippage_bps", "Live max slippage", "Owner \u00b7 Live caps", "int",
+         _d(EXECUTION, "live_max_slippage_bps", int), 10, 2_000, "bps",
+         "a live fill worse than this is refused rather than chased."),
+    # chain kills
+    _own("chain.max_top_wallet", "Max top-wallet share", "Owner \u00b7 Chain kills", "pct",
+         _d(CHAIN, "max_top_wallet"), 0.01, 1.0, "of supply",
+         "refuse a coin whose largest wallet holds more than this."),
+    _own("chain.max_top_10", "Max top-10 share", "Owner \u00b7 Chain kills", "pct",
+         _d(CHAIN, "max_top_10"), 0.05, 1.0, "of supply",
+         "refuse a coin whose top 10 wallets hold more than this."),
+    Setting("chain.allow_mint_authority", "Allow mint authority", "Owner \u00b7 Chain kills", "bool",
+            lambda: bool(CHAIN.get("allow_mint_authority", False)),
+            lambda v: CHAIN.__setitem__("allow_mint_authority", bool(v)), owner_only=True,
+            help="OFF is the rug guard: a coin whose mint can still be inflated is refused. "
+                 "Turning this ON lets the dev print new supply into your position."),
+    Setting("chain.allow_freeze_authority", "Allow freeze authority", "Owner \u00b7 Chain kills", "bool",
+            lambda: bool(CHAIN.get("allow_freeze_authority", False)),
+            lambda v: CHAIN.__setitem__("allow_freeze_authority", bool(v)), owner_only=True,
+            help="OFF is the honeypot guard: a coin whose accounts can be frozen is refused. "
+                 "Turning this ON means your tokens can be locked so you cannot sell."),
+    # dev / sniper kills
+    _own("meme.max_dev_hold_pct", "Max dev holding", "Owner \u00b7 Dev kills", "pct",
+         _d(MEME, "max_dev_hold_pct"), 0.0, 0.50, "of supply"),
+    _own("meme.max_sniper_pct", "Max sniper share", "Owner \u00b7 Dev kills", "pct",
+         _d(MEME, "max_sniper_pct"), 0.0, 1.0, "of supply"),
+    _own("meme.max_creator_prev_rugs", "Max creator prior rugs", "Owner \u00b7 Dev kills", "int",
+         _d(MEME, "max_creator_prev_rugs", int), 0, 10, "rugs"),
+    # entry confirmation
+    Setting("entry.require_confirm_quote", "Require confirming quote", "Owner \u00b7 Entry", "bool",
+            lambda: bool(ENTRY.get("require_confirm_quote", True)),
+            lambda v: ENTRY.__setitem__("require_confirm_quote", bool(v)), owner_only=True,
+            help="ON: a second price source must agree before a buy. Turning it OFF removes the "
+                 "cross-check that catches stale or spoofed quotes."),
+    # risk behaviour
+    Setting("risk.flatten_on_daily_stop", "Flatten on daily stop", "Owner \u00b7 Risk", "bool",
+            lambda: bool(RISK.get("flatten_on_daily_stop", True)),
+            lambda v: RISK.__setitem__("flatten_on_daily_stop", bool(v)), owner_only=True,
+            help="ON: when the daily stop fires the desk closes what it holds. OFF: it only stops "
+                 "new entries and lets open positions run."),
+    # meme behaviour
+    Setting("meme.flash_pump_guard", "Flash-pump guard", "Owner \u00b7 Meme", "bool",
+            lambda: bool(MEME.get("flash_pump_guard", False)),
+            lambda v: MEME.__setitem__("flash_pump_guard", bool(v)), owner_only=True),
+    _own("meme.pullback_min_drop", "Pullback depth", "Owner \u00b7 Meme", "pct",
+         _d(MEME, "pullback_min_drop"), 0.05, 0.80, "below high"),
+    # scanner breadth
+    _own("scan.pages", "Scanner pages", "Owner \u00b7 Scanner", "int", _d(SCAN, "pages", int), 1, 5),
+    # loop budgets
+    _own("agent.chain_budget", "Chain calls per cycle", "Owner \u00b7 Loop", "int",
+         _d(AGENT, "chain_budget", int), 1, 100),
+    _own("agent.analyst_budget", "AI calls per cycle", "Owner \u00b7 Loop", "int",
+         _d(AGENT, "analyst_budget", int), 0, 50),
+    _own("agent.max_events", "Event buffer size", "Owner \u00b7 Loop", "int",
+         _d(AGENT, "max_events", int), 50, 2_000),
+]
+OWNER_REGISTRY: dict[str, Setting] = {s.key: s for s in _OWNER_R}
+for _k in OWNER_REGISTRY:  # no secret may ever be an owner setting
+    assert not _SECRET_RE.search(_k), _k
+    assert _k not in REGISTRY, _k
+
 _ALIASES = {"stop_loss": "exits.scalp.stop_pct", "stop": "exits.scalp.stop_pct", "risk": "risk.max_risk_per_trade",
             "style": "trading.style", "min_score": "analyst.valid_score", "max_positions": "risk.max_open_positions",
             "daily_loss": "risk.max_daily_loss_pct", "risk_budget": "risk.risk_budget_usd", "enforce_budget": "risk.enforce_risk_budget", "trailing_stop": "exits.scalp.trail_pct",
@@ -398,13 +517,22 @@ class Rejected(ValueError):
     pass
 
 
-def resolve(key: Any) -> Setting:
+def resolve(key: Any, owner: bool = False) -> Setting:
+    """Look a setting up. owner=True opens the owner-only registry.
+
+    Secrets are refused for every role: there is no branch below that can name
+    one, and _SECRET_RE runs before the owner check.
+    """
     k = str(key or "").strip()
     if not k:
         raise Rejected("no setting named")
-    if _EXCLUDED_RE.search(k) or k.lower() in ("mode", "desk.mode"):
-        raise Rejected(f"'{k[:60]}' is excluded: mode, live, kills, keys and the bankroll can't be changed here")
+    if _SECRET_RE.search(k):
+        raise Rejected(f"'{k[:60]}' is a secret: keys, tokens and the confirm phrase are never changeable here")
+    if not owner and (_EXCLUDED_RE.search(k) or k.lower() in ("mode", "desk.mode")):
+        raise Rejected(f"'{k[:60]}' is owner-only: sign in with the desk key to change it")
     s = REGISTRY.get(k) or REGISTRY.get(_ALIASES.get(k.lower(), ""))
+    if s is None and owner:
+        s = OWNER_REGISTRY.get(k)
     if s is None:
         raise Rejected(f"unknown setting '{k[:60]}'")
     return s
@@ -436,11 +564,14 @@ def _cross_check(vals: dict[str, Any]) -> list[str]:
     return bad
 
 
-def current_values() -> dict[str, Any]:
-    return {k: s.get() for k, s in REGISTRY.items()}
+def current_values(owner: bool = False) -> dict[str, Any]:
+    vals = {k: s.get() for k, s in REGISTRY.items()}
+    if owner:
+        vals.update({k: s.get() for k, s in OWNER_REGISTRY.items()})
+    return vals
 
 
-def validate_changes(raw: list[dict]) -> tuple[list[dict], list[dict]]:
+def validate_changes(raw: list[dict], owner: bool = False) -> tuple[list[dict], list[dict]]:
     """raw: [{setting, proposed, reason?}]. Returns (valid changes, dropped with reasons).
     Each valid change: {setting, label, current, proposed, note?}. No-ops are dropped."""
     ok, dropped, seen = [], [], set()
@@ -449,7 +580,7 @@ def validate_changes(raw: list[dict]) -> tuple[list[dict], list[dict]]:
             continue
         key = r.get("setting") or r.get("key")
         try:
-            s = resolve(key)
+            s = resolve(key, owner)
             v, note = s.coerce(r.get("proposed", r.get("value")))
         except (Rejected, ValueError, TypeError) as e:
             dropped.append({"setting": str(key)[:60], "why": str(e)[:160]})
@@ -467,7 +598,7 @@ def validate_changes(raw: list[dict]) -> tuple[list[dict], list[dict]]:
             c["reason"] = _clean(r.get("reason"), 160)
         ok.append(c)
     if ok:
-        vals = current_values()
+        vals = current_values(owner)
         vals.update({c["setting"]: c["proposed"] for c in ok})
         bad = _cross_check(vals)
         if bad:
@@ -536,7 +667,9 @@ def apply_saved() -> dict:
     applied = {}
     for k, v in vals.items():
         try:
-            s = resolve(k)
+            # owner=True so a confirmed owner-only value (e.g. the bankroll or a
+            # live cap) survives a redeploy. Secrets still cannot resolve.
+            s = resolve(k, owner=True)
             cv, _ = s.coerce(v)
         except (Rejected, ValueError, TypeError):
             continue
@@ -568,14 +701,20 @@ def _expire(now: float) -> None:
 
 
 def create(changes_raw: list[dict], reason: str, source: str, title: str = "",
-           preset: str | None = None) -> dict:
-    """Validate and store a PENDING proposal. Never applies anything."""
-    changes, dropped = validate_changes(changes_raw)
+           preset: str | None = None, owner: bool = False) -> dict:
+    """Validate and store a PENDING proposal. Never applies anything.
+
+    owner=True lets the proposal carry owner-only settings. It is recorded on
+    the proposal so confirm() re-validates with the same authority, and so the
+    journal shows an owner change as an owner change.
+    """
+    changes, dropped = validate_changes(changes_raw, owner)
     if not changes:
         return {"ok": False, "error": "nothing valid to propose", "dropped": dropped}
     now = _now()
     p = {"id": uuid.uuid4().hex[:12], "status": "pending", "source": str(source)[:20],
          "title": _clean(title, 60), "preset": preset, "reason": _clean(reason, 300),
+         "owner": bool(owner),
          "changes": changes, "dropped": dropped, "created": now, "created_at": _iso(now),
          "expires": now + PROPOSAL_TTL_S}
     with _lock:
@@ -600,16 +739,18 @@ def create_preset(name: str, source: str = "operator") -> dict:
     return out
 
 
-def create_values(values: dict, title: str = "Operator change", source: str = "operator") -> dict:
+def create_values(values: dict, title: str = "Operator change", source: str = "operator",
+                  owner: bool = False) -> dict:
     """Operator-made proposal from explicit {key: value} pairs (no AI needed).
 
     Still goes through validate_changes and still needs Confirm, so the audit
-    trail and the bounds are the same as an AI recommendation.
+    trail and the bounds are the same as an AI recommendation. owner=True is
+    what lets an owner session name a bankroll / live-cap / kill setting.
     """
     if not isinstance(values, dict) or not values:
         return {"ok": False, "error": "no values given"}
     raw = [{"setting": k, "proposed": v} for k, v in list(values.items())[:MAX_CHANGES]]
-    out = create(raw, "operator set " + ", ".join(sorted(values)[:4]), source, title)
+    out = create(raw, "operator set " + ", ".join(sorted(values)[:4]), source, title, owner=owner)
     if not out["ok"] and not out.get("dropped"):
         out["error"] = "those values are already what the desk runs"
     return out
@@ -621,7 +762,7 @@ def _clean(s, n):
 
 def public(p: dict) -> dict:
     return {k: p.get(k) for k in ("id", "status", "source", "title", "preset", "reason", "changes", "dropped",
-                                   "created_at", "expires", "decided_at", "decided_by", "applied", "error")}
+                                   "owner", "created_at", "expires", "decided_at", "decided_by", "applied", "error")}
 
 
 def listing(include_done: int = 10) -> dict:
@@ -640,6 +781,16 @@ def _find(pid: str) -> dict | None:
     return None
 
 
+def proposal_owner(pid: str) -> bool:
+    """True when this proposal carries owner-only settings.
+
+    The route uses it to refuse a paired device confirming an owner proposal,
+    so an owner change can never be applied by a phone that merely saw the id.
+    """
+    p = _find(str(pid))
+    return bool(p and p.get("owner"))
+
+
 def confirm(pid: str, who: str) -> dict:
     """Re-validate against today's bounds and apply. All changes or none."""
     with _lock:
@@ -650,8 +801,9 @@ def confirm(pid: str, who: str) -> dict:
             return {"ok": False, "code": 404, "error": "no such proposal"}
         if p["status"] != "pending":
             return {"ok": False, "code": 409, "error": f"proposal is {p['status']}"}
+        owner = bool(p.get("owner"))
         raw = [{"setting": c["setting"], "proposed": c["proposed"]} for c in p["changes"]]
-        changes, dropped = validate_changes(raw)
+        changes, dropped = validate_changes(raw, owner)
         if not changes or len(changes) != len(raw) or any(c.get("note") for c in changes):
             p["status"], p["decided_at"], p["decided_by"] = "invalid", _iso(now), _clean(who, 40)
             p["error"] = "; ".join(d["why"] for d in dropped)[:300] or "values no longer valid or already set"
@@ -659,7 +811,7 @@ def confirm(pid: str, who: str) -> dict:
             return {"ok": False, "code": 409, "error": p["error"], "proposal": public(p)}
         applied = []
         for c in changes:
-            s = REGISTRY[c["setting"]]
+            s = resolve(c["setting"], owner)
             old = s.get()
             s.set(c["proposed"])
             applied.append({"setting": s.key, "label": s.label, "from": old, "to": s.get()})
@@ -688,7 +840,7 @@ def reject(pid: str, who: str) -> dict:
 def _log(action: str, p: dict, who: str, applied: list[dict]) -> None:
     from desk.ops import journal
     journal("settings_change", action=action, proposal=p["id"], source=p.get("source"),
-            title=p.get("title"), by=_clean(who, 40), mode="paper",
+            title=p.get("title"), by=_clean(who, 40), owner=bool(p.get("owner")), mode="paper",
             changes=applied or [{"setting": c["setting"], "from": c["current"], "to": c["proposed"]}
                                 for c in p["changes"]])
     if action == "confirm":
@@ -698,15 +850,25 @@ def _log(action: str, p: dict, who: str, applied: list[dict]) -> None:
         print(f"[desk] settings: {who} rejected {p['id']}")
 
 
-def snapshot() -> dict:
-    """GET /api/settings: every proposable setting with value and bounds, plus exclusions."""
+def snapshot(owner: bool = False) -> dict:
+    """GET /api/settings: every setting this session may propose, with bounds.
+
+    owner=True adds the owner-only registry (bankroll, live caps, chain/dev
+    kills, entry confirmation, loop budgets) and swaps the exclusion note for
+    the two things even an owner cannot reach here: the mode switch and
+    secrets. Secrets are never listed, in any role.
+    """
     groups: dict[str, list] = {}
     for s in REGISTRY.values():
         groups.setdefault(s.group, []).append(s.describe())
-    return {"mode": "paper", "groups": groups,
+    if owner:
+        for s in OWNER_REGISTRY.values():
+            groups.setdefault(s.group, []).append(s.describe())
+    return {"mode": "paper", "owner": bool(owner), "groups": groups,
             "presets": {k: {"label": v["label"], "reason": v["reason"], "values": v["values"]}
                         for k, v in PRESETS.items()},
-            "excluded": list(EXCLUDED), "ttl_hours": PROPOSAL_TTL_S // 3600}
+            "excluded": list(OWNER_EXCLUDED if owner else EXCLUDED),
+            "ttl_hours": PROPOSAL_TTL_S // 3600}
 
 
 def compact_for_ai() -> list[list]:
