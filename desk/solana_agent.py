@@ -17,10 +17,8 @@ from __future__ import annotations
 
 import os
 
-import gc
 import hashlib
 import random
-import sys
 import threading
 import time
 
@@ -45,7 +43,7 @@ from desk import equity_curve
 from desk import live as live_mod
 from desk.broker import PaperBroker
 from desk.netutil import offline
-from desk.ops import Bench, alert, data_file, journal, killed, rss_mb
+from desk.ops import Bench, alert, data_file, journal, killed
 from desk.risk import daily_loss_hit, daily_loss_limit_usd, daily_override_active
 from desk.risk import (Account, check_live_trade, check_token_trade,
                        fit_risk_budget, live_sizing_breakdown, open_risk_usd,
@@ -562,14 +560,6 @@ class SolanaAgent:
               f"cooling={report.get('cooling') or {}})", flush=True)
         for warning in report.get("warnings") or []:
             self.emit("info", f"scanner: {warning}", stage="scanner")
-        print(f"[desk] mem: after scan rss={rss_mb()}MB tokens={len(tokens)}", flush=True)
-        try:
-            import tracemalloc as _tm
-            if not _tm.is_tracing():
-                _tm.start(20)
-            print("[desk] mem: tracemalloc started", flush=True)
-        except Exception as _e:
-            print(f"[desk] mem: tracemalloc failed {_e}", flush=True)
 
         # discipline layer: market regime tag and drawdown breaker. Tighten-only,
         # and it must run in BOTH modes. Gating this on `mode != live` meant the
@@ -608,22 +598,6 @@ class SolanaAgent:
 
         for t in tokens:
             try:
-                try:
-                    import tracemalloc as _tm
-                    import os as _os
-                    _cur, _peak = _tm.get_traced_memory()
-                    try:
-                        _fds = len(_os.listdir("/proc/self/fd"))
-                    except Exception:
-                        _fds = -1
-                    try:
-                        _thr = len(_os.listdir("/proc/self/task"))
-                    except Exception:
-                        _thr = -1
-                    print(f"[desk] mem: token {t.get('symbol')} rss={rss_mb()}MB objs={len(gc.get_objects())} "
-                          f"fds={_fds} threads={_thr} traced_cur={_cur//1024}KB traced_peak={_peak//1024}KB", flush=True)
-                except Exception as _e:
-                    print(f"[desk] mem: token {t.get('symbol')} probe failed {_e}", flush=True)
                 with self.lock:
                     self.stats["seen"] += 1
                     self.tokens_seen[t["mint"]] = t
@@ -663,7 +637,6 @@ class SolanaAgent:
                     journal("error", stage="chain", mint=t["mint"], error=str(e))
                     continue
                 chain_left -= 1
-                print(f"[desk] seat chain {t.get('symbol')} rss={rss_mb()}MB", flush=True)
                 if (k := chain.chain_kill(f)):
                     self.bench.sit(t["mint"], k)
                     self.stats["chain_rejects"] += 1
@@ -675,9 +648,7 @@ class SolanaAgent:
 
                 # seat 2b: DexScreener market view + dev/creator investigation
                 ds = dexscreener.facts(t["mint"], self.session)
-                print(f"[desk] seat dexscreener {t.get('symbol')} rss={rss_mb()}MB", flush=True)
                 dev = devcheck.investigate(t["mint"], f, self.session)
-                print(f"[desk] seat dev {t.get('symbol')} rss={rss_mb()}MB", flush=True)
 
                 # seat 2b-ii: FOMO evidence (optional; no key = "unknown", no cost).
                 # One lookup, reused by the dev veto and the meme nudge below. It
@@ -746,7 +717,6 @@ class SolanaAgent:
 
                 # seat 2b+: free security / launch / promo signals (fail open to "unknown")
                 sec = signals.security(t["mint"], self.session)
-                print(f"[desk] seat security {t.get('symbol')} rss={rss_mb()}MB", flush=True)
                 if sec["block"]:
                     k = "sec_" + sec["block"][0]
                     self.bench.sit(t["mint"], k)
@@ -779,7 +749,6 @@ class SolanaAgent:
                         links["x"] = links["x"] or ("https://x.com" if md["has_x"] else None)
 
                 sc = meme.scorecard(t, f, ds, dev, fomo_ev=fomo_ev)
-                print(f"[desk] seat meme {t.get('symbol')} rss={rss_mb()}MB", flush=True)
                 if (k := meme.meme_kill(sc)):
                     self.bench.sit(t["mint"], k)
                     self.stats["meme_rejects"] += 1
@@ -798,7 +767,6 @@ class SolanaAgent:
                                                                  "regime": self.regime.get("tag")}})
                 analyst_left -= 1
                 self.stats["analyst_calls"] += 1
-                print(f"[desk] seat analyst {t.get('symbol')} rss={rss_mb()}MB", flush=True)
 
                 # seat 3b: the signal engine turns every seat's read into ONE
                 # deterministic BUY / SELL / HOLD / AVOID recommendation, with a
@@ -807,7 +775,6 @@ class SolanaAgent:
                 # it never sizes, never fills, and a hard security block always wins.
                 sig = signal_engine.evaluate(t, f, links, thesis=th, scorecard=sc,
                                              security=sec, regime=self.regime, dev=dev)
-                print(f"[desk] seat signal {t.get('symbol')} rss={rss_mb()}MB", flush=True)
 
                 chips = list(sec["chips"])
                 # seat 4: risk engine. Live money gets live caps, not paper percentages.
@@ -1065,17 +1032,6 @@ class SolanaAgent:
                 journal("error", stage="cycle", mint=t.get("mint"), error=str(e))
                 continue
 
-        try:
-            from desk import scanner as _sc
-            from desk import helius as _he
-            from desk import chart as _ch
-            print(f"[desk] mem: containers decisions={len(self.decisions)} transcripts={len(self.transcripts)} "
-                  f"tokens_seen={len(self.tokens_seen)} events={len(self.events)} "
-                  f"scanner={_sc.cache_stats()} helius={_he.cache_stats()} "
-                  f"chart_ticks={len(_ch._TICKS)} chart_ohlcv={len(_ch._OHLCV)}", flush=True)
-        except Exception as _e:
-            print(f"[desk] mem: containers probe failed {_e}", flush=True)
-        print(f"[desk] mem: after token loop rss={rss_mb()}MB blocks={sys.getallocatedblocks()} objs={len(gc.get_objects())}", flush=True)
         self.last_cycle_at = _now()
         journal("cycle", **self.stats, equity=self.broker.equity())
         self._snapshot_equity()

@@ -22,23 +22,6 @@ def data_file(name: str) -> Path:
     return data_dir() / name
 
 
-def rss_mb() -> float:
-    """Resident set size in MB, or -1 when /proc is unavailable.
-
-    The free instance is 512 Mi and gets OOM-killed; without a number in the
-    log you cannot tell a leak from a one-shot spike or from a tmpfs-backed
-    disk. This reads /proc/self/status, which is free and cannot raise.
-    """
-    try:
-        with open("/proc/self/status", encoding="utf-8") as f:
-            for line in f:
-                if line.startswith("VmRSS:"):
-                    return round(int(line.split()[1]) / 1024.0, 1)
-    except Exception:
-        pass
-    return -1.0
-
-
 JOURNAL = Path("journal.jsonl")  # default; journal() uses data_file so DESK_DATA_DIR is honoured
 KILL_FILE = Path("KILL")
 

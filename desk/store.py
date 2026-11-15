@@ -20,7 +20,7 @@ from urllib.parse import urlparse
 
 import requests
 
-from desk.ops import data_file, rss_mb
+from desk.ops import data_file
 
 _lock = threading.Lock()
 _ready = False
@@ -371,7 +371,6 @@ def restore() -> dict:
     if not out["configured"]:
         _last.update(at=time.time(), pulled=[], pushed=[], error="not configured")
         return out
-    print(f"[desk] store: restore start rss={rss_mb()}MB", flush=True)
     try:
         _ensure()
     except Exception as e:
@@ -440,7 +439,6 @@ def restore() -> dict:
               f"(pushed {', '.join(out['pushed']) or 'nothing'})")
     else:
         print("[desk] store: connected, no history to restore yet")
-    print(f"[desk] store: restore done rss={rss_mb()}MB", flush=True)
     _last.update(at=time.time(), pulled=list(out["pulled"]),
                  pushed=list(out["pushed"]), error=out.get("error"))
     return out
