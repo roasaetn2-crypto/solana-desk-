@@ -26,6 +26,7 @@ Thirty-six documents, grouped by what you are trying to do. Start at
 | [EXIT-LADDER.md](reference/EXIT-LADDER.md) | The `fast` / `patient` / `slow` / `single` ladders, and why env outranks `config.py`. |
 | [WHY-NO-ENTRY.md](reference/WHY-NO-ENTRY.md) | The desk is running but opening nothing — the gate-by-gate checklist. |
 | [MEME_TACTICS.md](reference/MEME_TACTICS.md) | What the memecoin playbook adds, and what it does not. |
+| [INDICATOR-USE.md](reference/INDICATOR-USE.md) | Every indicator in the repo: what reads it, what gates a trade, and the two switches that are inert. |
 | [TP-PLACEMENT.md](reference/TP-PLACEMENT.md) | Where TP1/TP2 actually belong, measured. |
 | [COLLECTOR.md](reference/COLLECTOR.md) | How pools reach the scanner. |
 | [POOL-HARVEST.md](reference/POOL-HARVEST.md) | Growing the candle cache for research. |
