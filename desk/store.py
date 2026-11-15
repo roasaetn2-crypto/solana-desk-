@@ -260,19 +260,60 @@ def append_journal(row: dict) -> None:
         print(f"[desk] store: journal append failed ({_redact(str(e))})")
 
 
-def load_journal_rows() -> list[dict]:
+# How many journal rows to hold in memory at once while restoring. The journal
+# is the one table that grows without bound, so pulling it in a single query is
+# an OOM waiting to happen: at 69,372 rows a full parse costs ~198 MB of RSS on
+# top of the ~31 MB of JSON text, which does not fit a 512 Mi free instance
+# alongside the agent. Paging keeps peak memory at one batch instead.
+JOURNAL_PAGE = int(os.environ.get("JOURNAL_PAGE", "2000") or 2000)
+
+
+def iter_journal_rows(page: int | None = None):
+    """Yield journal rows oldest-first, one page at a time.
+
+    Keyset pagination on the autoincrement id (`WHERE id > ? ORDER BY id
+    LIMIT ?`) rather than OFFSET: OFFSET rescans from the start on every page,
+    which turns a 69k-row restore into a quadratic query. This walks the
+    primary key instead, so each page is a seek.
+
+    Callers that need the whole list can still use ``load_journal_rows()``, but
+    the boot path must stream -- that is the difference between a 512 Mi box
+    surviving a restart and being OOM-killed on it.
+    """
     _ensure()
-    out = execute("SELECT body FROM journal ORDER BY id")
-    rows = []
-    for r in out.get("rows") or []:
-        raw = r.get("body") if isinstance(r, dict) else (r[0] if r else None)
-        if not raw:
-            continue
-        try:
-            rows.append(json.loads(raw) if isinstance(raw, str) else raw)
-        except json.JSONDecodeError:
-            continue
-    return rows
+    size = int(page or JOURNAL_PAGE)
+    last = 0
+    while True:
+        out = execute("SELECT id, body FROM journal WHERE id > ? ORDER BY id LIMIT ?",
+                      [last, size])
+        rows = out.get("rows") or []
+        if not rows:
+            return
+        for r in rows:
+            if isinstance(r, dict):
+                rid, raw = r.get("id"), r.get("body")
+            else:
+                rid, raw = (r[0] if r else None), (r[1] if r and len(r) > 1 else None)
+            try:
+                if rid is not None:
+                    last = int(rid)
+            except (TypeError, ValueError):
+                pass
+            if not raw:
+                continue
+            try:
+                yield json.loads(raw) if isinstance(raw, str) else raw
+            except json.JSONDecodeError:
+                continue
+
+
+def load_journal_rows() -> list[dict]:
+    """Every journal row as a list. Kept for callers that genuinely need it all.
+
+    Prefer ``iter_journal_rows()``: this materialises the whole table, which is
+    what used to OOM the boot.
+    """
+    return list(iter_journal_rows())
 
 
 def journal_count() -> int:
@@ -338,20 +379,47 @@ def restore() -> dict:
         _last.update(at=time.time(), pulled=[], pushed=[], error="unavailable")
         return out
 
-    # journal
+    # journal -- streamed, never materialised. See iter_journal_rows().
     try:
-        remote = load_journal_rows()
         local_path = data_file("journal.jsonl")
-        if remote:
-            local_path.parent.mkdir(parents=True, exist_ok=True)
-            with local_path.open("w", encoding="utf-8") as f:
-                for row in remote:
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+        # If the local copy already covers the remote, there is nothing to pull.
+        # On a box with a mounted disk that turns every restart into zero work;
+        # on an ephemeral disk local is empty and this is one cheap COUNT.
+        try:
+            remote_n = journal_count()
+        except Exception:
+            remote_n = None
+        local_n = _local_journal_rows()
+
+        if remote_n == 0:
+            # Remote is empty: first-time hookup on a box that already has
+            # history. Push the local file up instead of wiping it.
+            if local_n and local_path.exists():
+                n = push_local_journal(local_path)
+                if n:
+                    out["pushed"].append(f"journal:{n}")
+        elif remote_n is not None and local_n >= remote_n:
+            # Local already covers the remote (mounted disk): no pull, no rewrite.
+            out["pulled"].append(f"journal:cached:{remote_n}")
+        else:
+            # Stream to a temp file and swap it in, so peak memory is one page
+            # and a kill mid-write leaves the previous journal intact.
+            tmp = local_path.with_name(local_path.name + ".tmp")
+            written = 0
+            with tmp.open("w", encoding="utf-8") as f:
+                for row in iter_journal_rows():
                     f.write(json.dumps(row, default=str) + "\n")
-            out["pulled"].append("journal")
-        elif local_path.exists():
-            n = push_local_journal(local_path)
-            if n:
-                out["pushed"].append(f"journal:{n}")
+                    written += 1
+            if written:
+                tmp.replace(local_path)
+                out["pulled"].append(f"journal:{written}")
+            else:
+                tmp.unlink(missing_ok=True)
+                if local_path.exists():
+                    n = push_local_journal(local_path)
+                    if n:
+                        out["pushed"].append(f"journal:{n}")
     except Exception as e:
         print(f"[desk] store: journal restore failed ({_redact(str(e))})")
 

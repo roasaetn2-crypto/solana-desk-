@@ -183,6 +183,52 @@ class Store(unittest.TestCase):
         store.sync_kv_file("paper_ledger")
         self.assertEqual(store.restore()["configured"], False)
 
+    def test_iter_journal_rows_pages_instead_of_selecting_all(self):
+        """The boot path must never pull the whole journal in one query.
+
+        A single ``SELECT body FROM journal`` materialises every row at once;
+        at 69k rows that was ~198 MB of RSS and OOM-killed the 512 Mi box on
+        every restart. This pins the fix: rows arrive in pages, in id order,
+        and each query carries a LIMIT.
+        """
+        for i in range(25):
+            store.append_journal({"kind": "cycle", "n": i})
+        store.reset_runtime()
+
+        seen = []
+        with mock.patch.object(store, "JOURNAL_PAGE", 10), \
+                mock.patch.object(store, "execute", wraps=store.execute) as spy:
+            for row in store.iter_journal_rows():
+                seen.append(row["n"])
+
+        self.assertEqual(seen, list(range(25)))          # every row, in order
+        sqls = [c.args[0] for c in spy.call_args_list if c.args]
+        selects = [s for s in sqls if s.strip().upper().startswith("SELECT")]
+        self.assertTrue(selects, "iter_journal_rows made no SELECT")
+        for s in selects:
+            self.assertIn("LIMIT", s.upper(), f"unpaged query: {s}")
+            self.assertIn("id >", s.lower(), f"not keyset paged: {s}")
+        # 25 rows at 10/page is 3 pages; the 4th empty page is what ends it.
+        self.assertGreaterEqual(len(selects), 3)
+
+    def test_restore_streams_journal_and_reports_the_count(self):
+        """restore() writes the journal to disk without holding it all in RAM."""
+        for i in range(40):
+            store.append_journal({"kind": "cycle", "n": i})
+        store.reset_runtime()
+        # wipe local so restore has to pull
+        for p in Path(self.tmp.name).iterdir():
+            if p.is_file():
+                p.unlink()
+
+        with mock.patch.object(store, "JOURNAL_PAGE", 7):
+            out = store.restore()
+
+        self.assertIn("journal:40", out["pulled"])
+        lines = [ln for ln in (Path(self.tmp.name) / "journal.jsonl").read_text().splitlines() if ln.strip()]
+        self.assertEqual(len(lines), 40)
+        self.assertEqual(json.loads(lines[-1])["n"], 39)
+
     def test_roundtrip_journal_ledger_intent_settings(self):
         d = Path(self.tmp.name)
         journal = d / "journal.jsonl"
@@ -209,7 +255,9 @@ class Store(unittest.TestCase):
                 p.unlink()
         store.reset_runtime()
         pulled = store.restore()
-        self.assertIn("journal", pulled["pulled"])
+        # The pull label carries the row count so the restore log says how much
+        # history came back, not just that something did.
+        self.assertIn("journal:3", pulled["pulled"])
         self.assertIn("paper_ledger", pulled["pulled"])
         self.assertIn("operator_intent", pulled["pulled"])
         self.assertIn("operator_settings", pulled["pulled"])
