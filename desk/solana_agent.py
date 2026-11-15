@@ -593,7 +593,14 @@ class SolanaAgent:
 
         for t in tokens:
             try:
-                print(f"[desk] mem: token {t.get('symbol')} rss={rss_mb()}MB blocks={sys.getallocatedblocks()} objs={len(gc.get_objects())} ticks={len(candle_chart._TICKS)} helius={helius.cache_stats().get('entries')} scan={scanner.cache_stats()}", flush=True)
+                try:
+                    _b0 = sys.getallocatedblocks()
+                    gc.collect()
+                    _b1 = sys.getallocatedblocks()
+                    _top = Counter(type(o).__name__ for o in gc.get_objects()).most_common(6)
+                    print(f"[desk] mem: token {t.get('symbol')} rss={rss_mb()}MB blocks={_b0}->{_b1} objs={len(gc.get_objects())} top={_top}", flush=True)
+                except Exception as _e:
+                    print(f"[desk] mem: token {t.get('symbol')} rss={rss_mb()}MB (probe failed {_e})", flush=True)
                 with self.lock:
                     self.stats["seen"] += 1
                     self.tokens_seen[t["mint"]] = t
