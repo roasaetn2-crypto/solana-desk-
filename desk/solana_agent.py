@@ -563,6 +563,13 @@ class SolanaAgent:
         for warning in report.get("warnings") or []:
             self.emit("info", f"scanner: {warning}", stage="scanner")
         print(f"[desk] mem: after scan rss={rss_mb()}MB tokens={len(tokens)}", flush=True)
+        try:
+            import tracemalloc as _tm
+            if not _tm.is_tracing():
+                _tm.start(20)
+            print("[desk] mem: tracemalloc started", flush=True)
+        except Exception as _e:
+            print(f"[desk] mem: tracemalloc failed {_e}", flush=True)
 
         # discipline layer: market regime tag and drawdown breaker. Tighten-only,
         # and it must run in BOTH modes. Gating this on `mode != live` meant the
@@ -594,13 +601,14 @@ class SolanaAgent:
         for t in tokens:
             try:
                 try:
-                    _b0 = sys.getallocatedblocks()
-                    gc.collect()
-                    _b1 = sys.getallocatedblocks()
-                    _top = Counter(type(o).__name__ for o in gc.get_objects()).most_common(6)
-                    print(f"[desk] mem: token {t.get('symbol')} rss={rss_mb()}MB blocks={_b0}->{_b1} objs={len(gc.get_objects())} top={_top}", flush=True)
+                    import tracemalloc as _tm
+                    _snap = _tm.take_snapshot()
+                    _stats = _snap.statistics("lineno")[:8]
+                    print(f"[desk] mem: token {t.get('symbol')} rss={rss_mb()}MB objs={len(gc.get_objects())}", flush=True)
+                    for _st in _stats:
+                        print(f"[desk] mem:   {_st}", flush=True)
                 except Exception as _e:
-                    print(f"[desk] mem: token {t.get('symbol')} rss={rss_mb()}MB (probe failed {_e})", flush=True)
+                    print(f"[desk] mem: token {t.get('symbol')} probe failed {_e}", flush=True)
                 with self.lock:
                     self.stats["seen"] += 1
                     self.tokens_seen[t["mint"]] = t
@@ -1042,6 +1050,16 @@ class SolanaAgent:
                 journal("error", stage="cycle", mint=t.get("mint"), error=str(e))
                 continue
 
+        try:
+            from desk import scanner as _sc
+            from desk import helius as _he
+            from desk import chart as _ch
+            print(f"[desk] mem: containers decisions={len(self.decisions)} transcripts={len(self.transcripts)} "
+                  f"tokens_seen={len(self.tokens_seen)} events={len(self.events)} "
+                  f"scanner={_sc.cache_stats()} helius={_he.cache_stats()} "
+                  f"chart_ticks={len(_ch._TICKS)} chart_ohlcv={len(_ch._OHLCV)}", flush=True)
+        except Exception as _e:
+            print(f"[desk] mem: containers probe failed {_e}", flush=True)
         print(f"[desk] mem: after token loop rss={rss_mb()}MB blocks={sys.getallocatedblocks()} objs={len(gc.get_objects())}", flush=True)
         self.last_cycle_at = _now()
         journal("cycle", **self.stats, equity=self.broker.equity())
