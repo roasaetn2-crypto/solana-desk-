@@ -61,17 +61,49 @@ def shadow_on() -> bool:
     return bool(SOCIAL.get("shadow", True))
 
 
+# One shared session for every social GET. The old code called module-level
+# ``requests.get``, which builds a fresh Session (and a fresh SSL context) on
+# every call. On the 512 Mi Render box that cost ~16-19 MB of RSS per cold
+# pulse -- C-level TLS/socket buffers that glibc never returned -- and blew the
+# box up on the first deep token of every cycle. A shared session reuses the
+# TLS connection: the same cold pulse now costs ~2 MB and stays flat.
+_SESSION = None
+_MAX_BYTES = 512 * 1024        # cap a single page; t.me previews are ~100-150 KB
+
+
+def _session():
+    global _SESSION
+    if _SESSION is None:
+        import requests
+        s = requests.Session()
+        s.headers.update({"User-Agent": _UA, "Accept": "text/html,*/*"})
+        _SESSION = s
+    return _SESSION
+
+
 def _get(url: str, timeout: float | None = None) -> str | None:
-    """One polite GET. Returns None on any failure -- callers fail open."""
+    """One polite, size-capped GET over the shared session. None on any failure."""
     if netutil.offline():
         return None
     try:
-        import requests
-        r = requests.get(url, timeout=timeout or netutil.TIMEOUT_S,
-                         headers={"User-Agent": _UA, "Accept": "text/html,*/*"})
-        if r.status_code != 200:
-            return None
-        return r.text
+        r = _session().get(url, timeout=timeout or netutil.TIMEOUT_S, stream=True)
+        try:
+            if r.status_code != 200:
+                return None
+            enc = r.encoding or "utf-8"
+            chunks: list[bytes] = []
+            total = 0
+            for chunk in r.iter_content(16384):
+                if not chunk:
+                    continue
+                chunks.append(chunk)
+                total += len(chunk)
+                if total >= _MAX_BYTES:
+                    break
+            raw = b"".join(chunks)
+        finally:
+            r.close()
+        return raw.decode(enc, errors="replace")
     except Exception:
         return None
 
@@ -115,8 +147,14 @@ def parse_telegram(page: str) -> list[dict]:
     return out
 
 
-def telegram(channel: str, ttl_s: float | None = None) -> dict:
-    """Last page of one public channel. Cached; never raises."""
+def telegram(channel: str, ttl_s: float | None = None, *,
+             cache_only: bool = False) -> dict:
+    """Last page of one public channel. Cached; never raises.
+
+    ``cache_only`` makes it a pure cache read: a miss returns "not cached"
+    instead of touching the network. The signal seat uses this so a deep token
+    never blocks on Telegram.
+    """
     ch = (channel or "").strip().lstrip("@")
     if not ch:
         return {"available": False, "channel": "", "messages": [], "why": "no channel"}
@@ -124,6 +162,8 @@ def telegram(channel: str, ttl_s: float | None = None) -> dict:
     hit, val = _cache.get(("tg", ch))
     if hit:
         return val
+    if cache_only:
+        return {"available": False, "channel": ch, "messages": [], "why": "not cached"}
     if not _tg_limiter.allow():
         return {"available": False, "channel": ch, "messages": [], "why": "rate limited"}
     page = _get(f"https://t.me/s/{quote(ch)}")
@@ -162,7 +202,8 @@ def count_mentions(messages: list[dict], ticker: str) -> dict:
     return {"messages": n, "views": views, "samples": samples}
 
 
-def watchlist_mentions(ticker: str, channels: list[str] | None = None) -> dict:
+def watchlist_mentions(ticker: str, channels: list[str] | None = None, *,
+                       cache_only: bool = False) -> dict:
     """Count ticker mentions across the whole watchlist."""
     chans = channels if channels is not None else list(SOCIAL.get("channels") or [])
     total_msgs = 0
@@ -170,7 +211,7 @@ def watchlist_mentions(ticker: str, channels: list[str] | None = None) -> dict:
     live = 0
     hits: list[dict] = []
     for ch in chans[: int(SOCIAL.get("max_channels", 8))]:
-        r = telegram(ch)
+        r = telegram(ch, cache_only=cache_only)
         if not r.get("available"):
             continue
         live += 1
@@ -183,12 +224,14 @@ def watchlist_mentions(ticker: str, channels: list[str] | None = None) -> dict:
             "messages": total_msgs, "views": total_views, "hits": hits}
 
 
-def dex_boosts(ttl_s: float | None = None) -> dict:
+def dex_boosts(ttl_s: float | None = None, *, cache_only: bool = False) -> dict:
     """DexScreener's latest paid boosts, keyed by mint. Free, no key."""
     ttl = float(SOCIAL.get("dex_cache_s", 300)) if ttl_s is None else float(ttl_s)
     hit, val = _cache.get("dex_boosts")
     if hit:
         return val
+    if cache_only:
+        return {"available": False, "mints": {}, "why": "not cached"}
     if not _dex_limiter.allow():
         return {"available": False, "mints": {}, "why": "rate limited"}
     raw = _get("https://api.dexscreener.com/token-boosts/latest/v1")
@@ -214,12 +257,14 @@ def dex_boosts(ttl_s: float | None = None) -> dict:
     return res
 
 
-def dex_profiles(ttl_s: float | None = None) -> dict:
+def dex_profiles(ttl_s: float | None = None, *, cache_only: bool = False) -> dict:
     """DexScreener token profiles (carry the project's own socials). Free."""
     ttl = float(SOCIAL.get("dex_cache_s", 300)) if ttl_s is None else float(ttl_s)
     hit, val = _cache.get("dex_profiles")
     if hit:
         return val
+    if cache_only:
+        return {"available": False, "mints": {}, "why": "not cached"}
     if not _dex_limiter.allow():
         return {"available": False, "mints": {}, "why": "rate limited"}
     raw = _get("https://api.dexscreener.com/token-profiles/latest/v1")
@@ -249,13 +294,13 @@ def dex_profiles(ttl_s: float | None = None) -> dict:
     return res
 
 
-def presence(mint: str) -> dict:
+def presence(mint: str, *, cache_only: bool = False) -> dict:
     """Does this mint have a paid boost and/or a self-made profile with socials?"""
     if not mint:
         return {"boosted": False, "profiled": False, "has_x": False,
                 "has_telegram": False, "available": False}
-    b = dex_boosts()
-    p = dex_profiles()
+    b = dex_boosts(cache_only=cache_only)
+    p = dex_profiles(cache_only=cache_only)
     prof = (p.get("mints") or {}).get(mint) or {}
     return {
         "boosted": mint in (b.get("mints") or {}),
@@ -286,14 +331,14 @@ def score(pulse: dict) -> int:
     return int(max(0, min(100, round(s))))
 
 
-def pulse(ticker: str, mint: str | None = None) -> dict:
+def pulse(ticker: str, mint: str | None = None, *, cache_only: bool = False) -> dict:
     """Everything we know about this ticker's social attention, in one dict."""
     if not enabled():
         return {"available": False, "why": "social off", "ticker": ticker}
-    tg = watchlist_mentions(ticker) if ticker else {"messages": 0, "views": 0,
-                                                    "channels_live": 0, "hits": []}
-    pr = presence(mint or "") if mint else {"boosted": False, "profiled": False,
-                                            "has_x": False, "has_telegram": False}
+    tg = watchlist_mentions(ticker, cache_only=cache_only) if ticker else {
+        "messages": 0, "views": 0, "channels_live": 0, "hits": []}
+    pr = presence(mint or "", cache_only=cache_only) if mint else {
+        "boosted": False, "profiled": False, "has_x": False, "has_telegram": False}
     out = {
         "available": bool(tg.get("channels_live")) or bool(pr.get("available")),
         "ticker": (ticker or "").lstrip("$"),
@@ -311,6 +356,27 @@ def pulse(ticker: str, mint: str | None = None) -> dict:
     return out
 
 
+def refresh() -> dict:
+    """Fill the social caches once per cycle, off the per-token critical path.
+
+    ``apply()`` is cache-only, so this is the only place the desk touches the
+    network for social data. It is bounded: one GET per watchlist channel plus
+    the two DexScreener lists, all over the shared session. TTLs mean most
+    cycles are pure cache hits. Never raises.
+    """
+    if not enabled() or netutil.offline():
+        return {"ok": False, "why": "off"}
+    try:
+        chans = list(SOCIAL.get("channels") or [])[: int(SOCIAL.get("max_channels", 8))]
+        for ch in chans:
+            telegram(ch)
+        dex_boosts()
+        dex_profiles()
+        return {"ok": True, "channels": len(chans)}
+    except Exception:
+        return {"ok": False, "why": "error"}
+
+
 def apply(sig: dict, token: dict | None = None, facts: dict | None = None) -> dict:
     """Tag the signal with the social pulse. Never changes the action.
 
@@ -326,7 +392,10 @@ def apply(sig: dict, token: dict | None = None, facts: dict | None = None) -> di
     if not ticker:
         return sig
     try:
-        p = pulse(ticker, mint)
+        # Cache-only: the signal seat must never block on the network. The
+        # per-cycle ``refresh()`` fills the caches; a cold miss is just
+        # "unknown" here, which is fail-open and costs nothing.
+        p = pulse(ticker, mint, cache_only=True)
     except Exception:
         return sig
     if shadow_on():

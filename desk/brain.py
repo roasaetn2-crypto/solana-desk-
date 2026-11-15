@@ -29,6 +29,18 @@ import requests
 
 TIMEOUT = int(os.getenv("DESK_BRAIN_TIMEOUT", "60"))
 
+# Shared session: module-level requests.get/post build a fresh Session (and a
+# fresh SSL context) on every call, which on the 512 Mi box leaks C-level TLS
+# buffers into RSS. One session reuses the connection instead.
+_SESSION = None
+
+
+def _session():
+    global _SESSION
+    if _SESSION is None:
+        _SESSION = requests.Session()
+    return _SESSION
+
 
 @dataclass
 class Provider:
@@ -107,7 +119,7 @@ def ollama_model() -> str:
 
 def _ollama_up() -> bool:
     try:
-        r = requests.get(ollama_host() + "/api/tags", timeout=2)
+        r = _session().get(ollama_host() + "/api/tags", timeout=2)
         return r.status_code == 200
     except Exception:
         return False
@@ -148,7 +160,7 @@ def describe() -> str:
 
 # ---------- raw calls ----------
 def _post(url: str, *, headers=None, json_body=None, timeout=TIMEOUT):
-    r = requests.post(url, headers=headers or {}, json=json_body, timeout=timeout)
+    r = _session().post(url, headers=headers or {}, json=json_body, timeout=timeout)
     if r.status_code >= 400:
         raise RuntimeError(f"{r.status_code}: {r.text[:300]}")
     return r.json()

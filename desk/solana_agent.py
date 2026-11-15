@@ -37,7 +37,7 @@ from config import AGENT, ENTRY, EXECUTION, EXITS, FOMO, MEME, PAPER, RISK
 from desk.brain_advisor import ADVISOR, should_advise, wants_entry, wants_exit
 from desk import (analyst, brain, chain, dexscreener, devcheck, dialogue, exits, fomo, goplus, gmgn,
                   groq_postmortem, groq_sizer, guard, heartbeat, helius, meme, meme_tactics,
-                  pumpportal, regime, risk, scanner, signal_engine, signals)
+                  pumpportal, regime, risk, scanner, signal_engine, signals, social)
 from desk import chart as candle_chart
 from desk import links as fomo_links
 from desk.age import created_at_of
@@ -597,6 +597,14 @@ class SolanaAgent:
                 for t in tokens:
                     self.tokens_seen[t["mint"]] = t
             tokens = []          # positions are still managed; only new entries pause
+
+        # Social attention is a per-cycle cache warm, never a per-token fetch.
+        # Doing it here (once, over the shared session) keeps the signal seat
+        # instant and stops the ~16-19 MB RSS spike that used to OOM the box.
+        try:
+            social.refresh()
+        except Exception:
+            pass
 
         for t in tokens:
             try:
