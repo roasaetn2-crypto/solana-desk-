@@ -364,6 +364,15 @@ MEME = {
     "exit_ladder": "fast",
     "flash_pump_guard": False,       # rule C: skip entries right after a spike
     "flash_pump_pct": 0.25,          # a >25% 5m candle = do not chase
+    # Rules A and D read facts["atr_pct"] (ATR14 / close on 5-minute bars),
+    # which the agent cycle now computes from the same candle fetch the pullback
+    # rule uses. Before 2026-11-15 nothing produced that fact, so switching
+    # either one on did nothing at all -- a silent no-op, not a gate.
+    #
+    # They are still False on purpose: scripts/meme_tactics_eval.py measured
+    # both on 3,629 real trades and neither beat the 15.4% baseline (ATR stop
+    # 13.1-14.5%, vol ceiling flat). Flipping one now actually changes the desk,
+    # which is exactly why the measurement -- not the switch -- decides.
     "atr_stop": False,               # rule A: stop = clamp(k*ATR%, 8%, 60%)
     "atr_stop_k": 1.5,
     "vol_ceiling": False,            # rule D: skip when ATR% is insane

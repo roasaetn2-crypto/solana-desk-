@@ -197,6 +197,46 @@ def flash_ok(change_5m, thr: float | None = None) -> tuple[bool, str]:
     return True, ""
 
 
+def atr_pct_from(candles: list[dict], period: int = 14) -> float | None:
+    """ATR as a fraction of the last close, computed the way the eval did.
+
+    ``scripts/meme_tactics_eval.py`` measured rules A and D on
+    ``indicators.snapshot()["atr14"] / close`` with Wilder smoothing. This is
+    the same number, written here so the live loop can produce it without
+    importing the offline indicator library into the trading path.
+
+    Returns None when there are fewer than ``period + 1`` usable bars, which is
+    the honest answer for a coin that has not traded long enough to have an ATR.
+    """
+    # chart.py emits short keys (h/l/c); the offline indicator library uses
+    # high/low/close. Accept both so this can be fed from either source.
+    def _hlc(c):
+        hi = c.get("h", c.get("high"))
+        lo = c.get("l", c.get("low"))
+        cl = c.get("c", c.get("close"))
+        if hi is None or lo is None or cl is None:
+            return None
+        try:
+            hi, lo, cl = float(hi), float(lo), float(cl)
+        except (TypeError, ValueError):
+            return None
+        return (hi, lo, cl) if hi > 0 and lo > 0 and cl > 0 else None
+
+    bars = [x for x in (_hlc(c) for c in (candles or []) if c) if x]
+    if len(bars) < period + 1:
+        return None
+    trs = []
+    for (_, _, pc), (hi, lo, _) in zip(bars, bars[1:]):
+        trs.append(max(hi - lo, abs(hi - pc), abs(lo - pc)))
+    if len(trs) < period:
+        return None
+    atr = sum(trs[:period]) / period
+    for tr in trs[period:]:
+        atr = (atr * (period - 1) + tr) / period
+    close = bars[-1][2]
+    return (atr / close) if close > 0 else None
+
+
 def atr_stop_pct(atr_pct, k: float | None = None) -> float | None:
     """Rule A. stop = clamp(k * ATR%, 8%, 60%)."""
     a = _num(atr_pct)

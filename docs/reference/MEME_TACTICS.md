@@ -138,8 +138,11 @@ When `pullback_entry` is True:
 * `desk/exits.py` swaps in the measured ladder (stop 30%, TP1 1.25× for 50%,
   TP2 1.6× for 50%, trail 15%) so the broker, the plan and the backtests all
   read the same numbers;
-* `desk/solana_agent.py` fetches the 20-bar high for finalists from the chart
-  feed (only when the flag is on, so a desk with it off makes no extra calls).
+* `desk/solana_agent.py` fetches 5-minute candles for finalists from the chart
+  feed (only when a tactic is on, so a desk with them all off makes no extra
+  calls) and takes the 20-bar high from them. The bars are 5-minute on purpose:
+  the rule was measured on 5m candles, so "20 bars" is a 100-minute window. The
+  same fetch also yields `atr_pct` (ATR14 / close) for rules A and D.
 
 **The caveat that keeps this in shadow-worthy territory:** the 11-pool result
 uses all-age pools. With the desk's scan gate (age ≤48h) on, only 4–5 of the 120
@@ -152,7 +155,10 @@ pools clear the bar.
 The other three rules (`flash_pump_guard`, `atr_stop`, `vol_ceiling`) are also
 implemented and tested, and still default to `False`, because they measured
 *negative* or zero. They are kept switchable so the operator can re-run the
-experiment on a new sample without rewriting code.
+experiment on a new sample without rewriting code. All three are genuinely
+wired: `atr_stop` and `vol_ceiling` read `facts["atr_pct"]`, which the agent
+cycle now computes from the same 5-minute candles the pullback rule uses. Until
+2026-11-15 nothing produced that fact, so both switches were silent no-ops.
 
 ---
 

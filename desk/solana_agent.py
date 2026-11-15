@@ -678,18 +678,32 @@ class SolanaAgent:
                                 reason=k, facts=f)
                         continue
 
-                # memecoin tactic B needs the recent 20-bar high. Only fetched
-                # when the operator switched the tactic on, so the default desk
-                # costs nothing extra and the rate-limited chart feed is not
-                # touched. Unknown high = neutral (never a veto).
-                if (MEME.get("pullback_entry") or MEME.get("pullback_shadow")) \
+                # Memecoin tactics B (pullback), A (ATR stop) and D (volatility
+                # ceiling) all need one thing the other seats do not produce:
+                # recent candles. Fetched only when the operator switched one of
+                # them on, so the default desk costs nothing extra.
+                #
+                # The bars are 5-minute, not the chart's default 15s scalp tab.
+                # Rule B was measured as "20% below the 20-bar high" on 5m
+                # candles, i.e. a 100-minute window. Asking for the default tab
+                # made the live gate look at a 5-minute window instead -- a
+                # different, much twitchier rule than the one that was tested.
+                # Unknown values stay neutral (never a veto).
+                if (MEME.get("pullback_entry") or MEME.get("pullback_shadow")
+                        or MEME.get("atr_stop") or MEME.get("vol_ceiling")) \
                         and not t["mint"].startswith("DEMO"):
                     try:
-                        cs = candle_chart.series(t["mint"], session=self.session)
-                        highs = [c.get("high") for c in (cs.get("candles") or [])[-20:]
-                                 if c.get("high")]
+                        cs = candle_chart.series(t["mint"], "5m", session=self.session)
+                        candles = cs.get("candles") or []
+                        highs = [c.get("high") for c in candles[-20:] if c.get("high")]
                         if highs:
                             f["high_20"] = max(highs)
+                        # Same bars, same basis as the eval: ATR14 / close.
+                        a = meme_tactics.atr_pct_from(candles)
+                        if a is not None:
+                            f["atr_pct"] = a
+                        f["candle_tf"] = cs.get("tf")
+                        f["candle_n"] = len(candles)
                     except Exception:
                         pass
 

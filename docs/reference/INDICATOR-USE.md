@@ -97,10 +97,12 @@ wrong trade for a scalper — more small wins, less total P&L.
 Verified at runtime: importing `app` does not pull `desk.indicators` or
 `desk.indicator_backtest` into `sys.modules`. They are offline tools only.
 
-## Two switches that look live but are not
+## Two switches that looked live but were not (fixed 2026-11-15)
 
-Both are in `config.py` `MEME`, both default `False`, and both are **inert even
-when set to `True`** — because the value they read is never produced.
+Both are in `config.py` `MEME`, both default `False`, and both were **inert even
+when set to `True`** because the value they read was never produced. Both are
+now wired. They still default `False`, because the measurement -- not the
+switch -- decides.
 
 ### `MEME["atr_stop"]` and `MEME["vol_ceiling"]`
 
@@ -114,54 +116,79 @@ if on["atr_stop"]:
     stop = atr_stop_pct(f.get("atr_pct"))   # None -> returns None, stop unchanged
 ```
 
-Nothing in the live loop ever sets `atr_pct`. `chain.facts()` does not compute
-it, and `desk/indicators.py` is not imported. So:
+Nothing in the live loop used to set `atr_pct`. `chain.facts()` does not compute
+it and `desk/indicators.py` is not imported, so `vol_ok(None)` returned
+`(True, "unknown")` (never blocked) and `atr_stop_pct(None)` returned `None`
+(stop never moved). Confirmed by running `apply()` with both flags on and an
+empty facts dict: action stayed `BUY`, `stop_pct` stayed `0.30`,
+`tactic_block` was `None`.
 
-* `vol_ok(None)` returns `(True, "unknown")` — the ceiling never blocks.
-* `atr_stop_pct(None)` returns `None` — the stop is never widened.
+The fix feeds it. `meme_tactics.atr_pct_from(candles)` computes ATR14 as a
+fraction of the last close with Wilder smoothing -- the same number
+`scripts/meme_tactics_eval.py` measured, via `indicators.snapshot()["atr14"] /
+close`. It lives in `meme_tactics` rather than importing `desk.indicators` so
+the offline indicator library still never enters the trading path. The agent
+cycle computes it from the same 5-minute candle fetch the pullback rule already
+needs, so it costs no extra request:
 
-Confirmed by running `meme_tactics.apply()` with both flags on and an empty
-facts dict: action stayed `BUY`, `stop_pct` stayed `0.30`, `tactic_block` was
-`None`. Feeding `{"atr_pct": 0.35}` blocks correctly and `{"atr_pct": 0.05}`
-sets the stop to 0.08, so the code path is fine — it is simply never fed.
+```python
+cs = candle_chart.series(t["mint"], "5m", session=self.session)
+candles = cs.get("candles") or []
+...
+a = meme_tactics.atr_pct_from(candles)
+if a is not None:
+    f["atr_pct"] = a
+```
 
-This matters because the measurement said ATR rules do not help anyway
-(`ATR stop` was *worse*: 13.1–14.5% win vs 15.4% baseline; volatility ceiling
-was flat). So the honest fix is to delete the two switches rather than wire
-them, unless you want them for the shadow report.
+Fewer than 15 usable bars returns `None`, which stays neutral -- the desk does
+not invent an ATR for a coin that has not traded long enough to have one.
 
-### `high_20` is computed on 15-second bars, not 5-minute
+Both switches remain `False` on purpose. `scripts/meme_tactics_eval.py` measured
+them on 3,629 real trades and neither beat the 15.4% baseline: ATR stop was
+*worse* (13.1-14.5% win) and the volatility ceiling was flat. The difference now
+is that flipping one actually changes the desk, so the measurement is the only
+thing keeping them off rather than a silent no-op.
+
+### `high_20` was computed on 15-second bars, not 5-minute
 
 The pullback rule was measured as "20% below the 20-bar high" on **5-minute**
 candles (`scripts/pool_harvest.py` fetches `ohlcv/minute`; the eval harness is
 documented as 5-minute). That is a 100-minute lookback.
 
-The live loop asks for candles with no timeframe:
+The live loop used to ask for candles with no timeframe:
 
 ```python
-cs = candle_chart.series(t["mint"], session=self.session)
+cs = candle_chart.series(t["mint"], session=self.session)   # -> tf "15s"
 ```
 
 `series()` defaults to `tabs_for()` with no horizon and no age, which returns
-`["15s", "30s"]`, so `tf` becomes `"15s"`. Twenty 15-second bars is **5
-minutes**, not 100. And if the mint has fewer than `MIN_TICK_BARS` (8) local
-buckets, `series()` falls back to 1-minute network candles — so the window is
-5 minutes or 20 minutes depending on how long the desk has been watching the
-coin, and it is never the 100 minutes that was measured.
+`["15s", "30s"]`, so `tf` became `"15s"`. Twenty 15-second bars is **5 minutes**,
+not 100. And if the mint had fewer than `MIN_TICK_BARS` (8) local buckets,
+`series()` fell back to 1-minute network candles -- so the window was 5 minutes
+or 20 minutes depending on how long the desk had been watching the coin, and
+never the 100 minutes that was measured. Verified at runtime: `tabs_for()` ->
+`['15s','30s']`, and a series built from 60 recorded ticks reported
+`tf: 15s`, `source: ticks`.
 
-Verified at runtime: `tabs_for()` → `['15s','30s']`, and a series built from 60
-recorded ticks reports `tf: 15s`, `source: ticks`.
+The practical effect was that the live gate demanded a 20% drop inside 5 minutes
+instead of inside 100 minutes. On a fresh memecoin that is a far rarer event
+than the measured rule, so the desk sat out much more often than the backtest
+implied -- and the 68.9% win rate on 11 pools was earned on a rule the live desk
+was not running.
 
-The practical effect is that the live gate demands a 20% drop inside 5 minutes
-instead of inside 100 minutes. On a fresh memecoin that is a much rarer event
-than the measured rule, so the desk sits out far more often than the backtest
-implies — and the 68.9% win rate on 11 pools was earned on a rule the live desk
-is not running.
+The fix adds `"5m": (300, ("minute", 5))` to `desk/chart.py` `_TF` (with
+`REFRESH_S` 120s and `LAST_GOOD_S` 900s entries) and passes it explicitly:
 
-The fix is one argument: `candle_chart.series(t["mint"], "1m", session=...)`
-with 100 bars, or fetch 5-minute candles directly. Whatever is chosen, the
-backtest and the live gate must use the same bar size or the measurement means
-nothing.
+```python
+cs = candle_chart.series(t["mint"], "5m", session=self.session)
+highs = [c.get("high") for c in candles[-20:] if c.get("high")]
+```
+
+`5m` is deliberately *not* a dashboard tab: it exists so the gate and the
+backtest share a bar size. `series()` returns up to `MAX_CANDLES` (80) bars, so
+there is room for the 20-bar window plus the 15 bars the ATR needs. The fetched
+`tf` and bar count are recorded on the facts as `candle_tf` / `candle_n` so a
+journal row can prove which window a decision saw.
 
 ## What the dashboard shows
 

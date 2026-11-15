@@ -30,6 +30,11 @@ _TF = {
     "15s": (15, None),
     "30s": (30, None),
     "1m": (60, ("minute", 1)),
+    # 5m is not a dashboard tab. It exists because the pullback tactic (rule B)
+    # was measured on 5-minute bars: "20% below the 20-bar high" means a
+    # 100-minute window. Asking for the default scalp tab instead silently
+    # measured a 5-minute window (20 x 15s), which is a different rule.
+    "5m": (5 * 60, ("minute", 5)),
     "15m": (15 * 60, ("minute", 15)),
     "1H": (3600, ("hour", 1)),
     "4H": (4 * 3600, ("hour", 4)),
@@ -44,8 +49,8 @@ _fetch_ohlcv = None
 # Last-good OHLCV per "pool:tf". The dashboard reads this; only the agent cycle
 # (prefetch) refreshes it, one pool per cycle, through the scanner's host limiter.
 # A 429 therefore still returns real candles instead of an empty or flat chart.
-REFRESH_S = {"1m": 60, "15m": 300, "1H": 900, "4H": 1800}          # re-fetch when older
-LAST_GOOD_S = {"1m": 300, "15m": 900, "1H": 7200, "4H": 21600}     # serve stale up to this
+REFRESH_S = {"1m": 60, "5m": 120, "15m": 300, "1H": 900, "4H": 1800}       # re-fetch when older
+LAST_GOOD_S = {"1m": 300, "5m": 900, "15m": 900, "1H": 7200, "4H": 21600}  # serve stale up to this
 MISS_RETRY_S = 60                                                  # min gap between miss fetches
 _OHLCV: dict[str, dict] = {}
 _ATTEMPT: dict[str, float] = {}
