@@ -149,6 +149,7 @@ class SolanaAgent:
             "mode": self.mode,
             "live_ready": ok,
             "live_reason": why,
+            "dry_run": live_mod.dry_run(),
             "wallet": self.live.pubkey(),
             "confirm_phrase": EXECUTION["live_confirm_phrase"],
             "caps": {

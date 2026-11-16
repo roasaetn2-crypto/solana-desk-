@@ -111,10 +111,24 @@ def _keypair():
         raise LiveError(redact(f"could not load the key: {e}"))
 
 
+def dry_run() -> bool:
+    """DRY RUN: run every guard, cap and Jupiter quote, but never sign or send.
+
+    This exists so live plumbing can be validated end to end with zero money at
+    risk. A dry-run fill is written to the live ledger tagged `dry_run: true` so
+    it can never be mistaken for a real position.
+    """
+    return (os.getenv("LIVE_DRY_RUN", "") or "").strip().lower() in (
+        "1", "true", "yes", "on")
+
+
 def ready() -> tuple[bool, str]:
     """Can this machine actually sign? Returns (ok, human reason)."""
     if LIVE_DISABLED:
         return False, LIVE_DISABLED_MSG
+    if dry_run():
+        # A dry run never signs, so a key is not required. It still cannot send.
+        return True, "DRY RUN: guards and quotes are live, signing is skipped"
     if not _key_material():
         return False, "no SOLANA_PRIVATE_KEY set — live mode cannot arm"
     try:
@@ -212,6 +226,10 @@ class LiveBroker(PaperBroker):
     def _sign_and_send(self, quote: dict) -> str:
         if LIVE_DISABLED:
             raise LiveError(LIVE_DISABLED_MSG)
+        if dry_run():
+            # Belt and braces: even if a future caller forgets the dry-run check,
+            # this function can never sign or broadcast while LIVE_DRY_RUN is on.
+            raise LiveError("DRY RUN: refusing to sign or send a transaction")
         kp = _keypair()
         r = self.http.post(
             f"{EXECUTION['jupiter_base']}/swap",
@@ -305,14 +323,17 @@ class LiveBroker(PaperBroker):
         if out_raw <= 0:
             raise LiveError("route would return zero tokens")
         qty = out_raw / 10 ** dec
-        sig = self._sign_and_send(q)
+        if dry_run():
+            sig = f"dryrun-{int(time.time())}"
+        else:
+            sig = self._sign_and_send(q)
         fill = ticket_usd / qty if qty else price
 
         self.s["cash"] -= ticket_usd
         self.s["positions"][mint] = {
             "symbol": symbol, "qty": qty, "entry": fill, "last": fill,
             "opened": time.time(), "cost": ticket_usd, "half_taken": False,
-            "tx": sig, "live": True,
+            "tx": sig, "live": True, "dry_run": dry_run(),
         }
         if groq_mult is not None:
             # Same measurement hook as the paper broker: tag the position with the
@@ -335,7 +356,10 @@ class LiveBroker(PaperBroker):
             raise LiveError("nothing to sell")
         q = self._quote(mint, EXECUTION["usdc_mint"], raw)
         proceeds = int(q["outAmount"]) / 10 ** 6
-        sig = self._sign_and_send(q)
+        if dry_run():
+            sig = f"dryrun-{int(time.time())}"
+        else:
+            sig = self._sign_and_send(q)
         fill = proceeds / qty if qty else price
 
         self.s["cash"] += proceeds

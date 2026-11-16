@@ -399,9 +399,11 @@ PAPER = {
 # environment. These caps are the last line of defence, not a suggestion.
 EXECUTION = {
     "default_mode": "paper",           # paper | live. Always paper on boot.
-    "live_max_trade_usd": 25.0,        # hard ceiling on any single live ticket
-    "live_max_notional_usd": 100.0,    # hard ceiling on all live money at risk at once
-    "live_daily_loss_pct": 0.03,       # -3% on the live book -> no new live buys today
+    "live_max_trade_usd": 5.0,         # hard ceiling on any single live ticket.
+                                       # Deliberately small for the FIRST live run.
+                                       # Raise only after a clean live session.
+    "live_max_notional_usd": 20.0,     # hard ceiling on all live money at risk at once
+    "live_daily_loss_pct": 0.015,      # -1.5% on the live book -> no new live buys today
     "live_max_slippage_bps": 300,      # 3%. Wider than this and the route is a trap
     "live_confirm_phrase": "I understand this is real money",
     "jupiter_base": "https://lite-api.jup.ag/swap/v1",
