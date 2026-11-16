@@ -237,5 +237,65 @@ class SuperLegendScalperTest(unittest.TestCase):
         self.assertGreaterEqual(sup["scalp.max_hold_minutes"], leg["scalp.max_hold_minutes"])
 
 
+class SuperLegendV2Test(unittest.TestCase):
+    """The v2 preset: Super Legend's entries, Legend's payoff ratio.
+
+    Super Legend measured 64% win rate and still made +5.88%, because a 30%
+    stop against a 1.10 blended TP is a payoff of 0.69 -- it needs 75% just to
+    break even. v2 keeps the loose entries (that is where the win rate came
+    from) and fixes the exit geometry. These assertions pin the fix in place.
+    """
+
+    def test_every_value_is_in_bounds(self):
+        from desk.settings import PRESETS, validate_changes
+        raw = [{"setting": k, "proposed": v}
+               for k, v in PRESETS["super_legend_v2"]["values"].items()]
+        changes, dropped = validate_changes(raw)
+        self.assertEqual(dropped, [], f"every value must be in bounds: {dropped}")
+        self.assertGreater(len(changes), 30)
+
+    def test_payoff_ratio_beats_super_legend(self):
+        """R:R must be > 1. A scalper that risks more than it targets loses."""
+        from desk.settings import PRESETS
+
+        def rr(name):
+            v = PRESETS[name]["values"]
+            f1, f2 = v["scalp.tp1_frac"], v["scalp.tp2_frac"]
+            tp = (f1 * v["scalp.tp1_at"] + f2 * v["scalp.tp2_at"]) / (f1 + f2)
+            return (tp - 1.0) / v["scalp.stop_pct"]
+
+        self.assertGreater(rr("super_legend_v2"), 1.0)
+        self.assertGreater(rr("super_legend_v2"), rr("super_legend_scalp") * 3)
+
+    def test_entries_stay_as_loose_as_super_legend(self):
+        """v2 must not quietly re-tighten the gates that produced the win rate."""
+        from desk.settings import PRESETS
+        v2 = PRESETS["super_legend_v2"]["values"]
+        sup = PRESETS["super_legend_scalp"]["values"]
+        for key in ("scan.min_age_minutes", "scan.min_mcap_usd",
+                    "scan.min_liquidity_usd", "scan.min_trades_h1",
+                    "meme.min_holders", "meme.min_community_score",
+                    "analyst.valid_score", "analyst.max_red_flags",
+                    "signal.min_confidence", "signal.require_bullish",
+                    "entry.max_price_gap_pct"):
+            self.assertEqual(v2[key], sup[key], key)
+
+    def test_dead_token_floors_are_restored(self):
+        """0 volume / 0 trades / $1B mcap is what turns a 12% stop into a gap."""
+        from desk.settings import PRESETS
+        v2 = PRESETS["super_legend_v2"]["values"]
+        self.assertGreater(v2["swing.min_volume_h1_usd"], 0)
+        self.assertGreater(v2["swing.min_trades_h1"], 0)
+        self.assertLessEqual(v2["scan.max_mcap_usd"], 50_000_000)
+
+    def test_hold_is_shorter_than_super_legend(self):
+        """60 min on a scalper parks capital in a dead token."""
+        from desk.settings import PRESETS
+        v2 = PRESETS["super_legend_v2"]["values"]
+        sup = PRESETS["super_legend_scalp"]["values"]
+        self.assertLess(v2["scalp.max_hold_minutes"], sup["scalp.max_hold_minutes"])
+        self.assertLessEqual(v2["scalp.timeout_minutes"], v2["scalp.max_hold_minutes"])
+
+
 if __name__ == "__main__":
     unittest.main()

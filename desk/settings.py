@@ -701,6 +701,51 @@ PRESETS: dict[str, dict] = {
             "risk.max_open_positions": 10, "risk.max_daily_loss_pct": 0.10,
             "risk.auto_continue_after_daily_stop": True,
         }},
+    "super_legend_v2": {
+        "label": "Super Legend v2 (loose entries, tight exits)",
+        "reason": "Super Legend's entry gates -- the loose ones are what produced "
+                  "the 64% win rate -- with the exit geometry rebuilt. The 30% stop "
+                  "was the defect: it capped winners at +21% while letting losers "
+                  "run to -30%, a payoff of 0.69 that needs a 59% win rate just to "
+                  "break even before fees. Here the stop is 12%, TP2 is 1.30 so a "
+                  "runner can pay for two stops, the hold is 25 min instead of 60, "
+                  "and the dead-token floors (0 volume, 0 trades, $1B mcap) are "
+                  "restored because those are what turn a 12% stop into a 30% gap.",
+        "values": {
+            # ---- style: both lanes, fastest loop ----
+            "trading.style": "both", "agent.cycle_seconds": 20,
+            # ---- scan: still loose, but not into the void ----
+            "scan.min_age_minutes": 0, "scan.max_age_hours": 168,
+            "scan.min_liquidity_usd": 2000, "scan.min_volume_h1_usd": 1000,
+            "scan.min_mcap_usd": 5000, "scan.max_mcap_usd": 50000000,
+            "scan.min_trades_h1": 5, "scan.max_h1_change_pct": 2000.0,
+            "scan.min_sells_ratio_h1": 0.05,
+            # ---- entry gates: unchanged from super legend ----
+            "meme.pullback_entry": False,
+            "meme.min_holders": 20, "meme.min_community_score": 0,
+            "analyst.valid_score": 3, "analyst.max_red_flags": 5,
+            "signal.min_confidence": 30, "signal.min_win_probability": 0.30,
+            "signal.require_bullish": False,
+            "entry.max_price_gap_pct": 50.0, "entry.min_confirm_liq_ratio": 0.2,
+            # ---- scalp band: the actual fix ----
+            "scalp.enabled": True, "scalp.max_hold_minutes": 25, "scalp.timeout_minutes": 12,
+            "scalp.min_age_minutes": 0, "scalp.max_age_minutes": 1440,
+            "scalp.min_mcap_usd": 5000, "scalp.max_mcap_usd": 50000000,
+            "scalp.min_liquidity_usd": 1000, "scalp.max_liquidity_usd": 5000000,
+            "scalp.min_volume_m5_usd": 0,
+            # 12% stop: wide enough to keep most of the 64% win rate, narrow
+            # enough that one loss is not three winners.
+            "scalp.stop_pct": 0.12, "scalp.tp1_at": 1.08, "scalp.tp1_frac": 0.4,
+            "scalp.tp2_at": 1.30, "scalp.tp2_frac": 0.6, "scalp.trail_pct": 0.05,
+            # ---- swing band: floors back on ----
+            "swing.enabled": True, "swing.min_age_minutes": 0, "swing.max_age_hours": 168,
+            "swing.min_liquidity_usd": 2000, "swing.max_liquidity_usd": 0,
+            "swing.min_mcap_usd": 5000, "swing.max_mcap_usd": 50000000,
+            "swing.min_volume_h1_usd": 1000, "swing.min_trades_h1": 5,
+            # ---- concurrency ----
+            "risk.max_open_positions": 10, "risk.max_daily_loss_pct": 0.10,
+            "risk.auto_continue_after_daily_stop": True,
+        }},
     "balanced": {"label": "Both lanes", "reason": "Both at once: fresh launches 1-60 min / 10k-100k / 5k-20k scalp in minutes; 1h-48h / 100k-2M / 15k+ swings for hours.",
                  "values": {"trading.style": "both", "scan.max_age_hours": 48,
                             "exits.tp_plan": "profile", "exits.ladder": "fast",

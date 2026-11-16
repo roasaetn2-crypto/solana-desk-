@@ -161,6 +161,32 @@ def load(points: deque, marks: deque, path: Path | None = None) -> int:
     return len(points)
 
 
+def store_info() -> dict:
+    """What is on disk right now, so the dashboard can prove the chart is real.
+
+    Without this, "the chart is blank" is unanswerable from the UI: you cannot
+    tell a wiped data dir from a running-but-old checkout from a frontend bug.
+    Reported in /api/state under ``curve``.
+    """
+    p = store_path()
+    out = {"path": str(p.resolve()) if p.exists() else str(p), "exists": False,
+           "points": 0, "marks": 0, "saved_at": None, "age_s": None}
+    try:
+        if not p.exists():
+            return out
+        out["exists"] = True
+        data = json.loads(p.read_text())
+        out["points"] = len(data.get("points") or [])
+        out["marks"] = len(data.get("marks") or [])
+        saved = data.get("saved_at")
+        if isinstance(saved, (int, float)):
+            out["saved_at"] = float(saved)
+            out["age_s"] = round(max(0.0, time.time() - float(saved)), 1)
+    except Exception:
+        out["error"] = "unreadable"
+    return out
+
+
 def _dedupe(series: deque) -> None:
     """Drop repeated (t, kind/symbol) rows so a double-save cannot double-draw."""
     seen = set()

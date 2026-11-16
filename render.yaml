@@ -22,3 +22,22 @@ services:
       # Set to 0 to disable.
       - key: SELF_PING
         value: "1"
+      # ---- persistence: the free plan has NO disk ----
+      # Without these, paper_ledger.json and equity_curve.json live on
+      # ephemeral storage and are wiped on every redeploy and every spin-down.
+      # That is why the Render book sat at +5.88% while the Termux book, which
+      # keeps its files, reached +97.78%: Render never got to compound.
+      #
+      # Set both in the Render dashboard (Environment tab) from a free Turso
+      # database -- https://turso.tech, `turso db create solana-desk` then
+      # `turso db show solana-desk --url` and `turso db tokens create`.
+      # sync: false means Render asks once and stores them permanently.
+      # Leave them blank and the desk still runs, it just forgets on restart.
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false
+      # Keep the two lanes apart if you ever point Termux and Render at the
+      # same database. Empty means "single lane, legacy keys".
+      - key: DESK_STORE_NAMESPACE
+        value: "render"

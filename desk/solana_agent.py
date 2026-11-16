@@ -137,6 +137,13 @@ class SolanaAgent:
         # change, or a wiped data dir) rebuild it from the ledger's real fills so
         # an existing book does not show a blank chart.
         self._curve_loaded = equity_curve.load(self.equity_curve, self.curve_marks)
+        # Say it out loud in desk.log. "The chart is empty after a restart" was
+        # impossible to diagnose from the dashboard: you could not tell a wiped
+        # data dir from a checkout that predates this module from a frontend bug.
+        # One line at boot names the file, the count and the checkout's HEAD.
+        _ci = equity_curve.store_info()
+        print(f"[desk] chart: {self._curve_loaded} point(s), "
+              f"{len(self.curve_marks)} mark(s) restored from {_ci['path']}")
         if not self._curve_loaded:
             try:
                 pts, mks = equity_curve.backfill_from_ledger(self.paper.s)
@@ -146,6 +153,8 @@ class SolanaAgent:
                     self.curve_marks.append(m)
                 if pts or mks:
                     equity_curve.save(self.equity_curve, self.curve_marks)
+                    print(f"[desk] chart: store was empty; rebuilt {len(pts)} point(s) "
+                          f"and {len(mks)} mark(s) from the ledger's real fills")
             except Exception:
                 pass
         # discipline layer (paper only, tighten-only)
@@ -1552,6 +1561,12 @@ class SolanaAgent:
                                     or PAPER["starting_equity_usd"]),
                 "equity_curve": list(self.equity_curve),
                 "curve_marks": list(self.curve_marks),
+                # Proof, not a guess: where the chart lives on disk, how many
+                # points it holds and how long ago it was written. A blank chart
+                # with `exists: true` and 400 points is a frontend/tab problem;
+                # `exists: false` is a data-dir problem; `points: 0` is a wipe.
+                "curve": {**equity_curve.store_info(),
+                          "restored_at_boot": self._curve_loaded},
                 "latest_realized": self._latest_realized(broker),
                 "activity": self._activity(seen)[:60],
                 # Live view of the shrink-only Groq sizer: on/off, budget left,
