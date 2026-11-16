@@ -46,7 +46,8 @@ from desk.netutil import offline
 from desk.ops import Bench, alert, data_file, journal, killed
 from desk.risk import daily_loss_hit, daily_loss_limit_usd, daily_override_active
 from desk.risk import (Account, check_live_trade, check_token_trade,
-                       fit_risk_budget, live_sizing_breakdown, open_risk_usd,
+                       fit_risk_budget, live_cap_problems, live_sizing_breakdown,
+                       open_risk_usd,
                        risk_budget_usd, sizing_base, sizing_breakdown)
 
 
@@ -154,10 +155,14 @@ class SolanaAgent:
             "confirm_phrase": EXECUTION["live_confirm_phrase"],
             "caps": {
                 "max_trade": EXECUTION["live_max_trade_usd"],
+                "min_ticket": EXECUTION["live_min_ticket_usd"],
                 "max_notional": EXECUTION["live_max_notional_usd"],
                 "daily_loss_usd": self.live.loss_limit_usd(),
                 "max_slippage_bps": EXECUTION["live_max_slippage_bps"],
             },
+            # A contradictory cap pair (per-trade cap under the fee floor) looks
+            # perfectly healthy in the UI but refuses every fill. Surface it.
+            "cap_problems": live_cap_problems(),
             "paper_equity": self.paper.equity(),
             "live_pnl": self.live.equity(),
         }
@@ -195,6 +200,12 @@ class SolanaAgent:
         ok, why = live_mod.ready()
         if not ok:
             return {"ok": False, "error": why}
+        problems = live_cap_problems()
+        if problems:
+            return {"ok": False,
+                    "error": "live caps are contradictory, not arming: "
+                             + "; ".join(problems),
+                    "cap_problems": problems}
         self.mode = "live"
         self.emit("warn", f"LIVE TRADING ARMED — wallet {self.live.pubkey()}. "
                           f"Real money can move. Caps: "
@@ -468,11 +479,15 @@ class SolanaAgent:
             self._stop.wait(AGENT["cycle_seconds"])
 
     def _liquidate(self, reason: str):
-        for mint in list(self.broker.s["positions"]):
-            pos = self.broker.s["positions"][mint]
+        brk = self.broker
+        book = brk.s["positions"]
+        for mint in list(book):
+            pos = book.get(mint)
+            if not pos:
+                continue
             price = pos.get("fill_at") or pos["last"]
             entry = pos.get("entry")
-            fill = self.broker.sell(mint, 1.0, price, reason)
+            fill = brk.sell(mint, 1.0, price, reason)
             journal("exit", **fill)
             self.emit("exit", f"closed {fill['symbol']} — {reason}", fraction=1.0, entry=entry, **fill)
             self._mark_trade("sell", fill, fraction=1.0, entry=entry, mcap_usd=self._mcap_of(mint))
@@ -799,6 +814,7 @@ class SolanaAgent:
                 stop = exits.profile(horizon)["stop_pct"]
                 if self.mode == "live":
                     caps = {"max_trade": EXECUTION["live_max_trade_usd"],
+                            "min_ticket": EXECUTION["live_min_ticket_usd"],
                             "max_notional": EXECUTION["live_max_notional_usd"],
                             "daily_loss_usd": self.live.loss_limit_usd(),
                             "deployed": self.live.position_notional()}
@@ -1181,7 +1197,14 @@ class SolanaAgent:
                 chips.append(signals.chip("groq_size", f"x{gmult:g}", "brain"))
         mult, names = guard.size_multiplier(cuts)
         new_ticket = round(ticket * mult, 2)
-        floor = PAPER.get("min_ticket_usd", RISK["min_ticket_usd"])
+        # The fee floor is per-seat. Paper trades a $20 book and can afford a
+        # $0.20 ticket; live money cannot (priority fee + ATA rent + slippage).
+        # Using the paper floor on the live path let a $2 ticket through, and
+        # using the live floor on the paper path deadlocked the simulator.
+        if self.mode == "live":
+            floor = EXECUTION["live_min_ticket_usd"]
+        else:
+            floor = PAPER.get("min_ticket_usd", RISK["min_ticket_usd"])
         cap = max_ticket if max_ticket is not None else RISK["max_position_pct"] * sizing_base(acct)
         # In live mode the checklist must assert the broker really is the live
         # broker and live trading is not disabled -- not "paper mode", which was
@@ -1214,8 +1237,11 @@ class SolanaAgent:
                     "warn",
                     f"every ticket is under the ${floor} fee floor after a x{mult:g} cut "
                     f"({', '.join(names)}); a ${sizing_base(acct):.2f} book needs "
-                    f"${need:.2f} to trade this profile. Raise PAPER['starting_equity_usd'] "
-                    f"or lower PAPER['min_ticket_usd'].",
+                    f"${need:.2f} to trade this profile. "
+                    + ("Raise EXECUTION['live_max_trade_usd'] or wait for the breaker "
+                       "to reset." if self.mode == "live"
+                       else "Raise PAPER['starting_equity_usd'] or lower "
+                            "PAPER['min_ticket_usd']."),
                     mint=t.get("mint"),
                 )
             return (False, 0.0, f"ticket ${new_ticket} below fee floor ${floor} after caution cuts "
@@ -1250,23 +1276,39 @@ class SolanaAgent:
         return live, scanner.source_label(live)
 
     def _manage_positions(self):
-        live_mints = [m for m in self.broker.s["positions"] if not m.startswith("DEMO")]
+        # Bind the seat ONCE. `self.broker` is a property that returns self.live
+        # when mode == "live" and self.paper otherwise. The operator can arm or
+        # disarm live from the dashboard at any moment, including mid-cycle. The
+        # old code snapshotted `list(self.broker.s["positions"])` and then re-read
+        # the property for every lookup, so a flip between the snapshot and the
+        # lookup left us holding paper mints that do not exist in the live book:
+        #   error: position management failed (KeyError: 'ANPik...pump')
+        # Bind it here and never touch the property again inside this method.
+        brk = self.broker
+        book = brk.s["positions"]
+        live_mints = [m for m in book if not m.startswith("DEMO")]
         quotes = scanner.quote_many(live_mints, self.session) if live_mints else {}
         try:    # one OHLCV refresh per cycle so the dashboard chart never has to fetch
             candle_chart.prefetch(self.session, [
-                (m, (p or {}).get("horizon")) for m, p in self.broker.s["positions"].items()])
+                (m, (p or {}).get("horizon")) for m, p in book.items()])
         except Exception:
             pass
-        for mint in list(self.broker.s["positions"]):
+        for mint in list(book):
+            # the book can change under us (a sell below, a reset, a mode flip
+            # that already happened before brk was bound). Never assume the key
+            # is still there.
+            pos = book.get(mint)
+            if not pos:
+                continue
             if mint.startswith("DEMO"):
-                q = scanner.demo_quote(mint, self.broker.s["positions"][mint]["last"])
+                q = scanner.demo_quote(mint, pos["last"])
             else:
                 q = quotes.get(mint)
             if q and q.get("price_usd") and not mint.startswith("DEMO"):
-                journal("quote", mint=mint, symbol=self.broker.s["positions"][mint].get("symbol"),
+                journal("quote", mint=mint, symbol=pos.get("symbol"),
                         price_usd=q.get("price_usd"), volume_h6=q.get("volume_h6"),
                         volume_h24=q.get("volume_h24"), liquidity_usd=q.get("liquidity_usd"))
-            sig = self.broker.exit_signal(mint, q)
+            sig = brk.exit_signal(mint, q)
             # Signal-driven exit: a strong bearish flip cuts a held position even when
             # no rule-based exit (TP / stop / trail / timeout) has fired yet. Rule-based
             # exits always take priority; this is the extra safety net. Configurable
@@ -1274,7 +1316,7 @@ class SolanaAgent:
             hold_sig = None
             if not sig and not mint.startswith("DEMO"):
                 try:
-                    pos0 = self.broker.s["positions"][mint]
+                    pos0 = book.get(mint) or {}
                     tok = dict(self.tokens_seen.get(mint) or {})
                     if q:
                         for _k in ("price_usd", "liquidity_usd", "volume_h6", "volume_h24"):
@@ -1301,7 +1343,9 @@ class SolanaAgent:
                     pass
             if sig:
                 fraction, reason = sig
-                pos = self.broker.s["positions"][mint]
+                pos = book.get(mint)
+                if not pos:
+                    continue
                 # advisory only, never blocks or delays the sell below
                 self._advise_exit(mint, pos, q, reason, hold_sig)
                 # A stop that fired carries its own fill level (the stop price),
@@ -1317,7 +1361,7 @@ class SolanaAgent:
                     exit_jup = signals.exit_impact(mint, snap["qty"] * fraction,
                                                    snap["meta"].get("decimals"), self.session)
                 try:
-                    fill = self.broker.sell(mint, fraction, price, reason)
+                    fill = brk.sell(mint, fraction, price, reason)
                 except live_mod.LiveError as e:
                     self.stats["errors"] += 1
                     self.emit("error", f"exit refused for {mint[:8]}\u2026 \u2014 {e}",

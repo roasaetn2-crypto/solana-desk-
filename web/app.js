@@ -496,9 +496,18 @@ function renderMode(s) {
     blurb.style.color = live ? "var(--red)" : "";
   }
   const caps = ex.caps || {};
+  const capProblems = ex.cap_problems || [];
   if ($("modeWallet")) $("modeWallet").textContent = ex.wallet ? ex.wallet.slice(0, 4) + "…" + ex.wallet.slice(-4) : "—";
   if ($("modeLivePnl")) $("modeLivePnl").textContent = fmtMoney(ex.live_pnl);
-  if ($("capTrade")) $("capTrade").textContent = caps.max_trade != null ? fmtMoney(caps.max_trade, 0) : "—";
+  // show the live ticket RANGE, not just the ceiling: a cap below the fee floor
+  // is the classic "armed, funded, never fills" trap.
+  if ($("capTrade")) {
+    $("capTrade").textContent = caps.max_trade != null
+      ? (caps.min_ticket != null && caps.min_ticket !== caps.max_trade
+          ? fmtMoney(caps.min_ticket, 0) + "–" + fmtMoney(caps.max_trade, 0)
+          : fmtMoney(caps.max_trade, 0))
+      : "—";
+  }
   if ($("capNotional")) $("capNotional").textContent = caps.max_notional != null ? fmtMoney(caps.max_notional, 0) : "—";
   if ($("armPhraseHint")) $("armPhraseHint").textContent = ex.confirm_phrase || "—";
   const msg = $("modeMsg");
@@ -506,10 +515,15 @@ function renderMode(s) {
     msg.textContent = live ? "" : (ex.live_ready ? "" : (ex.live_reason || ""));
     msg.style.color = "var(--muted)";
   }
+  if (msg && capProblems.length) {
+    msg.textContent = "Live caps are contradictory, so no live entry can pass: "
+      + capProblems.join("; ");
+    msg.style.color = "var(--red)";
+  }
   const eqLabel = $("equityLabel");
   if (eqLabel) eqLabel.textContent = live ? "Live P&L" : "Equity";
   const arm = $("btnArm");
-  if (arm) arm.disabled = !ex.live_ready;
+  if (arm) arm.disabled = !ex.live_ready || capProblems.length > 0;
 }
 
 function toast(msg) {

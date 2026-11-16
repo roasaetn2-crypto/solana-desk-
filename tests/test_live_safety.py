@@ -220,3 +220,155 @@ def test_demo_positions_do_not_block_the_switch(monkeypatch, tmp_path):
                                          "entry": 1.0, "last": 1.0}
     out = ag.set_mode("paper")
     assert out["ok"] is True
+
+
+# ---------------------------------------------------------------------------
+# Mid-cycle seat flips. `self.broker` is a property: it returns self.live when
+# mode == "live" and self.paper otherwise. The operator can arm live from the
+# dashboard at any moment, including while a cycle is mid-flight. The old
+# _manage_positions snapshotted the paper book's mints and then re-read the
+# property for every lookup, so the flip orphaned the iteration:
+#   error: position management failed (KeyError: 'ANPik...pump')
+# These tests pin the fix: bind the seat once, tolerate a vanished key.
+# ---------------------------------------------------------------------------
+
+def _manage_agent(monkeypatch, tmp_path):
+    ag, live = _agent(monkeypatch, tmp_path)
+    from desk import solana_agent as sa
+    ag.session = None
+    ag.tokens_seen = {}
+    ag.stats = {"errors": 0, "exits": 0, "entries": 0, "cycles": 0}
+    ag.cycle_no = 1
+    ag._advise_exit = lambda *a, **k: None
+    ag._mark_trade = lambda *a, **k: None
+    ag._mcap_of = lambda *a, **k: None
+    ag._review = lambda *a, **k: {"note": "", "exit_flags": []}
+    ag.bench = type("B", (), {"sit": lambda *a, **k: None,
+                              "benched": lambda *a, **k: False})()
+    monkeypatch.setattr(sa.scanner, "quote_many", lambda mints, sess: {})
+    monkeypatch.setattr(sa.candle_chart, "prefetch", lambda *a, **k: None)
+    return ag, live, sa
+
+
+def _seed_paper(ag, mint="PAPERmint111", symbol="PMT"):
+    ag.paper.s["positions"][mint] = {
+        "symbol": symbol, "entry": 1.0, "last": 1.0, "peak": 1.0,
+        "qty": 10.0, "opened": 0.0, "horizon": "m5", "meta": {},
+    }
+    return mint
+
+
+def test_manage_positions_survives_a_mid_cycle_flip_to_live(monkeypatch, tmp_path):
+    """Arming live while the paper book is being managed must not raise."""
+    ag, live, sa = _manage_agent(monkeypatch, tmp_path)
+    mint = _seed_paper(ag)
+
+    def flip_and_hold(m, q):
+        ag.mode = "live"          # operator arms live mid-iteration
+        return None               # no exit signal; loop keeps going
+
+    monkeypatch.setattr(ag.paper, "exit_signal", flip_and_hold)
+    monkeypatch.setattr(sa.signal_engine, "evaluate", lambda *a, **k: {"direction": "HOLD"})
+    monkeypatch.setattr(sa.signal_engine, "should_sell", lambda *a, **k: (False, ""))
+
+    ag._manage_positions()        # must not raise KeyError
+    assert ag.mode == "live"
+    assert mint in ag.paper.s["positions"]
+
+
+def test_manage_positions_tolerates_a_vanished_position(monkeypatch, tmp_path):
+    """A position deleted between the snapshot and the lookup is skipped, not fatal."""
+    ag, live, sa = _manage_agent(monkeypatch, tmp_path)
+    mint = _seed_paper(ag)
+
+    def vanish(m, q):
+        ag.paper.s["positions"].pop(mint, None)   # book changes under us
+        return (1.0, "test vanish")
+
+    monkeypatch.setattr(ag.paper, "exit_signal", vanish)
+    monkeypatch.setattr(sa.signal_engine, "evaluate", lambda *a, **k: {"direction": "HOLD"})
+    monkeypatch.setattr(sa.signal_engine, "should_sell", lambda *a, **k: (False, ""))
+
+    ag._manage_positions()        # must not raise
+    assert mint not in ag.paper.s["positions"]
+
+
+def test_liquidate_survives_a_mid_cycle_flip(monkeypatch, tmp_path):
+    ag, live, sa = _manage_agent(monkeypatch, tmp_path)
+    mint = _seed_paper(ag)
+
+    def flip_and_sell(m, fraction, price, reason):
+        ag.mode = "live"
+        ag.paper.s["positions"].pop(m, None)
+        return {"symbol": "PMT", "mint": m, "fill": price, "pnl_usd": 0.0,
+                "qty": 10.0 * fraction, "reason": reason}
+
+    monkeypatch.setattr(ag.paper, "sell", flip_and_sell)
+    ag._liquidate("test")
+    assert ag.mode == "live"
+
+
+# ---------------------------------------------------------------------------
+# The $5-cap / $10-floor deadlock. The live lane reported, on every cycle:
+#   Neil: risk engine said no (ticket $5.0 below fee floor $10)
+# The per-trade cap was $5 and the floor was $10, so `min(max_trade, ...)`
+# could never clear the floor. Fully funded, fully armed, zero fills forever.
+# ---------------------------------------------------------------------------
+
+def test_live_caps_are_coherent_by_default():
+    from desk.risk import live_cap_problems
+    assert live_cap_problems() == []
+
+
+def test_live_cap_guard_catches_a_cap_under_the_floor(monkeypatch):
+    from desk import risk
+    monkeypatch.setitem(risk.EXECUTION, "live_max_trade_usd", 5.0)
+    monkeypatch.setitem(risk.EXECUTION, "live_min_ticket_usd", 10.0)
+    problems = risk.live_cap_problems()
+    assert any("below" in p and "fee floor" in p for p in problems), problems
+
+
+def test_live_cap_guard_catches_a_notional_under_the_floor(monkeypatch):
+    from desk import risk
+    monkeypatch.setitem(risk.EXECUTION, "live_max_trade_usd", 15.0)
+    monkeypatch.setitem(risk.EXECUTION, "live_min_ticket_usd", 10.0)
+    monkeypatch.setitem(risk.EXECUTION, "live_max_notional_usd", 5.0)
+    problems = risk.live_cap_problems()
+    assert any("notional" in p for p in problems), problems
+
+
+def test_check_live_trade_uses_the_live_floor_not_the_paper_one(monkeypatch):
+    """A $12 ticket must pass with a $10 live floor even though RISK says 10 and
+    the old code compared against RISK while capping at 5."""
+    from desk import risk, analyst
+    monkeypatch.setitem(risk.EXECUTION, "live_min_ticket_usd", 10.0)
+    caps = {"max_trade": 15.0, "min_ticket": 10.0, "max_notional": 20.0,
+            "daily_loss_usd": 0.3, "deployed": 0.0}
+    th = analyst.TokenThesis(verdict="valid_setup", score=99, red_flags=[],
+                             green_flags=["crowd"], shape="crowd",
+                             invalidation="buyers stall", sources=["buyers_h1"])
+    ok, ticket, reason = risk.check_live_trade(th, 0.0, 0, 1_000_000.0, caps)
+    assert ok is True, reason
+    assert ticket >= 10.0
+
+
+def test_check_live_trade_still_refuses_a_ticket_under_the_live_floor(monkeypatch):
+    from desk import risk, analyst
+    caps = {"max_trade": 15.0, "min_ticket": 10.0, "max_notional": 20.0,
+            "daily_loss_usd": 0.3, "deployed": 0.0}
+    th = analyst.TokenThesis(verdict="valid_setup", score=99, red_flags=[],
+                             green_flags=["crowd"], shape="crowd",
+                             invalidation="buyers stall", sources=["buyers_h1"])
+    ok, ticket, reason = risk.check_live_trade(th, 0.0, 0, 100.0, caps)  # pool too thin
+    assert ok is False
+    assert "fee floor" in reason
+
+
+def test_arming_is_refused_when_caps_deadlock(monkeypatch, tmp_path):
+    ag, live = _agent(monkeypatch, tmp_path)
+    monkeypatch.setitem(live.EXECUTION, "live_max_trade_usd", 5.0)
+    monkeypatch.setitem(live.EXECUTION, "live_min_ticket_usd", 10.0)
+    out = ag.set_mode("live", confirm=live.EXECUTION["live_confirm_phrase"])
+    assert out["ok"] is False
+    assert "contradictory" in out["error"]
+    assert ag.mode == "paper"

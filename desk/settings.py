@@ -388,6 +388,10 @@ _OWNER_R: list[Setting] = [
     _own("execution.live_max_trade_usd", "Live max per trade", "Owner \u00b7 Live caps", "float",
          _d(EXECUTION, "live_max_trade_usd"), 1.0, 500.0, "USD",
          "hard per-ticket cap for real money. Live arming still needs the confirm phrase."),
+    _own("execution.live_min_ticket_usd", "Live fee floor", "Owner \u00b7 Live caps", "float",
+         _d(EXECUTION, "live_min_ticket_usd"), 1.0, 500.0, "USD",
+         "smallest real-money ticket. Must stay at or below Live max per trade, "
+         "or every entry is refused."),
     _own("execution.live_max_notional_usd", "Live max notional", "Owner \u00b7 Live caps", "float",
          _d(EXECUTION, "live_max_notional_usd"), 1.0, 5_000.0, "USD",
          "total real-money notional the desk may hold at once."),

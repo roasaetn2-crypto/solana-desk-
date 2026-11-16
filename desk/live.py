@@ -397,6 +397,7 @@ class LiveBroker(PaperBroker):
             "notional": self.position_notional(),
             "caps": {
                 "max_trade": EXECUTION["live_max_trade_usd"],
+                "min_ticket": EXECUTION["live_min_ticket_usd"],
                 "max_notional": EXECUTION["live_max_notional_usd"],
                 "daily_loss_usd": self.loss_limit_usd(),
             },

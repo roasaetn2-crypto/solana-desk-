@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import config
-from config import ESTABLISHED, EXITS, PAPER, RISK, SCAN
+from config import ESTABLISHED, EXECUTION, EXITS, PAPER, RISK, SCAN
 
 
 @dataclass
@@ -352,9 +352,39 @@ def check_live_trade(thesis, day_pnl: float, open_positions: int, liquidity_usd:
     remaining = max(0.0, caps["max_notional"] - caps.get("deployed", 0.0))
     by_pool = RISK["max_pool_share"] * liquidity_usd
     ticket = round(min(caps["max_trade"], remaining, by_pool), 2)
-    if ticket < RISK["min_ticket_usd"]:
-        return False, 0.0, f"ticket ${ticket} below fee floor ${RISK['min_ticket_usd']}"
+    # Live has its OWN fee floor. Using RISK["min_ticket_usd"] here while the
+    # per-trade cap was $5 meant ticket <= 5 < 10 on every single cycle: the desk
+    # reported "risk engine said no (ticket $5.0 below fee floor $10)" forever and
+    # could never place a live trade, even fully funded and armed.
+    floor = caps.get("min_ticket") or EXECUTION.get("live_min_ticket_usd") \
+        or RISK["min_ticket_usd"]
+    if ticket < floor:
+        return False, 0.0, f"ticket ${ticket} below fee floor ${floor}"
     return True, ticket, "approved"
+
+
+def live_cap_problems() -> list[str]:
+    """Contradictions in the live caps that would silently block every fill.
+
+    Called when arming and shown on the dashboard. A misconfiguration here is
+    invisible in the UI otherwise: the desk looks armed, the wallet is funded,
+    and nothing ever trades because the per-trade cap sits under the fee floor.
+    """
+    problems: list[str] = []
+    max_trade = float(EXECUTION.get("live_max_trade_usd") or 0.0)
+    min_ticket = float(EXECUTION.get("live_min_ticket_usd") or 0.0)
+    max_notional = float(EXECUTION.get("live_max_notional_usd") or 0.0)
+    if min_ticket <= 0:
+        problems.append("live_min_ticket_usd must be > 0")
+    if max_trade < min_ticket:
+        problems.append(
+            f"live_max_trade_usd ${max_trade:.2f} is below the "
+            f"${min_ticket:.2f} live fee floor: every ticket would be refused")
+    if max_notional < min_ticket:
+        problems.append(
+            f"live_max_notional_usd ${max_notional:.2f} is below the "
+            f"${min_ticket:.2f} live fee floor: no position could ever open")
+    return problems
 
 
 def live_sizing_breakdown(liquidity_usd: float, caps: dict) -> dict:

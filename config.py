@@ -399,9 +399,15 @@ PAPER = {
 # environment. These caps are the last line of defence, not a suggestion.
 EXECUTION = {
     "default_mode": "paper",           # paper | live. Always paper on boot.
-    "live_max_trade_usd": 5.0,         # hard ceiling on any single live ticket.
-                                       # Deliberately small for the FIRST live run.
-                                       # Raise only after a clean live session.
+    "live_max_trade_usd": 15.0,        # hard ceiling on any single live ticket.
+                                       # MUST be >= live_min_ticket_usd or the desk
+                                       # deadlocks: every ticket is capped below the
+                                       # fee floor, so no live entry can ever pass.
+                                       # (Was 5.0, which silently blocked all fills.)
+    "live_min_ticket_usd": 10.0,       # live fee floor. Solana priority fee + ATA rent
+                                       # + Jupiter slippage make sub-$10 tickets lose
+                                       # money on the round trip. Live only; paper uses
+                                       # PAPER["min_ticket_usd"].
     "live_max_notional_usd": 20.0,     # hard ceiling on all live money at risk at once
     "live_daily_loss_pct": 0.015,      # -1.5% on the live book -> no new live buys today
     "live_max_slippage_bps": 300,      # 3%. Wider than this and the route is a trap
