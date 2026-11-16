@@ -29,7 +29,7 @@ for a in "$@"; do
     --fix)   FIX=1 ;;
     --start) START=1 ;;
     --log)   SHOWLOG=1 ;;
-    -h|--help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
   esac
 done
 

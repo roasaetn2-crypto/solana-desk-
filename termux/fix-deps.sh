@@ -3,6 +3,11 @@
 #
 #   bash ~/solana-desk/termux/fix-deps.sh
 #
+# Options:
+#   (none)   install paper deps only  (default, fast, no compiler)
+#   --live   also install solders + base58 so live signing can arm
+#   --help   show this text
+#
 # Fixes the most common Termux breakage:
 #   "pumpportal: websocket-client missing (ModuleNotFoundError)"
 #
@@ -28,7 +33,7 @@ LIVE=0
 for a in "$@"; do
   case "$a" in
     --live) LIVE=1 ;;
-    -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
   esac
 done
 
