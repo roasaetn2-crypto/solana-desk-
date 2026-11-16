@@ -13,8 +13,27 @@
 # hard reset can never destroy your paper book.
 set -u
 
-source "$(dirname "$0")/lib-deskdir.sh"
-DESK_DIR="$(desk_dir)" || { desk_dir_hint; exit 1; }
+# Locate the checkout without assuming lib-deskdir.sh exists: this script is
+# meant to run on a clone that may predate that helper (or may be downloaded
+# on its own via curl), so fall back to a plain search if the lib is absent.
+_here="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
+if [ -f "$_here/lib-deskdir.sh" ]; then
+  # shellcheck disable=SC1091
+  . "$_here/lib-deskdir.sh"
+  DESK_DIR="$(desk_dir)" || { desk_dir_hint; exit 1; }
+else
+  DESK_DIR=""
+  for _c in "$HOME/solana-desk-" "$HOME/solana-desk" "$_here/.." "$PWD"; do
+    if [ -f "$_c/config.py" ] && [ -f "$_c/app.py" ]; then DESK_DIR="$_c"; break; fi
+  done
+  if [ -z "$DESK_DIR" ]; then
+    echo "FAIL: could not find the desk checkout (config.py + app.py)."
+    echo "      Run this from inside ~/solana-desk- or pass DESK_DIR=/path."
+    exit 1
+  fi
+  DESK_DIR="${DESK_DIR:-${DESK_DIR_OVERRIDE:-}}"
+fi
+[ -n "${DESK_DIR_OVERRIDE:-}" ] && DESK_DIR="$DESK_DIR_OVERRIDE"
 CANON="https://github.com/roasaetn2-crypto/solana-desk-.git"
 PORT="${PORT:-8000}"
 
