@@ -45,6 +45,10 @@ _KV = (
     ("operator_settings", lambda: data_file("operator_settings.json")),
     ("proposals", lambda: data_file("proposals.json")),
     ("desk_chat", lambda: data_file("desk_chat.json")),
+    # The chart history. Without this a Render deploy (ephemeral disk) loses the
+    # curve on every restart, which is exactly the bug the local file fixed on
+    # Termux. Synced on a throttle, not every cycle -- see equity_curve.save().
+    ("equity_curve", lambda: data_file("equity_curve.json")),
 )
 _JOURNAL = "journal"
 

@@ -132,6 +132,22 @@ class SolanaAgent:
                       "errors": 0}
         self.equity_curve: deque = deque(maxlen=equity_curve.MAX_POINTS)
         self.curve_marks: deque = deque(maxlen=equity_curve.MAX_MARKS)
+        # The chart used to die on every restart because these were memory-only.
+        # Restore them from disk; if the store is missing (first boot after this
+        # change, or a wiped data dir) rebuild it from the ledger's real fills so
+        # an existing book does not show a blank chart.
+        self._curve_loaded = equity_curve.load(self.equity_curve, self.curve_marks)
+        if not self._curve_loaded:
+            try:
+                pts, mks = equity_curve.backfill_from_ledger(self.paper.s)
+                for pt in pts:
+                    self.equity_curve.append(pt)
+                for m in mks:
+                    self.curve_marks.append(m)
+                if pts or mks:
+                    equity_curve.save(self.equity_curve, self.curve_marks)
+            except Exception:
+                pass
         # discipline layer (paper only, tighten-only)
         self.regime: dict = {"tag": "UNKNOWN", "halve": False}
         self.breaker: dict = {"state": "ok", "mult": 1.0, "reason": "ok"}
@@ -237,8 +253,10 @@ class SolanaAgent:
         """Record the book as it is right now. Never invent a price."""
         ts = t if t is not None else time.time()
         with self.lock:
-            return equity_curve.record_point(
+            pt = equity_curve.record_point(
                 self.equity_curve, ts, self.broker.equity(), self.broker.day_pnl())
+            equity_curve.save(self.equity_curve, self.curve_marks)
+            return pt
 
     def _mark_trade(self, kind: str, fill: dict, **extra) -> dict:
         ts = time.time()
@@ -253,7 +271,7 @@ class SolanaAgent:
             reason=fill.get("reason"), mint=fill.get("mint"),
             entry=extra.get("entry"), fill=fill.get("fill"),
             mult=extra.get("mult"), mcap_usd=extra.get("mcap_usd"))
-        self._snapshot_equity(ts)
+        self._snapshot_equity(ts)   # also persists the curve + this mark
         return mark
 
     def _mcap_of(self, mint: str | None) -> float | None:
@@ -1607,6 +1625,7 @@ class SolanaAgent:
             self.equity_curve.clear()
             self.curve_marks.clear()
             self.reviews.clear()
+            equity_curve.save(self.equity_curve, self.curve_marks)
         self._snapshot_equity()
         self.emit("info", f"Desk reset: {self.mode} book back to start, bench cleared.")
         return {"ok": True}
