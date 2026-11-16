@@ -50,6 +50,43 @@ ESTABLISHED = {
     "size_scale": 0.5,             # half ticket vs the same setup on a fresh launch
 }
 
+# ---------- Fast scalper (1-10 minute holds) ----------
+# A true scalp, separate from the hour-scale ladder above. The operator's brief:
+# in and out inside 10 minutes, on a FRESH coin, entered only while the 5-minute
+# candle is still moving up, with hard caps on age, market cap and liquidity.
+#
+# These are the LIVE gates. scripts/scalper_lab.py measures the entry/exit
+# geometry on real 5m candles; the numbers below are the starting point it
+# produced. Change a value only when the lab (or the journal) says to.
+SCALP = {
+    "enabled": False,                # opt-in: turn on via the `hyper_scalp` preset (or settings)
+    # ---- the clock: this is what makes it a scalp ----
+    "max_hold_minutes": 10,          # hard exit at 10 minutes
+    "timeout_minutes": 6,            # if not green by 6 min, free the slot
+    "timeout_min_gain": 0.01,        # "green" = +1% (covers half the round-trip cost)
+    # ---- entry: the "moving candle" ----
+    # moving_candle = green 5m body, above prior close, above the lookback close.
+    # dip           = buy the shakeout (the repo's proven pullback edge).
+    # breakout      = only a fresh high of the last `moving_candle_bars`.
+    "entry_mode": "moving_candle",
+    "moving_candle_bars": 1,         # bars of upward confirmation
+    "moving_candle_min_body_pct": 0.002,  # body must be >=0.2% of price (not a doji)
+    # ---- freshness / size / depth gates ----
+    "min_age_minutes": 5,            # younger than 5 min is noise, not a trade
+    "max_age_minutes": 360,          # "fresh" = first 6 hours of a launch
+    "min_mcap_usd": 30_000,          # refuse sub-30k dust
+    "max_mcap_usd": 500_000,         # mc cap: stop chasing above 500k
+    "min_liquidity_usd": 8_000,      # need depth to get out
+    "min_volume_m5_usd": 500,        # the 5m candle must have real volume
+    # ---- exit geometry (fast ladder) ----
+    "stop_pct": 0.03,                # -3%
+    "tp1_at": 1.03,                  # +3%, sell half
+    "tp1_frac": 0.5,
+    "tp2_at": 1.06,                  # +6%, sell the rest
+    "tp2_frac": 0.5,
+    "trail_pct": 0.02,               # runner trails 2% below peak
+}
+
 # ---------- Scanner fetch (rate limits, cache, cooldown). Does not change filters. ----------
 SCAN_FETCH = {
     "gt_per_min": 10,              # well under GeckoTerminal's ~30/min public cap
@@ -181,9 +218,11 @@ EXITS = {
                                    # stop is reachable instead of being blown past in one tick.
                                    # False = raw market fill (accept full gap risk).
     "profiles": {
+        # Minute-level clock (None = use the hour keys above). The hyper_scalp
+        # preset fills these so a scalp exits in 1-10 minutes, not 4 hours.
         "scalp": {"stop_pct": 0.20, "tp1_at": 1.5, "tp1_frac": 0.33, "tp2_at": 2.0, "tp2_frac": 0.5,
                   "trail_pct": 0.20, "timeout_hours": 3.0, "timeout_min_gain": 0.05,
-                  "max_hold_hours": 4.0},     # retune: was 6h
+                  "max_hold_hours": 4.0, "timeout_minutes": None, "max_hold_minutes": None},     # retune: was 6h
         "swing": {"stop_pct": 0.30, "tp1_at": 1.5, "tp1_frac": 0.33, "tp2_at": 2.0, "tp2_frac": 0.5,
                   "trail_pct": 0.30, "timeout_hours": 3.0, "timeout_min_gain": 0.05,
                   "max_hold_hours": 4.0},     # owner: swing max hold 4h (was 72h; timeout was 24h)
@@ -308,7 +347,8 @@ BENCH_MINUTES = {
     "skip": 60, "watch": 15, "score": 20,
     "age": 10, "liquidity": 10, "volume": 10, "mcap": 15, "trades": 10,
 }
-BENCH_MINUTES.update({"style": 30, "chase": 20, "price_gap": 10, "liq_unconfirmed": 15, "no_confirm_quote": 5})
+BENCH_MINUTES.update({"style": 30, "chase": 20, "price_gap": 10, "liq_unconfirmed": 15, "no_confirm_quote": 5,
+                      "scalp_age": 10, "scalp_mcap": 15, "scalp_liquidity": 10})
 DEFAULT_BENCH = 30
 
 # ---------- Meme coin value framework ----------

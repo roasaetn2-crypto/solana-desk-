@@ -23,7 +23,7 @@ from datetime import datetime
 
 import requests
 
-from config import ESTABLISHED, SCAN, SCAN_FETCH
+from config import ESTABLISHED, SCALP, SCAN, SCAN_FETCH
 
 log = logging.getLogger("desk.scanner")
 
@@ -962,8 +962,35 @@ def age_cut_minutes() -> float:
     return cut
 
 
+def scalp_kill(t: dict) -> str | None:
+    """Fast-scalp freshness / size / depth window.
+
+    Only active when SCALP["enabled"]. It is a *tightening* on top of the normal
+    SCAN gates: the fast lane only wants fresh launches (5 min - 6 h old), inside
+    the mcap band, with enough liquidity to get out. Returns the failed check.
+    """
+    if not SCALP.get("enabled"):
+        return None
+    age = t.get("age_minutes")
+    if age is not None:
+        if age < SCALP["min_age_minutes"]:
+            return "scalp_age"
+        if age > SCALP["max_age_minutes"]:
+            return "scalp_age"
+    mcap = t.get("mcap_usd")
+    if mcap is not None and not (SCALP["min_mcap_usd"] <= mcap <= SCALP["max_mcap_usd"]):
+        return "scalp_mcap"
+    liq = t.get("liquidity_usd")
+    if liq is not None and liq < SCALP["min_liquidity_usd"]:
+        return "scalp_liquidity"
+    return None
+
+
 def free_kill(t: dict) -> str | None:
     """Pass one. Pure arithmetic on data we already hold. Returns the failed check or None."""
+    sk = scalp_kill(t)
+    if sk:
+        return sk
     if t["age_minutes"] < SCAN["min_age_minutes"]:
         return "age"
     if t["age_minutes"] > SCAN["max_age_hours"] * 60 and not established_ok(t):

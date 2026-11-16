@@ -8,7 +8,7 @@ The stop only ever moves up (to breakeven after TP1).
 """
 from __future__ import annotations
 
-from config import EXITS, PAPER
+from config import EXITS, PAPER, SCALP
 
 
 def horizon_for(age_minutes: float) -> str:
@@ -50,6 +50,20 @@ def profile(name: str | None, overrides: dict | None = None) -> dict:
             base.update(ov)
     except Exception:
         pass
+    # Fast-scalp lane. When SCALP["enabled"], the SCALP block is the single
+    # source of truth for the scalp horizon, and it is applied LAST so it wins
+    # over the pullback ladder. The swing horizon is untouched. This is what
+    # turns a 4-hour scalp profile into a 1-10 minute in-and-out.
+    if name == "scalp" and SCALP.get("enabled"):
+        for k in ("stop_pct", "tp1_at", "tp1_frac", "tp2_at", "tp2_frac", "trail_pct"):
+            if SCALP.get(k) is not None:
+                base[k] = SCALP[k]
+        if SCALP.get("timeout_minutes") is not None:
+            base["timeout_minutes"] = SCALP["timeout_minutes"]
+        if SCALP.get("max_hold_minutes") is not None:
+            base["max_hold_minutes"] = SCALP["max_hold_minutes"]
+        if SCALP.get("timeout_min_gain") is not None:
+            base["timeout_min_gain"] = SCALP["timeout_min_gain"]
     return base
 
 
@@ -176,8 +190,18 @@ def evaluate(pos: dict, q: dict | None, now: float, prof: dict | None = None) ->
         ratio = q.get("volume_h6", 0) / (q["volume_h24"] / 4)
         if ratio < EXITS["volume_decay_ratio"]:
             return (1.0, f"volume decay {ratio:.2f}")
-    if held_min >= pr["timeout_hours"] * 60 and price < entry * (1 + pr["timeout_min_gain"]):
-        return (1.0, f"timeout {pr['timeout_hours']:g}h under +{int(pr['timeout_min_gain'] * 100)}%")
-    if held_min >= pr["max_hold_hours"] * 60:
+    # Minute-level clock for a true scalp. A profile may set `timeout_minutes`
+    # and/or `max_hold_minutes`; when present they win over the hour keys, so a
+    # 1-10 minute strategy never has to express its clock in fractions of an hour.
+    timeout_min = pr.get("timeout_minutes")
+    if timeout_min is None:
+        timeout_min = pr["timeout_hours"] * 60
+    max_hold_min = pr.get("max_hold_minutes")
+    if max_hold_min is None:
+        max_hold_min = pr["max_hold_hours"] * 60
+    if held_min >= timeout_min and price < entry * (1 + pr["timeout_min_gain"]):
+        label = f"{int(timeout_min)}m" if pr.get("timeout_minutes") is not None else f"{pr['timeout_hours']:g}h"
+        return (1.0, f"timeout {label} under +{int(pr['timeout_min_gain'] * 100)}%")
+    if held_min >= max_hold_min:
         return (1.0, "max hold time")
     return None
