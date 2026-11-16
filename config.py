@@ -160,16 +160,20 @@ del _k
 
 # ---------- Scanner fetch (rate limits, cache, cooldown). Does not change filters. ----------
 SCAN_FETCH = {
-    "gt_per_min": 10,              # well under GeckoTerminal's ~30/min public cap
+    "gt_per_min": 6,               # GeckoTerminal: lowered from 10. Render's free
+                                   # tier shares outbound IPs, so the public ~30/min
+                                   # cap is effectively split with other tenants and
+                                   # 10/min was still drawing 429s.
     "gt_burst": 2,                 # at most 1-2 live GT calls in a short burst
-    "ds_per_min": 30,              # under profiles/boosts 60/min and search 300/min
+    "ds_per_min": 18,              # DexScreener: lowered from 30 for the same reason
     "ds_burst": 4,
-    "cache_ttl_s": 90,             # reuse an endpoint body this long
+    "cache_ttl_s": 150,            # reuse an endpoint body this long (was 90). A
+                                   # cached body is real data, a 429 is no data.
     "gt_max_page": 3,              # GT rotation walks pages 1..3 of new_pools / trending 5m / trending 1h
     "pool_ttl_s": 600,             # rolling candidate pool, keyed by mint (~10 min)
     "quote_ttl_s": 15,             # short cache for open-position price refreshes
-    "cooldown_floor_s": 30,        # even if Retry-After is 1s, back off at least this (per host)
-    "cooldown_cap_s": 120,         # exponential 429 cooldown cap; never sleep the cycle
+    "cooldown_floor_s": 45,        # even if Retry-After is 1s, back off at least this (was 30)
+    "cooldown_cap_s": 180,         # exponential 429 cooldown cap; never sleep the cycle (was 120)
     "cooldown_jitter": 0.15,       # up to +15% on every cooldown so probes never sync up
     # Jupiter tokens v2 (free, keyless): 1 cached discovery list + 1 PumpPortal hydrate per cycle
     "jup_enabled": True,

@@ -15,3 +15,9 @@ python-multipart>=0.0.9
 
 # PumpPortal new-token feed (desk/pumpportal.py). Optional: the desk runs without it.
 websocket-client>=1.7
+
+# LIVE signing deps. Paper mode never imports these; live mode refuses to arm
+# without them (desk/live.py ready()). Installed by default so a live deploy
+# does not fail at the last moment on a missing package.
+solders>=0.21
+base58>=2.1

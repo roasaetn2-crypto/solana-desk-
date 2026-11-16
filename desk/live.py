@@ -38,9 +38,16 @@ LIVE_LEDGER = Path("live_ledger.json")
 
 # LOCAL CHANGE (see LOCAL_CHANGES.md): live trading is permanently disabled in
 # this checkout. No key is read, nothing is signed, nothing is sent on-chain.
-LIVE_DISABLED = True
-LIVE_DISABLED_MSG = ("LIVE TRADING IS DISABLED in this build (owner rule: the desk never "
-                     "holds a wallet key or signs/sends transactions). Paper only.")
+# Live trading is opt-in via the environment, and the DEFAULT IS STILL OFF.
+# Nothing arms unless the operator explicitly sets LIVE_TRADING_ENABLED=1 on the
+# host. Even then, arming still needs SOLANA_PRIVATE_KEY plus the exact confirm
+# phrase in config.EXECUTION, and the desk still boots in paper every restart.
+_LIVE_OPT_IN = (os.getenv("LIVE_TRADING_ENABLED", "") or "").strip().lower() in (
+    "1", "true", "yes", "on")
+
+LIVE_DISABLED = not _LIVE_OPT_IN
+LIVE_DISABLED_MSG = ("LIVE TRADING IS DISABLED (set LIVE_TRADING_ENABLED=1 on the host "
+                     "to opt in). Paper only.")
 
 
 class LiveError(Exception):
