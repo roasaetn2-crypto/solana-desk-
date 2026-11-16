@@ -265,3 +265,83 @@ mechanically limits position size. Let the journal prove it before real money.
 | `app.py` | `/api/health` now reports a `scalp` block |
 
 All 983 unit tests pass with `SCALP` off by default.
+
+---
+
+# 6. The three bands: scalp / swing / both
+
+Before this change the desk had **three gate systems that contradicted each
+other**, and one of them made the fast lane impossible to use.
+
+## 6.1 The bug that mattered
+
+`free_kill()` ran the scalp gate first, then applied `SCAN`'s mcap band
+(100k–2M) to *everything*. So a fresh launch at 45k mcap — exactly what the
+scalp lane is for — was killed as `mcap` even with `SCALP.enabled = True`. The
+10k–100k band was unreachable. The lane was on, the settings were right, and
+nothing could ever trade.
+
+Two more, smaller:
+
+- **The 5m-volume trap.** Fresh coins were judged on `min_volume_h1_usd = 3000`
+  (an hour of volume) when they were three minutes old. They died at `volume`
+  before they had lived long enough to accumulate it.
+- **The 60min–6h dead zone.** `horizon_for()` used `scalp_max_age_hours = 6` to
+  pick the exit ladder, while the scalp gate refused anything over 60 minutes.
+  A 90-minute coin got *scalp exits* (20% stop) while being ineligible for the
+  scalp lane. The exits and the entry filter disagreed about what a scalp was.
+
+## 6.2 The model now
+
+Two bands, each with its own four gates, chosen **by age**:
+
+| | **scalp** | **swing** |
+|---|---|---|
+| age | 1–60 min | 1 min–48 h |
+| mcap | $10k–$100k | $100k–$2M |
+| liquidity | $5k–$20k | $3k+, no ceiling |
+| volume | $500 in 5m | $3,000 in 1h |
+| trades | — (too young to judge) | 30 in 1h |
+| hold | 5 min timeout, 10 min max | 3 h timeout, 4 h max |
+| stop / TP1 / TP2 | 5% / 1.04 / 1.08 | 30% / 1.50 / 2.00 |
+
+**`trading.style`** decides which lanes are allowed to open:
+
+- `scalp` → only the scalp band trades; the swing lane is closed
+- `swing` → only the swing band trades; the scalp lane is closed
+- `both` → both are live at once, routed by age
+
+A fresh coin that is **too big or too deep** for the scalp band (say 8 minutes
+old but 150k mcap) falls through to the swing gates rather than being thrown
+away. That is what makes `both` genuinely both, instead of "scalp with a
+fallback that never fires".
+
+## 6.3 Where to change it
+
+Settings page → **Scalp** and **Swing** groups. Every number above is a row.
+Presets:
+
+| preset | style | what it does |
+|---|---|---|
+| Hyper Scalp (1-10 min) | scalp | 1–60 min / 10k–100k / 5k–20k, swing lane off |
+| Scalper mode | scalp | legacy hour-scale scalp ladder (1.3x/1.8x) |
+| Swing mode | swing | 1h–3d / 100k–2M / 15k+ liq / 10k+ 1h vol |
+| Both lanes | both | scalp band + swing band, routed by age |
+
+Env overrides work for both lanes without editing code:
+`SCALP_MIN_MCAP_USD=20000`, `SWING_MIN_LIQUIDITY_USD=25000`, etc.
+
+`/api/health` now returns both bands as loaded by the running process:
+
+```json
+"scalp": {"enabled": true, "mcap_band": [10000, 100000], ...},
+"swing": {"enabled": true, "mcap_band": [100000, 2000000], ...}
+```
+
+## 6.4 What is still unproven
+
+The swing band's numbers are seeded from `SCAN`, which came from the journal's
+own review (100k–500k was the edge at 60% WR; sub-100k bled at 6%). The scalp
+band's numbers are the geometry you specified, and the honest 5m backtest
+caveat in §3 still stands: free data cannot validate a 60% win rate on 1–10
+minute holds. Both lanes are paper-only until the journal says otherwise.

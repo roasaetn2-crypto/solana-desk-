@@ -36,7 +36,7 @@ from dataclasses import dataclass, replace
 from typing import Any, Callable
 
 import config
-from config import AGENT, CHAIN, ENTRY, EXECUTION, EXITS, MEME, PAPER, RISK, SCALP, SCAN, SIGNAL
+from config import AGENT, CHAIN, ENTRY, EXECUTION, EXITS, MEME, PAPER, RISK, SCALP, SCAN, SIGNAL, SWING
 from desk import meme_tactics
 from desk.ops import data_file
 
@@ -503,6 +503,42 @@ _R += [
     _num("scalp.trail_pct", "Scalp trailing stop", "Scalp", "pct", _d(SCALP, "trail_pct"), 0.005, 0.30),
 ]
 
+# ---------- Swing band: the hour-to-day lane's own gates ----------
+# These drive config.SWING. They are the swing lane's answer to the same four
+# questions the Scalp block asks: how old, how deep, how big, how active. Before
+# this block existed, swing silently reused SCAN -- so it had no independent
+# opinion and the two lanes could never be tuned apart.
+_R += [
+    Setting("swing.enabled", "Swing lane", "Swing", "bool",
+            lambda: bool(SWING.get("enabled", True)),
+            lambda v: SWING.__setitem__("enabled", bool(v)),
+            help="ON: coins outside the scalp age window are gated by the SWING numbers below. "
+                 "OFF: they fall back to the plain SCAN gate."),
+    _num("swing.min_age_minutes", "Swing min age", "Swing", "float",
+         _d(SWING, "min_age_minutes"), 0, 1440, "min",
+         "younger than this is not a swing yet"),
+    _num("swing.max_age_hours", "Swing max age", "Swing", "float",
+         _d(SWING, "max_age_hours"), 1, 168, "h",
+         "older than this is not a swing any more (the established lane can still extend it)"),
+    _num("swing.min_liquidity_usd", "Swing min liquidity", "Swing", "int",
+         _d(SWING, "min_liquidity_usd", int), 1_000, 500_000, "USD",
+         "an hour-scale hold needs real depth to exit into"),
+    _num("swing.max_liquidity_usd", "Swing max liquidity", "Swing", "int",
+         _d(SWING, "max_liquidity_usd", int), 0, 5_000_000, "USD",
+         "0 = no ceiling. Deep pools are good on a swing; the cap exists only if you want one"),
+    _num("swing.min_mcap_usd", "Swing min mcap", "Swing", "int",
+         _d(SWING, "min_mcap_usd", int), 5_000, 5_000_000, "USD",
+         "the journal's sub-100k bleed is why this floor is 100k and not 10k"),
+    _num("swing.max_mcap_usd", "Swing max mcap", "Swing", "int",
+         _d(SWING, "max_mcap_usd", int), 20_000, 1_000_000_000, "USD"),
+    _num("swing.min_volume_h1_usd", "Swing min 1h volume", "Swing", "int",
+         _d(SWING, "min_volume_h1_usd", int), 0, 1_000_000, "USD",
+         "an hour-scale hold is judged on hourly volume, not on a 5m print"),
+    _num("swing.min_trades_h1", "Swing min 1h trades", "Swing", "int",
+         _d(SWING, "min_trades_h1", int), 0, 5_000, "trades",
+         "too few trades and the exit is you against one bot"),
+]
+
 # REGISTRY is built above (line ~364) from _R *before* this scalp block was
 # appended, so without this the whole scalp.* surface -- and therefore the
 # `hyper_scalp` preset -- was silently dropped as "unknown setting" by
@@ -531,15 +567,21 @@ PRESETS: dict[str, dict] = {
                            "exits.scalp.tp1_frac": 0.33, "exits.scalp.tp2_frac": 0.5,
                            "exits.scalp.trail_pct": 0.15, "exits.scalp.timeout_hours": 1.5,
                            "exits.scalp.max_hold_hours": 4, "agent.cycle_seconds": 30}},
-    "swing": {"label": "Swing mode", "reason": "Swing only: coins older than the scalp window, wider stop, 4h max hold.",
-              "values": {"trading.style": "swing", "scan.max_age_hours": 72, "exits.scalp_max_age_hours": 6,
+    "swing": {"label": "Swing mode", "reason": "Swing only: 1h-3d old, 100k-2M mcap, 15k+ liquidity, 10k+ 1h volume, wider stop, 4h max hold.",
+              "values": {"trading.style": "swing", "scan.max_age_hours": 72,
                          "exits.tp_plan": "profile", "exits.ladder": "patient",
+                         "scalp.enabled": False, "swing.enabled": True,
+                         "swing.min_age_minutes": 60, "swing.max_age_hours": 72,
+                         "swing.min_liquidity_usd": 15000, "swing.max_liquidity_usd": 0,
+                         "swing.min_mcap_usd": 100000, "swing.max_mcap_usd": 2000000,
+                         "swing.min_volume_h1_usd": 10000, "swing.min_trades_h1": 40,
                          "exits.swing.stop_pct": 0.30, "exits.swing.tp1_at": 1.5, "exits.swing.tp2_at": 2.5,
                          "exits.swing.trail_pct": 0.30, "exits.swing.timeout_hours": 3,
                          "exits.swing.max_hold_hours": 4}},
     "hyper_scalp": {"label": "Hyper Scalp (1-10 min)", "reason": "Fresh launches only (1-60 min, 10k-100k mcap, 5k-20k liquidity), moving 5m candle, in and out inside 10 minutes.",
-                    "values": {"trading.style": "scalp", "scan.max_age_hours": 1, "exits.scalp_max_age_hours": 1,
+                    "values": {"trading.style": "scalp", "scan.max_age_hours": 1,
                                "exits.tp_plan": "profile", "meme.pullback_entry": False,
+                               "swing.enabled": False,
                                "scalp.enabled": True, "scalp.max_hold_minutes": 10, "scalp.timeout_minutes": 5,
                                "scalp.timeout_min_gain": 0.01, "scalp.entry_style": "moving_candle",
                                "scalp.moving_candle_bars": 1, "scalp.moving_candle_min_body_pct": 0.003,
@@ -550,15 +592,36 @@ PRESETS: dict[str, dict] = {
                                "scalp.stop_pct": 0.05, "scalp.tp1_at": 1.04, "scalp.tp1_frac": 0.5,
                                "scalp.tp2_at": 1.08, "scalp.tp2_frac": 0.5, "scalp.trail_pct": 0.03,
                                "agent.cycle_seconds": 20}},
-    "balanced": {"label": "Both (desk default)", "reason": "Back to the desk's default mix: scalp young coins, swing older ones.",
-                 "values": {"trading.style": "both", "scan.max_age_hours": 48, "exits.scalp_max_age_hours": 6.0,
+    "balanced": {"label": "Both lanes", "reason": "Both at once: fresh launches 1-60 min / 10k-100k / 5k-20k scalp in minutes; 1h-48h / 100k-2M / 15k+ swings for hours.",
+                 "values": {"trading.style": "both", "scan.max_age_hours": 48,
                             "exits.tp_plan": "profile", "exits.ladder": "fast",
+                            # scalp band
+                            "scalp.enabled": True, "scalp.max_hold_minutes": 10, "scalp.timeout_minutes": 5,
+                            "scalp.timeout_min_gain": 0.01, "scalp.entry_style": "moving_candle",
+                            "scalp.moving_candle_bars": 1, "scalp.moving_candle_min_body_pct": 0.003,
+                            "scalp.min_age_minutes": 1, "scalp.max_age_minutes": 60,
+                            "scalp.min_mcap_usd": 10000, "scalp.max_mcap_usd": 100000,
+                            "scalp.min_liquidity_usd": 5000, "scalp.max_liquidity_usd": 20000,
+                            "scalp.min_volume_m5_usd": 500,
+                            "scalp.stop_pct": 0.05, "scalp.tp1_at": 1.04, "scalp.tp1_frac": 0.5,
+                            "scalp.tp2_at": 1.08, "scalp.tp2_frac": 0.5, "scalp.trail_pct": 0.03,
+                            # swing band
+                            "swing.enabled": True, "swing.min_age_minutes": 60, "swing.max_age_hours": 48,
+                            "swing.min_liquidity_usd": 15000, "swing.max_liquidity_usd": 0,
+                            "swing.min_mcap_usd": 100000, "swing.max_mcap_usd": 2000000,
+                            "swing.min_volume_h1_usd": 10000, "swing.min_trades_h1": 40,
+                            # legacy scalp profile, restored so this card is a true
+                            # "back to default" (the scalp.* block above overlays it
+                            # while the fast lane is on)
+                            "exits.scalp_max_age_hours": 6.0,
                             "exits.scalp.stop_pct": 0.20, "exits.scalp.tp1_at": 1.5, "exits.scalp.tp2_at": 2.0,
                             "exits.scalp.tp1_frac": 0.33, "exits.scalp.tp2_frac": 0.5,
                             "exits.scalp.trail_pct": 0.20, "exits.scalp.timeout_hours": 3.0,
-                            "exits.scalp.max_hold_hours": 4.0, "exits.swing.stop_pct": 0.30,
-                            "exits.swing.tp1_at": 1.5, "exits.swing.tp2_at": 2.0, "exits.swing.trail_pct": 0.30,
-                            "exits.swing.timeout_hours": 3.0, "exits.swing.max_hold_hours": 4.0}},
+                            "exits.scalp.max_hold_hours": 4.0,
+                            # swing exits
+                            "exits.swing.stop_pct": 0.30, "exits.swing.tp1_at": 1.5, "exits.swing.tp2_at": 2.0,
+                            "exits.swing.trail_pct": 0.30, "exits.swing.timeout_hours": 3.0,
+                            "exits.swing.max_hold_hours": 4.0}},
 }
 
 

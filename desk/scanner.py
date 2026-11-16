@@ -23,7 +23,7 @@ from datetime import datetime
 
 import requests
 
-from config import ESTABLISHED, SCALP, SCAN, SCAN_FETCH
+from config import ESTABLISHED, SCALP, SCAN, SCAN_FETCH, SWING
 
 log = logging.getLogger("desk.scanner")
 
@@ -962,21 +962,27 @@ def age_cut_minutes() -> float:
     return cut
 
 
-def scalp_kill(t: dict) -> str | None:
-    """Fast-scalp freshness / size / depth window.
-
-    Only active when SCALP["enabled"]. It is a *tightening* on top of the normal
-    SCAN gates: the fast lane only wants fresh launches (5 min - 6 h old), inside
-    the mcap band, with enough liquidity to get out. Returns the failed check.
-    """
+def _scalp_window(t: dict) -> bool:
+    """True when the coin is inside the fast lane's age window (and the lane is on)."""
     if not SCALP.get("enabled"):
-        return None
+        return False
     age = t.get("age_minutes")
-    if age is not None:
-        if age < SCALP["min_age_minutes"]:
-            return "scalp_age"
-        if age > SCALP["max_age_minutes"]:
-            return "scalp_age"
+    if age is None:
+        return False
+    return SCALP["min_age_minutes"] <= age <= SCALP["max_age_minutes"]
+
+
+def scalp_kill(t: dict) -> str | None:
+    """Fast-scalp size / depth / volume gates, for a coin inside the scalp window.
+
+    Active only when SCALP["enabled"] AND the coin is inside the age window. A
+    coin outside that window is NOT a scalp rejection -- it belongs to the swing
+    band, which has its own gates in free_kill(). That distinction is the fix for
+    a real bug: the old version returned "scalp_age" for every older coin, so
+    switching the scalp lane on silently switched the swing lane off.
+    """
+    if not _scalp_window(t):
+        return None
     mcap = t.get("mcap_usd")
     if mcap is not None and not (SCALP["min_mcap_usd"] <= mcap <= SCALP["max_mcap_usd"]):
         return "scalp_mcap"
@@ -989,31 +995,68 @@ def scalp_kill(t: dict) -> str | None:
         cap = SCALP.get("max_liquidity_usd")
         if cap is not None and liq > cap:
             return "scalp_liquidity"
+    # A 5-minute coin is judged on 5-minute volume, not on an hour it has not
+    # lived through yet. This is why fresh launches used to die at "volume".
+    if (t.get("volume_m5") or 0) < SCALP["min_volume_m5_usd"]:
+        return "scalp_volume"
     return None
 
 
-def free_kill(t: dict) -> str | None:
-    """Pass one. Pure arithmetic on data we already hold. Returns the failed check or None."""
-    sk = scalp_kill(t)
-    if sk:
-        return sk
-    if t["age_minutes"] < SCAN["min_age_minutes"]:
+def _swing_kill(t: dict) -> str | None:
+    """The swing band's age / liquidity / mcap / volume / activity gates."""
+    if t["age_minutes"] < SWING["min_age_minutes"]:
         return "age"
-    if t["age_minutes"] > SCAN["max_age_hours"] * 60 and not established_ok(t):
+    if t["age_minutes"] > SWING["max_age_hours"] * 60 and not established_ok(t):
         return "age"
-    if t["liquidity_usd"] < SCAN["min_liquidity_usd"]:
+    if t["liquidity_usd"] < SWING["min_liquidity_usd"]:
         return "liquidity"
-    if t["volume_h1"] < SCAN["min_volume_h1_usd"]:
+    _liq_cap = SWING.get("max_liquidity_usd") or 0
+    if _liq_cap and t["liquidity_usd"] > _liq_cap:
+        return "liquidity"
+    if t["volume_h1"] < SWING["min_volume_h1_usd"]:
         return "volume"
-    if not SCAN["min_mcap_usd"] <= t["mcap_usd"] <= SCAN["max_mcap_usd"]:
+    if not SWING["min_mcap_usd"] <= t["mcap_usd"] <= SWING["max_mcap_usd"]:
         return "mcap"
-    if t["buys_h1"] + t["sells_h1"] < SCAN["min_trades_h1"]:
+    if t["buys_h1"] + t["sells_h1"] < SWING["min_trades_h1"]:
         return "trades"
+    return None
+
+
+def _shared_kill(t: dict) -> str | None:
+    """Sanity checks that apply to every lane: don't chase a vertical, don't buy a honeypot."""
     if t.get("change_h1", 0) > SCAN["max_h1_change_pct"]:
         return "chase"
     if t["buys_h1"] and t["sells_h1"] / t["buys_h1"] < SCAN["min_sells_ratio_h1"]:
         return "no_sells"
     return None
+
+
+def free_kill(t: dict) -> str | None:
+    """Pass one. Pure arithmetic on data we already hold. Returns the failed check or None.
+
+    Two bands, each with its own age / liquidity / mcap / volume numbers:
+
+      scalp - fresh launches inside SCALP's age window (only when the lane is on)
+      swing - everything else, gated by SWING
+
+    The band is chosen by AGE. A fresh coin that misses the scalp *band* (too big,
+    too deep, too thin) falls through to the swing gates rather than being thrown
+    away, so "both" mode really does run both lanes at once. With the scalp lane
+    off this is exactly the old SCAN behaviour, because SWING is seeded from SCAN.
+    """
+    if _scalp_window(t):
+        k = scalp_kill(t)
+        if not k:
+            return _shared_kill(t)
+        # Too big / too deep for a scalp is not a rejection if the swing lane is
+        # open and will take it. When swing refuses too, its reason is the more
+        # useful one ("volume", "liquidity") than the scalp band label.
+        if k in ("scalp_mcap", "scalp_liquidity") and SWING.get("enabled"):
+            return _swing_kill(t) or _shared_kill(t)
+        return k
+    if not SWING.get("enabled"):
+        return "age"          # swing lane off: nothing outside the scalp window trades
+    return _swing_kill(t) or _shared_kill(t)
 
 
 def _quote_from_pairs(pairs: list[dict]) -> dict | None:

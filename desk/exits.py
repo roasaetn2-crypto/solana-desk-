@@ -12,7 +12,17 @@ from config import EXITS, PAPER, SCALP
 
 
 def horizon_for(age_minutes: float) -> str:
-    return "scalp" if (age_minutes or 0) < EXITS["scalp_max_age_hours"] * 60 else "swing"
+    """Which exit ladder a coin of this age gets.
+
+    When the fast-scalp lane is on, its own max age IS the horizon boundary.
+    Otherwise a coin 90 minutes old would be classed "scalp" (because the legacy
+    scalp_max_age_hours is 6) while the scalp *gate* refuses anything over 60
+    minutes -- a dead zone where the exits and the entry filter disagreed.
+    """
+    age = age_minutes or 0
+    if SCALP.get("enabled"):
+        return "scalp" if age <= SCALP["max_age_minutes"] else "swing"
+    return "scalp" if age < EXITS["scalp_max_age_hours"] * 60 else "swing"
 
 
 def profile(name: str | None, overrides: dict | None = None) -> dict:

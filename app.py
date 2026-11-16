@@ -414,6 +414,31 @@ def _scalp_health() -> dict:
         return {"enabled": False, "error": str(exc)}
 
 
+def _swing_health() -> dict:
+    """Geometry of the swing lane as this process loaded it.
+
+    Same idea as _scalp_health: the two bands are now independent, so the
+    dashboard must be able to show which numbers each lane is really enforcing.
+    """
+    try:
+        from config import EXITS, SWING
+        return {
+            "enabled": bool(SWING.get("enabled")),
+            "min_age_minutes": SWING.get("min_age_minutes"),
+            "max_age_hours": SWING.get("max_age_hours"),
+            "mcap_band": [SWING.get("min_mcap_usd"), SWING.get("max_mcap_usd")],
+            "liquidity_band": [SWING.get("min_liquidity_usd"), SWING.get("max_liquidity_usd")],
+            "min_volume_h1_usd": SWING.get("min_volume_h1_usd"),
+            "min_trades_h1": SWING.get("min_trades_h1"),
+            "style": EXITS.get("style"),
+            "stop_pct": (EXITS.get("profiles", {}).get("swing") or {}).get("stop_pct"),
+            "tp1_at": (EXITS.get("profiles", {}).get("swing") or {}).get("tp1_at"),
+            "tp2_at": (EXITS.get("profiles", {}).get("swing") or {}).get("tp2_at"),
+        }
+    except Exception as exc:
+        return {"enabled": False, "error": str(exc)}
+
+
 @app.get("/api/health")
 def health():
     pp = pumpportal.health()
@@ -437,6 +462,7 @@ def health():
         # you flip SCALP_ENABLED=1 in Termux you need a way to confirm the
         # running process actually picked it up. Geometry only, no state.
         "scalp": _scalp_health(),
+        "swing": _swing_health(),
         # Whether this *process* actually saw the Turso vars and built the
         # schema. The Environment tab cannot tell you that; this can. Cheap:
         # no network, just the result of the boot-time restore.

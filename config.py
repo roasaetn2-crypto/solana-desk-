@@ -102,8 +102,8 @@ SCALP = {
 import os as _os
 
 
-def _scalp_env(_key, _cur):
-    _raw = _os.environ.get("SCALP_" + _key.upper())
+def _env_override(_prefix, _key, _cur):
+    _raw = _os.environ.get(_prefix + _key.upper())
     if _raw is None or _raw.strip() == "":
         return _cur
     if isinstance(_cur, bool):
@@ -122,7 +122,40 @@ def _scalp_env(_key, _cur):
 
 
 for _k in list(SCALP):
-    SCALP[_k] = _scalp_env(_k, SCALP[_k])
+    SCALP[_k] = _env_override("SCALP_", _k, SCALP[_k])
+del _k
+
+# ---------- Swing lane: the hour-to-day band ----------
+# Until now "swing" had no identity of its own. It silently inherited SCAN,
+# which is ALSO the launch gate -- so swing and scalp were the same filter with
+# different exits, and the two lanes could never hold different opinions about
+# age, liquidity, mcap or volume.
+#
+# SWING gives the older lane its own four gates. Defaults are seeded from SCAN
+# so behaviour is unchanged until an operator (or a preset) moves a number.
+#
+# Why the swing floor stays at 100k mcap: the desk's own journal review found
+# the 100k-500k band was the edge (5 trades, 60% WR, +$6.36) while sub-100k bled
+# (16 trades, 6% WR, -$17.55) on hour-scale holds. Sub-100k is the SCALP lane's
+# job now, where the hold is minutes and the exit is a 4% ladder -- not here.
+SWING = {
+    "enabled": True,
+    # ---- the clock ----
+    "min_age_minutes": SCAN["min_age_minutes"],   # 1 min
+    "max_age_hours": SCAN["max_age_hours"],       # 48 h (ESTABLISHED extends it)
+    # ---- size / depth ----
+    "min_liquidity_usd": SCAN["min_liquidity_usd"],   # 3k
+    "max_liquidity_usd": 0,                           # 0 = no ceiling: deep is good on a swing
+    "min_mcap_usd": SCAN["min_mcap_usd"],             # 100k
+    "max_mcap_usd": SCAN["max_mcap_usd"],             # 2M
+    # ---- activity ----
+    "min_volume_h1_usd": SCAN["min_volume_h1_usd"],   # 3k in the last hour
+    "min_trades_h1": SCAN["min_trades_h1"],           # 30 trades
+}
+
+# ---- env overrides for the swing lane: SWING_MIN_MCAP_USD=250000, etc. ----
+for _k in list(SWING):
+    SWING[_k] = _env_override("SWING_", _k, SWING[_k])
 del _k
 
 # ---------- Scanner fetch (rate limits, cache, cooldown). Does not change filters. ----------
