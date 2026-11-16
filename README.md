@@ -1,6 +1,6 @@
 # AI Trading Desk — Solana Agent
 
-A faithful, runnable rebuild of the [SpikeCalls/ai-trading-desk](https://github.com/SpikeCalls/ai-trading-desk) architecture — the narrow-seat crypto desk — extended with a dedicated **autonomous Solana Agent**, a **meme-coin value desk**, and a live web dashboard.
+A faithful, runnable rebuild of the [SpikeCalls/ai-trading-desk] architecture — the narrow-seat crypto desk — extended with a dedicated **autonomous Solana Agent**, a **meme-coin value desk**, and a live web dashboard.
 
 The original five seats are kept exactly as designed. Three evidence seats are added for the Solana meme market: a **DexScreener market view**, a **dev/creator investigation** (RugCheck), and a **meme value scorecard** that answers *what gives this coin value*. A **seat-to-seat dialogue** layer lets the seats argue with each other before any ticket is written.
 
