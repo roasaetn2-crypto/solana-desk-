@@ -10,6 +10,12 @@
 #
 # Fixes the most common Termux breakage:
 #   "pumpportal: websocket-client missing (ModuleNotFoundError)"
+#   "Error configuring OpenSSL build: Command 'perl' not found"
+#   "failed to load source for dependency `dict-derive`"
+#
+# --live needs a native toolchain. If it is missing, 3a installs it:
+#   pkg install -y perl make openssl libffi clang binutils rust
+# perl is the one people forget, and it is the one that fails LAST.
 #
 # The trap: the import is `import websocket`, but the PyPI package is
 # `websocket-client`. Running `pip install websocket` installs a DIFFERENT
@@ -61,6 +67,42 @@ python -m pip install --upgrade -r requirements.txt || {
 
 say ""
 if [ "$LIVE" = "1" ]; then
+  # ---------- 3a. native build prerequisites ----------
+  # solders pulls in the `openssl-sys` crate, which VENDORS OpenSSL and runs
+  # its `./Configure` script. That script is Perl. Termux does not ship perl
+  # by default, so the build dies with:
+  #
+  #     Error configuring OpenSSL build:
+  #     Command 'perl' not found. Is perl installed?
+  #
+  # ...after 10+ minutes of compiling, which looks like a solders problem and
+  # is not. `make` is needed too: OpenSSL's Configure emits a Makefile.
+  say "=== 3a. native build prerequisites (perl, make, openssl) ==="
+  MISSING=""
+  command -v perl  >/dev/null 2>&1 || MISSING="$MISSING perl"
+  command -v make  >/dev/null 2>&1 || MISSING="$MISSING make"
+  command -v clang >/dev/null 2>&1 || MISSING="$MISSING clang"
+  command -v rustc >/dev/null 2>&1 || MISSING="$MISSING rust"
+  if [ -n "$MISSING" ]; then
+    say "  missing:$MISSING"
+    say "  installing with pkg (this needs network and may take a few minutes)"
+    pkg install -y perl make openssl libffi clang binutils rust 2>&1 | tail -5 || true
+  else
+    say "  all present (perl, make, clang, rustc)"
+  fi
+  # Hard gate. Building solders without perl wastes 20-60 minutes and then
+  # fails, so refuse to start rather than fail late.
+  if ! command -v perl >/dev/null 2>&1; then
+    say ""
+    say "FAIL: perl is still not on PATH, so the vendored OpenSSL build cannot"
+    say "      configure and solders cannot compile. Run this by hand:"
+    say "        pkg install -y perl"
+    say "      then re-run:  bash termux/fix-deps.sh --live"
+    exit 1
+  fi
+  say "  perl: $(perl -v 2>/dev/null | sed -n '2p' | cut -c1-60)"
+
+  say ""
   say "=== 3b. installing live signing deps (solders, base58) ==="
   say "  base58 is pure Python: fast."
   python -m pip install --upgrade "base58>=2.1" || {
@@ -94,6 +136,12 @@ if [ "$LIVE" = "1" ]; then
     say ""
     say "FAIL: solders still would not build."
     say "      Live signing needs it, so live mode will refuse to arm."
+    say ""
+    say "      Check the FIRST error in the log above, not the last. The two"
+    say "      known causes are:"
+    say "        'perl' not found        -> pkg install -y perl"
+    say "        dict-derive not found   -> you are on a PyPI sdist, not git"
+    say ""
     say "      PAPER still works, and the Render lane already has solders"
     say "      installed -- so use Render as the live engine and this phone"
     say "      as the dashboard. That needs no build at all."
