@@ -658,6 +658,63 @@ PRESETS: dict[str, dict] = {
             "risk.max_open_positions": 10, "risk.max_daily_loss_pct": 0.10,
             "risk.auto_continue_after_daily_stop": True,
         }},
+    "guide_scalp": {
+        "label": "Guide Scalp (BONKbot playbook, cost-corrected)",
+        "reason": "The BONKbot scalping guide's PRINCIPLES with its NUMBERS corrected "
+                  "for Solana. The guide is written for CEXs (it names Binance, "
+                  "Coinbase, OKX) where a 0.5-1% target works because the fee is "
+                  "~0.1%. On a Solana DEX the round trip costs ~0.5% in fees and "
+                  "real AMM impact, so a 1% target leaves nothing and a 0.5% target "
+                  "is a guaranteed loss: backtesting the guide's literal numbers on "
+                  "4,200 real entries gave a 0.0% win rate, because every 'win' was "
+                  "smaller than the cost of taking it. So this preset keeps the "
+                  "guide's filters (deep liquidity, real volume, no 800%-in-3h "
+                  "pumps, trend confirmation) and rebuilds the exit geometry so a "
+                  "win is worth more than the toll: TP1 at 1.30 and TP2 at 1.40, "
+                  "both far above cost, with a 20% stop and a full 60-minute hold. "
+                  "The guide's 'get out fast for a small gain' is the one piece of "
+                  "its advice that is backwards on Solana -- a fast exit only "
+                  "guarantees you pay the toll without covering it. Even so: on the "
+                  "4200-entry replay this preset is the best of every geometry "
+                  "tested and still nets about -0.03% per trade in a $40k pool, so "
+                  "treat it as the least-bad configuration, not a money printer. "
+                  "It cannot be profitable until the paper slippage assumption "
+                  "(2%/side) is replaced with real AMM impact.",
+        "values": {
+            # ---- guide step 1: liquidity and volatility, not hype ----
+            "trading.style": "both", "agent.cycle_seconds": 20,
+            "scan.min_age_minutes": 5, "scan.max_age_hours": 48,
+            "scan.min_liquidity_usd": 15000, "scan.min_volume_h1_usd": 5000,
+            "scan.min_mcap_usd": 20000, "scan.max_mcap_usd": 50000000,
+            "scan.min_trades_h1": 40,
+            # guide: "if a coin has gone up 800% in 3 hours, leave it alone"
+            "scan.max_h1_change_pct": 300.0,
+            "scan.min_sells_ratio_h1": 0.10,
+            "meme.pullback_entry": False,
+            "meme.min_holders": 20, "meme.min_community_score": 0,
+            "analyst.valid_score": 6, "analyst.max_red_flags": 3,
+            # ---- guide step 2/3: volume + trend confirmation ----
+            "signal.min_confidence": 45, "signal.min_win_probability": 0.35,
+            "signal.require_bullish": True,
+            "entry.max_price_gap_pct": 20.0, "entry.min_confirm_liq_ratio": 0.3,
+            # ---- scalp band: deep enough to exit, tight spread ----
+            "scalp.enabled": True, "scalp.max_hold_minutes": 60, "scalp.timeout_minutes": 60,
+            "scalp.timeout_min_gain": 0.02,
+            "scalp.min_age_minutes": 5, "scalp.max_age_minutes": 1440,
+            "scalp.min_mcap_usd": 20000, "scalp.max_mcap_usd": 50000000,
+            "scalp.min_liquidity_usd": 15000, "scalp.max_liquidity_usd": 5000000,
+            "scalp.min_volume_m5_usd": 500,
+            # ---- exit geometry: a win must clear the round-trip cost ----
+            "scalp.stop_pct": 0.20, "scalp.tp1_at": 1.30, "scalp.tp1_frac": 0.5,
+            "scalp.tp2_at": 1.40, "scalp.tp2_frac": 0.5, "scalp.trail_pct": 0.05,
+            # ---- swing band: same filters, hour clock ----
+            "swing.enabled": True, "swing.min_age_minutes": 5, "swing.max_age_hours": 48,
+            "swing.min_liquidity_usd": 15000, "swing.max_liquidity_usd": 0,
+            "swing.min_mcap_usd": 20000, "swing.max_mcap_usd": 50000000,
+            "swing.min_volume_h1_usd": 5000, "swing.min_trades_h1": 40,
+            "risk.max_open_positions": 10, "risk.max_daily_loss_pct": 0.10,
+            "risk.auto_continue_after_daily_stop": True,
+        }},
     "super_legend_scalp": {
         "label": "Super Legend Scalper (floor of every floor)",
         "reason": "Legend Scalper with every remaining limit pushed to its registry "

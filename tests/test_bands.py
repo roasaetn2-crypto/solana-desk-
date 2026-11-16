@@ -297,5 +297,73 @@ class SuperLegendV2Test(unittest.TestCase):
         self.assertLessEqual(v2["scalp.timeout_minutes"], v2["scalp.max_hold_minutes"])
 
 
+
+class GuideScalpTest(unittest.TestCase):
+    """The BONKbot playbook, translated to Solana.
+
+    The guide (bonkbot.io/library/meme-coin-scalping-strategy) tells you to
+    scalp 0.5-1% moves. That advice is written for CEXs -- it names Binance,
+    Coinbase and OKX -- where the round trip costs about 0.1%. On a Solana DEX
+    the round trip costs about 0.5% in fees and real AMM impact, so a 1%
+    target leaves nothing and a 0.5% target is a guaranteed loss. Replaying the
+    guide's literal numbers over 4,200 real entries gave a 0.0% win rate: every
+    single "win" was smaller than the cost of taking it.
+
+    These assertions pin the correction in place: keep the guide's discipline
+    (fast exits, tight risk, real liquidity floors) but move the targets far
+    enough above cost that a win is actually a win.
+    """
+
+    def test_every_value_is_in_bounds(self):
+        from desk.settings import PRESETS, validate_changes
+        raw = [{"setting": k, "proposed": v}
+               for k, v in PRESETS["guide_scalp"]["values"].items()]
+        changes, dropped = validate_changes(raw)
+        self.assertEqual(dropped, [], f"every value must be in bounds: {dropped}")
+        self.assertGreater(len(changes), 30)
+
+    def test_scalp_block_is_actually_enabled(self):
+        """exits.profile() ignores every scalp.* key unless this is True.
+
+        This is a live trap: a preset can look like it sets a 60-minute hold
+        and a 20% stop while the engine silently runs the swing profile.
+        """
+        from desk.settings import PRESETS
+        self.assertTrue(PRESETS["guide_scalp"]["values"]["scalp.enabled"])
+
+    def test_targets_clear_the_round_trip_cost(self):
+        """A 0.5-1% target is what killed the guide's literal numbers."""
+        from desk.settings import PRESETS
+        v = PRESETS["guide_scalp"]["values"]
+        # Realistic round trip on a Solana DEX: ~0.5% fees + AMM impact.
+        cost_pct = 0.005
+        self.assertGreater(v["scalp.tp1_at"] - 1.0, cost_pct * 5)
+        self.assertGreater(v["scalp.tp2_at"] - 1.0, v["scalp.tp1_at"] - 1.0)
+
+    def test_payoff_ratio_is_above_one(self):
+        from desk.settings import PRESETS
+        v = PRESETS["guide_scalp"]["values"]
+        f1, f2 = v["scalp.tp1_frac"], v["scalp.tp2_frac"]
+        tp = (f1 * v["scalp.tp1_at"] + f2 * v["scalp.tp2_at"]) / (f1 + f2)
+        self.assertGreater((tp - 1.0) / v["scalp.stop_pct"], 1.0)
+
+    def test_hold_never_exceeds_one_hour(self):
+        """The guide is a scalper. A 25-min hold on a 1h bar is a bug, not a
+        scalp: max-hold fires inside the first candle and every trade dies."""
+        from desk.settings import PRESETS
+        v = PRESETS["guide_scalp"]["values"]
+        self.assertLessEqual(v["scalp.max_hold_minutes"], 60)
+        self.assertLessEqual(v["scalp.timeout_minutes"], v["scalp.max_hold_minutes"])
+
+    def test_liquidity_floor_is_real(self):
+        """The guide's first filter is 'is there enough liquidity to get out'."""
+        from desk.settings import PRESETS
+        v = PRESETS["guide_scalp"]["values"]
+        self.assertGreaterEqual(v["scan.min_liquidity_usd"], 10_000)
+        self.assertGreaterEqual(v["scalp.min_liquidity_usd"], 10_000)
+        self.assertGreater(v["scan.min_volume_h1_usd"], 0)
+        self.assertGreater(v["scan.min_trades_h1"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()
