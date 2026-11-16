@@ -101,3 +101,65 @@ class BandTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LegendScalperTest(unittest.TestCase):
+    """The 'always trades' card: every entry gate at its floor.
+
+    This is the operator's "never sit idle" setting. The point of the test is
+    that a wide spread of coins all reach the broker -- not that they are good
+    trades. Three protective cuts must survive: sub-$5k mcap, honeypots, 7d+.
+
+    Values are applied straight into the config dicts rather than through
+    create_preset()/confirm(), because confirm() writes a settings_change row to
+    journal.jsonl and that leaks into the journal-reading tests.
+    """
+
+    def setUp(self):
+        import desk.settings as st
+        from desk.settings import PRESETS, resolve
+        self._snap = {}
+        for k, v in PRESETS["legend_scalp"]["values"].items():
+            s = resolve(k)
+            self._snap[s.key] = s.get()
+            s.set(v)
+
+    def tearDown(self):
+        import desk.settings as st
+        for k, v in self._snap.items():
+            try:
+                st.REGISTRY[k].set(v)
+            except Exception:
+                pass
+
+    def test_every_reasonable_coin_reaches_the_broker(self):
+        cases = [
+            coin(),                                        # fresh 45k
+            coin(mcap_usd=8_000, age_minutes=2),           # tiny and brand new
+            coin(mcap_usd=5_000_000, age_minutes=30),      # big and fresh
+            coin(mcap_usd=300_000, age_minutes=60),        # 1h old
+            coin(mcap_usd=1_000_000, age_minutes=720),     # 12h old
+            coin(mcap_usd=800_000, age_minutes=7_200),     # 5d old
+            coin(liquidity_usd=2_500),                     # thin
+            coin(volume_m5=0),                             # no 5m print yet
+            coin(buys_h1=3, sells_h1=2),                   # 5 trades
+            coin(change_h1=800),                           # vertical
+        ]
+        for c in cases:
+            self.assertIsNone(scanner.free_kill(c),
+                              f"legend scalper should trade this: {c}")
+
+    def test_protective_cuts_survive(self):
+        self.assertEqual(scanner.free_kill(coin(mcap_usd=3_000)), "mcap")
+        self.assertEqual(scanner.free_kill(coin(buys_h1=100, sells_h1=0)), "no_sells")
+        self.assertEqual(scanner.free_kill(coin(age_minutes=9 * 24 * 60)), "age")
+
+    def test_legend_relaxes_the_starving_gates(self):
+        from config import MEME, SIGNAL
+        self.assertFalse(MEME.get("pullback_entry"))
+        self.assertEqual(SIGNAL["min_confidence"], 30)
+        self.assertFalse(SIGNAL["require_bullish"])
+
+
+if __name__ == "__main__":
+    unittest.main()

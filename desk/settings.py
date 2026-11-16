@@ -42,7 +42,10 @@ from desk.ops import data_file
 
 PROPOSAL_TTL_S = 24 * 3600
 MAX_PENDING = 30
-MAX_CHANGES = 20
+# How many values one proposal may change. A full preset ("Legend Scalper") moves
+# ~45, and the old cap of 20 silently truncated it -- the card looked applied but
+# half the values never landed. 64 is still a sane guard against a runaway proposal.
+MAX_CHANGES = 64
 
 # Names an AI might use for things it must never touch. Matched against the proposed key.
 _EXCLUDED_RE = re.compile(
@@ -592,6 +595,43 @@ PRESETS: dict[str, dict] = {
                                "scalp.stop_pct": 0.05, "scalp.tp1_at": 1.04, "scalp.tp1_frac": 0.5,
                                "scalp.tp2_at": 1.08, "scalp.tp2_frac": 0.5, "scalp.trail_pct": 0.03,
                                "agent.cycle_seconds": 20}},
+    "legend_scalp": {
+        "label": "Legend Scalper (always trades)",
+        "reason": "Every entry gate at its floor: both lanes on, 0 min age, 5k-50M mcap, "
+                  "1k-5M liquidity, no volume floor, signal/meme/analyst gates relaxed. "
+                  "The desk always has candidates. Expect a low win rate and many small losses.",
+        "values": {
+            # ---- style: both lanes, fastest loop ----
+            "trading.style": "both", "agent.cycle_seconds": 20,
+            "scan.max_age_hours": 168, "scan.min_age_minutes": 0,
+            "scan.min_liquidity_usd": 2000, "scan.min_volume_h1_usd": 1000,
+            "scan.min_mcap_usd": 5000, "scan.max_mcap_usd": 50000000,
+            "scan.min_trades_h1": 5, "scan.max_h1_change_pct": 2000.0,
+            "scan.min_sells_ratio_h1": 0.05,
+            # ---- the gates that actually starve entries ----
+            "meme.pullback_entry": False,          # do not wait for a 20% dip
+            "meme.min_holders": 20, "meme.min_community_score": 0,
+            "analyst.valid_score": 3, "analyst.max_red_flags": 5,
+            "signal.min_confidence": 30, "signal.min_win_probability": 0.30,
+            "signal.require_bullish": False,
+            "entry.max_price_gap_pct": 50.0, "entry.min_confirm_liq_ratio": 0.2,
+            # ---- scalp band: wide, short clock ----
+            "scalp.enabled": True, "scalp.max_hold_minutes": 15, "scalp.timeout_minutes": 8,
+            "scalp.min_age_minutes": 0, "scalp.max_age_minutes": 1440,
+            "scalp.min_mcap_usd": 5000, "scalp.max_mcap_usd": 50000000,
+            "scalp.min_liquidity_usd": 1000, "scalp.max_liquidity_usd": 5000000,
+            "scalp.min_volume_m5_usd": 0,
+            "scalp.stop_pct": 0.08, "scalp.tp1_at": 1.05, "scalp.tp1_frac": 0.5,
+            "scalp.tp2_at": 1.12, "scalp.tp2_frac": 0.5, "scalp.trail_pct": 0.04,
+            # ---- swing band: wide, hour clock ----
+            "swing.enabled": True, "swing.min_age_minutes": 0, "swing.max_age_hours": 168,
+            "swing.min_liquidity_usd": 2000, "swing.max_liquidity_usd": 0,
+            "swing.min_mcap_usd": 5000, "swing.max_mcap_usd": 50000000,
+            "swing.min_volume_h1_usd": 1000, "swing.min_trades_h1": 5,
+            # ---- concurrency: more slots, do not halt after a bad day ----
+            "risk.max_open_positions": 10, "risk.max_daily_loss_pct": 0.10,
+            "risk.auto_continue_after_daily_stop": True,
+        }},
     "balanced": {"label": "Both lanes", "reason": "Both at once: fresh launches 1-60 min / 10k-100k / 5k-20k scalp in minutes; 1h-48h / 100k-2M / 15k+ swings for hours.",
                  "values": {"trading.style": "both", "scan.max_age_hours": 48,
                             "exits.tp_plan": "profile", "exits.ladder": "fast",
