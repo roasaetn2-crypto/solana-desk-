@@ -494,8 +494,13 @@ def test_fills_record_the_measured_fee_not_zero(monkeypatch, tmp_path):
 
 
 def test_fee_lookup_failure_never_fails_a_fill(monkeypatch, tmp_path):
+    """A getTransaction outage must not fail the fill, and must not report a
+    decorative zero either: fall back to the modelled base + priority fee."""
     from desk import live as livemod
+    from desk import fees
     b = livemod.LiveBroker(tmp_path / "l.json")
     def boom(m, p): raise RuntimeError("rpc down")
     monkeypatch.setattr(b, "_rpc", boom)
-    assert b._fee_usd("sig") == 0.0
+    monkeypatch.setitem(livemod.EXECUTION, "live_sol_price_usd", 100.0)
+    expected = fees.base_fee_usd() + fees.priority_fee_usd()
+    assert b._fee_usd("sig") == pytest.approx(expected, abs=1e-6)

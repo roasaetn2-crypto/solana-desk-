@@ -382,7 +382,13 @@ PAPER = {
                                    # $0.63-$0.94, and a $2 floor would silently reject every
                                    # setup (the original "sizing deadlock").
     "min_ticket_usd": 0.20,        # paper fee floor; live still uses RISK["min_ticket_usd"]
-    "fee_pct": 0.01,               # pump.fun charges ~1% per swap on the curve
+    # Charge the real Jupiter/Solana fee (base signature + capped priority, priced
+    # off the live SOL spot) instead of a flat percentage. Jupiter's own fee is
+    # 0%; the old 1% "pump.fun curve fee" was invented and made paper P&L drift
+    # from what a live fill would actually cost. Set this False to fall back to
+    # fee_pct below (e.g. to reproduce an old backtest).
+    "use_live_fee_model": True,
+    "fee_pct": 0.01,               # legacy flat fee, used only when use_live_fee_model is False
     "slippage_pct": 0.02,          # assume 2% worse than the quoted price
     # A position is never marked above max_mark_mult times what it cost, nor
     # below min_mark_mult of it. Outside that band the mark is corrupt (a wrong

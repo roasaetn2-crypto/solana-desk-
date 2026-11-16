@@ -16,10 +16,35 @@ from datetime import date
 from pathlib import Path
 
 from config import EXITS, PAPER, RISK  # noqa: F401
-from desk import exits
+from desk import exits, fees
 from desk.ops import data_file
 
 LEDGER = Path("paper_ledger.json")
+
+
+def paper_side_fee(ticket_usd: float, *, first_buy: bool = False) -> dict:
+    """The real Solana fee for one paper swap, itemised.
+
+    Paper used to charge a flat 1% per side, a number nobody measured. Jupiter's
+    own fee is 0%, so the real bill is the base signature fee plus the capped
+    priority fee, priced off the live SOL spot.
+
+    The ATA rent (0.00203928 SOL per new mint) is deliberately NOT charged here.
+    It is a refundable deposit, not a fee, and it is fixed: charging it to the
+    desk's $1-$4 paper tickets would book a ~$0.31 loss the instant a position
+    opened and trip the daily stop after two trades. The live floor model still
+    prices it, because live capital genuinely locks it until the account closes.
+    """
+    if not PAPER.get("use_live_fee_model", True):
+        return {"base_usd": 0.0, "priority_usd": 0.0, "rent_usd": 0.0,
+                "spread_usd": 0.0, "total_usd": round(ticket_usd * PAPER["fee_pct"], 6),
+                "sol_usd": round(fees.sol_price_usd(), 2), "legacy": True}
+    fm = fees.side_fee_usd(ticket_usd, first_buy=False, include_spread=False,
+                           include_rent=False)
+    # Never let a mis-set priority cap eat the whole ticket.
+    if fm["total_usd"] > ticket_usd * 0.5:
+        fm["total_usd"] = round(ticket_usd * 0.5, 6)
+    return fm
 
 
 class PaperBroker:
@@ -213,7 +238,12 @@ class PaperBroker:
             horizon: str = "swing", groq_mult: float | None = None,
             meta: dict | None = None) -> dict:
         fill = price * (1 + PAPER["slippage_pct"])
-        fee = ticket_usd * PAPER["fee_pct"]
+        # Real Jupiter/Solana fee, not a flat 1%. Rent is charged only when this
+        # is the first buy of a mint (a new token account) and the ticket can
+        # absorb it; see paper_side_fee().
+        first_buy = mint not in self.s["positions"]
+        fee_info = paper_side_fee(ticket_usd, first_buy=first_buy)
+        fee = fee_info["total_usd"]
         qty = (ticket_usd - fee) / fill
         self.s["cash"] -= ticket_usd
         self.s["positions"][mint] = {"symbol": symbol, "qty": qty, "entry": fill,
@@ -231,7 +261,8 @@ class PaperBroker:
         exits.init_state(self.s["positions"][mint], horizon)
         self._save()
         return {"side": "buy", "mint": mint, "symbol": symbol, "qty": qty, "fill": fill,
-                "fee": fee, "ticket_usd": ticket_usd, "horizon": horizon}
+                "fee": fee, "fee_detail": fee_info, "ticket_usd": ticket_usd,
+                "horizon": horizon}
 
     def _safe_fill_price(self, p: dict, price: float) -> tuple[float, bool]:
         """A sell may only fill at a price that could be real for this position.
@@ -266,12 +297,14 @@ class PaperBroker:
         qty = p["qty"] * fraction
         fill = price * (1 - PAPER["slippage_pct"])
         gross = qty * fill
-        fee = gross * PAPER["fee_pct"]
+        # Same real fee model as the buy, without the one-time ATA deposit.
+        fee_info = paper_side_fee(gross, first_buy=False)
+        fee = fee_info["total_usd"]
         self.s["cash"] += gross - fee
         p["qty"] -= qty
         p["proceeds"] = p.get("proceeds", 0.0) + gross - fee
         out = {"side": "sell", "mint": mint, "symbol": p["symbol"], "qty": qty,
-               "fill": fill, "fee": fee, "reason": reason}
+               "fill": fill, "fee": fee, "fee_detail": fee_info, "reason": reason}
         if clamped:
             out["price_clamped"] = True
             try:
@@ -281,7 +314,12 @@ class PaperBroker:
             except Exception:
                 pass
         if fraction >= 1 or p["qty"] <= 1e-12:
-            pnl = round(p["proceeds"] - p["cost"], 2)
+            # Full precision, not cents: `cash = start + realised + open
+            # proceeds - open cost` is the ledger's core invariant and must hold
+            # exactly. Rounding the stored P&L to cents made the identity drift
+            # by up to half a cent per closed trade. Display rounds; the ledger
+            # does not.
+            pnl = p["proceeds"] - p["cost"]
             out["pnl_usd"] = pnl
             self.s["closed"].append({"mint": mint, "symbol": p["symbol"], "pnl_usd": pnl,
                                      "reason": reason, "closed": time.time()})
@@ -365,6 +403,32 @@ class PaperBroker:
             "day_start": round(self.s.get("day_start", self.s.get("start_equity", 0.0)), 2),
             "open_count": self.open_count(),
             "clamped_marks": self.clamped(),
+            # What a round trip actually costs at this desk's ticket size. Real
+            # Jupiter/Solana fees, not a flat guess, so the dashboard's fee line
+            # matches what the fills are charged.
+            "fees": self.fee_model(),
             "positions": [self._position_row(m, p) for m, p in self.s["positions"].items()],
             "closed": list(reversed(self.s["closed"][-30:])),
+        }
+
+    def _representative_ticket(self) -> float:
+        costs = [p.get("cost", 0.0) for p in self.s["positions"].values() if p.get("cost")]
+        if costs:
+            return round(sum(costs) / len(costs), 2)
+        return float(PAPER.get("min_ticket_usd") or 1.0)
+
+    def fee_model(self) -> dict:
+        """The round-trip cost this broker would charge at its typical ticket."""
+        ticket = self._representative_ticket()
+        buy = paper_side_fee(ticket, first_buy=True)
+        sell = paper_side_fee(ticket, first_buy=False)
+        total = buy["total_usd"] + sell["total_usd"]
+        return {
+            "ticket_usd": round(ticket, 2),
+            "buy_usd": round(buy["total_usd"], 4),
+            "sell_usd": round(sell["total_usd"], 4),
+            "total_usd": round(total, 4),
+            "pct": round(total / ticket * 100, 2) if ticket > 0 else 0.0,
+            "sol_usd": round(fees.sol_price_usd(), 2),
+            "mode": "live" if PAPER.get("use_live_fee_model", True) else "flat",
         }

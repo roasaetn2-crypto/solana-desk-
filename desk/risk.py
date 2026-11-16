@@ -366,15 +366,15 @@ def check_live_trade(thesis, day_pnl: float, open_positions: int, liquidity_usd:
 def sol_price_usd() -> float:
     """SOL price used to turn lamport fees into dollars.
 
-    Config wins, then a deliberately pessimistic fallback. Never fetched here:
-    this runs inside the entry gate and a network call in the hot path is how a
-    risk check turns into a timeout. Over-stating the SOL price over-states the
-    fee, which is the safe direction to be wrong in.
+    Delegates to ``desk.fees``: an operator pin wins, then the cached live spot
+    the agent loop already fetched for the regime tag, then a deliberately
+    pessimistic fallback. Never fetched here: this runs inside the entry gate
+    and a network call in the hot path is how a risk check turns into a timeout.
+    Over-stating the SOL price over-states the fee, which is the safe direction
+    to be wrong in.
     """
-    pinned = float(EXECUTION.get("live_sol_price_usd") or 0.0)
-    if pinned > 0:
-        return pinned
-    return float(EXECUTION.get("live_sol_price_fallback_usd") or 150.0)
+    from desk import fees
+    return fees.sol_price_usd()
 
 
 def live_fee_model(ticket_usd: float | None = None,
@@ -391,15 +391,15 @@ def live_fee_model(ticket_usd: float | None = None,
     The rent line is the one that decides the floor. It is fixed, so it is a
     rounding error on a $200 ticket and 7% of a $2 one.
     """
-    sol = sol_usd if sol_usd is not None else sol_price_usd()
+    from desk import fees
+    sol = sol_usd if sol_usd is not None else fees.sol_price_usd()
     ticket = float(ticket_usd if ticket_usd is not None
                    else EXECUTION["live_min_ticket_usd"])
-    base = float(EXECUTION.get("live_base_fee_lamports") or 0) * 2
-    prio = float(EXECUTION.get("live_priority_fee_max_lamports") or 0) * 2
-    rent = float(EXECUTION.get("live_ata_rent_lamports") or 0)
-    fixed_usd = (base + prio + rent) / 1_000_000_000 * sol
-    spread_pct = float(EXECUTION.get("live_max_slippage_bps") or 0) / 2 / 10_000
-    spread_usd = ticket * spread_pct
+    base = fees.base_fee_usd(sol) * 2
+    prio = fees.priority_fee_usd(sol) * 2
+    rent = fees.ata_rent_usd(sol)
+    fixed_usd = base + prio + rent
+    spread_usd = fees.spread_usd(ticket, sol_usd=sol)
     total = fixed_usd + spread_usd
     return {
         "ticket_usd": round(ticket, 2),
@@ -409,8 +409,8 @@ def live_fee_model(ticket_usd: float | None = None,
         "total_usd": round(total, 4),
         "pct": round(total / ticket * 100, 2) if ticket > 0 else 0.0,
         "break_even_pct": round(total / ticket * 100, 2) if ticket > 0 else 0.0,
-        "rent_usd": round(rent / 1_000_000_000 * sol, 4),
-        "priority_cap_usd": round(prio / 1_000_000_000 * sol, 4),
+        "rent_usd": round(rent, 4),
+        "priority_cap_usd": round(prio, 4),
     }
 
 

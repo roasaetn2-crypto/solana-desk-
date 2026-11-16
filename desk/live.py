@@ -285,7 +285,8 @@ class LiveBroker(PaperBroker):
         The fills used to record a hardcoded 0.0, so the dashboard's fee column
         was decorative and realised P&L silently absorbed every fee. Read it
         from the transaction meta instead. Best-effort: a lookup failure must
-        never fail a fill that already landed.
+        never fail a fill that already landed -- when the meta is unreadable we
+        fall back to the modelled base + priority fee rather than claim zero.
         """
         try:
             res = self._rpc("getTransaction", [
@@ -293,11 +294,21 @@ class LiveBroker(PaperBroker):
                       "commitment": "confirmed"}])
             fee = ((res or {}).get("meta") or {}).get("fee")
             if not isinstance(fee, int):
-                return 0.0
+                return self._modelled_fee_usd()
         except Exception:
-            return 0.0
+            return self._modelled_fee_usd()
         from desk.risk import sol_price_usd
         return round(fee / 1_000_000_000 * sol_price_usd(), 4)
+
+    def _modelled_fee_usd(self) -> float:
+        """Base signature + capped priority, priced off the live SOL spot.
+
+        This is the fee a swap pays before any ATA deposit. Used when the chain
+        meta cannot be read, so the fee column reflects a real cost instead of a
+        decorative zero.
+        """
+        from desk import fees
+        return round(fees.base_fee_usd() + fees.priority_fee_usd(), 6)
 
     def _confirm(self, sig: str):
         deadline = time.time() + EXECUTION["confirm_timeout_seconds"]
@@ -379,7 +390,7 @@ class LiveBroker(PaperBroker):
         qty = out_raw / 10 ** dec
         if dry_run():
             sig = f"dryrun-{int(time.time())}"
-            fee_usd = 0.0
+            fee_usd = self._modelled_fee_usd()
         else:
             sig = self._sign_and_send(q)
             fee_usd = self._fee_usd(sig)
@@ -414,7 +425,7 @@ class LiveBroker(PaperBroker):
         proceeds = int(q["outAmount"]) / 10 ** 6
         if dry_run():
             sig = f"dryrun-{int(time.time())}"
-            fee_usd = 0.0
+            fee_usd = self._modelled_fee_usd()
         else:
             sig = self._sign_and_send(q)
             fee_usd = self._fee_usd(sig)
@@ -425,9 +436,10 @@ class LiveBroker(PaperBroker):
         p["last"] = fill
         p["proceeds"] = p.get("proceeds", 0.0) + proceeds
         out = {"side": "sell", "mint": mint, "symbol": p["symbol"], "qty": qty,
-               "fill": fill, "fee": fee_usd, "reason": reason, "tx": sig, "live": True}
+               "fill": fill, "fee": fee_usd, "reason": reason, "tx": sig, "live": True,
+               "price_impact": q.get("priceImpactPct")}
         if fraction >= 1 or p["qty"] <= 1e-12:
-            pnl = round(p["proceeds"] - p["cost"], 2)
+            pnl = p["proceeds"] - p["cost"]   # full precision: keep the cash identity exact
             out["pnl_usd"] = pnl
             self.s["closed"].append({"mint": mint, "symbol": p["symbol"], "pnl_usd": pnl,
                                      "reason": reason, "closed": time.time(), "tx": sig})

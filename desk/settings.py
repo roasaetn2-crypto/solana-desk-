@@ -225,7 +225,14 @@ _R: list[Setting] = [
     Setting("risk.compound", "Compound wins", "Risk", "bool", lambda: bool(RISK["compound"]),
             lambda v: RISK.__setitem__("compound", bool(v))),
     _num("paper.min_ticket_usd", "Min paper ticket", "Risk", "float", _d(PAPER, "min_ticket_usd"), 0.10, 10, "USD"),
-    _num("paper.fee_pct", "Simulated fee", "Risk", "pct", _d(PAPER, "fee_pct"), 0.0025, 0.05, "per swap"),
+    Setting("paper.real_fees", "Charge real Jupiter fees", "Risk", "bool",
+            lambda: bool(PAPER.get("use_live_fee_model", True)),
+            lambda v: PAPER.__setitem__("use_live_fee_model", bool(v)),
+            help="PAPER only. On: charge the real Solana fee (base signature + capped priority, "
+                 "priced off the live SOL spot) on every buy and sell, so paper P&L matches a live "
+                 "fill. Off: fall back to the flat 'Simulated fee' percentage below."),
+    _num("paper.fee_pct", "Simulated fee (legacy)", "Risk", "pct", _d(PAPER, "fee_pct"), 0.0025, 0.05, "per swap",
+         help="Only used when 'Charge real Jupiter fees' is off."),
     _num("paper.slippage_pct", "Simulated slippage", "Risk", "pct", _d(PAPER, "slippage_pct"), 0.005, 0.10, "per swap"),
     # drawdown breaker
     _num("breaker.reduce_day_loss_pct", "Breaker: half size at day loss", "Breaker", "pct",

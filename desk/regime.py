@@ -31,14 +31,33 @@ STALE_S = 3600               # an hour-old reading is treated as unknown
 
 _limiter = SlidingLimiter(5, 60)
 _lock = threading.Lock()
-_state: dict = {"tag": "UNKNOWN", "sol_24h": None, "btc_24h": None, "at": None,
-                "tried": 0.0}
+_state: dict = {"tag": "UNKNOWN", "sol_24h": None, "btc_24h": None, "sol_usd": None,
+                "at": None, "tried": 0.0}
 
 
 def reset() -> None:
     _limiter.reset()
     with _lock:
-        _state.update(tag="UNKNOWN", sol_24h=None, btc_24h=None, at=None, tried=0.0)
+        _state.update(tag="UNKNOWN", sol_24h=None, btc_24h=None, sol_usd=None,
+                      at=None, tried=0.0)
+
+
+def sol_price() -> float | None:
+    """The last spot SOL price we fetched, or None if it is missing/stale.
+
+    The fee model prices lamport costs in dollars, so it needs a real SOL
+    price, not the pessimistic fallback. This rides along on the regime call
+    that already happens every ten minutes -- no extra request, no network on
+    the fill path.
+    """
+    with _lock:
+        px = _state.get("sol_usd")
+        at = _state.get("at")
+    if px is None or at is None:
+        return None
+    if time.time() - at > STALE_S:
+        return None
+    return float(px)
 
 
 def classify(sol_24h: float | None, btc_24h: float | None) -> str:
