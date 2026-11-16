@@ -160,14 +160,14 @@ del _k
 
 # ---------- Scanner fetch (rate limits, cache, cooldown). Does not change filters. ----------
 SCAN_FETCH = {
-    "gt_per_min": 6,               # GeckoTerminal: lowered from 10. Render's free
+    "gt_per_min": 5,               # GeckoTerminal: lowered from 10. Render's free
                                    # tier shares outbound IPs, so the public ~30/min
                                    # cap is effectively split with other tenants and
                                    # 10/min was still drawing 429s.
     "gt_burst": 2,                 # at most 1-2 live GT calls in a short burst
-    "ds_per_min": 18,              # DexScreener: lowered from 30 for the same reason
+    "ds_per_min": 8,              # DexScreener: lowered from 30 for the same reason
     "ds_burst": 4,
-    "cache_ttl_s": 150,            # reuse an endpoint body this long (was 90). A
+    "cache_ttl_s": 240,            # reuse an endpoint body this long (was 90). A
                                    # cached body is real data, a 429 is no data.
     "gt_max_page": 3,              # GT rotation walks pages 1..3 of new_pools / trending 5m / trending 1h
     "pool_ttl_s": 600,             # rolling candidate pool, keyed by mint (~10 min)
