@@ -26,6 +26,16 @@ LOCKDIR="$DESK_DIR/.supervisor.lock"
 
 cd "$DESK_DIR" || { echo "No desk dir at $DESK_DIR"; exit 1; }
 
+# ---- persistent operator env (e.g. SCALP_ENABLED=1) ----
+# Written by `termux/scalp.sh on`. Sourced on every (re)start so a supervisor
+# respawn, a Termux:Boot, or a reboot all keep the same lane settings.
+if [ -f "$DESK_DIR/.desk_env" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$DESK_DIR/.desk_env" 2>/dev/null || true
+  set +a
+fi
+
 # ---- singleton: only ONE supervisor may run ----
 # Without this, Termux:Boot + update-all.sh + reset-balance.sh each started a
 # supervisor. They all ran `uvicorn --port 8000`, so all but one died with

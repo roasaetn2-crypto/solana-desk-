@@ -87,6 +87,36 @@ SCALP = {
     "trail_pct": 0.02,               # runner trails 2% below peak
 }
 
+# ---- env overrides: flip the lane on from Termux / Render without editing code ----
+#   SCALP_ENABLED=1   SCALP_MAX_HOLD_MINUTES=10   SCALP_TP1_AT=1.03   ...
+# Any key can be set as SCALP_<KEY_UPPER>. Booleans accept 1/true/yes/on.
+# Termux helper: `bash termux/scalp.sh on` writes these and restarts the desk.
+import os as _os
+
+
+def _scalp_env(_key, _cur):
+    _raw = _os.environ.get("SCALP_" + _key.upper())
+    if _raw is None or _raw.strip() == "":
+        return _cur
+    if isinstance(_cur, bool):
+        return _raw.strip().lower() in ("1", "true", "yes", "on")
+    if isinstance(_cur, int):
+        try:
+            return int(float(_raw))
+        except ValueError:
+            return _cur
+    if isinstance(_cur, float):
+        try:
+            return float(_raw)
+        except ValueError:
+            return _cur
+    return _raw.strip()
+
+
+for _k in list(SCALP):
+    SCALP[_k] = _scalp_env(_k, SCALP[_k])
+del _k
+
 # ---------- Scanner fetch (rate limits, cache, cooldown). Does not change filters. ----------
 SCAN_FETCH = {
     "gt_per_min": 10,              # well under GeckoTerminal's ~30/min public cap

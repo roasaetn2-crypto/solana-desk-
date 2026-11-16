@@ -164,6 +164,62 @@ as a **sensible starting geometry**, not a validated 60%-WR promise.
 
 ---
 
+## 4b. Running the scalper in Termux (no Render dependency)
+
+Render's free plan sleeps after ~15 min of no traffic and can expire; Termux on
+your phone does not. The desk is designed to run locally at
+`http://127.0.0.1:8000`, and the scalp lane is now switchable from Termux
+without editing code.
+
+### One-time (already cloned?)
+```bash
+cd ~/solana-desk-        # or wherever the checkout is; the helpers find it
+git pull --ff-only
+```
+
+### Turn the scalper ON (persistent, survives restarts/reboot)
+```bash
+bash ~/solana-desk-/termux/scalp.sh on
+```
+This writes `$DESK_DIR/.desk_env` with `SCALP_ENABLED=1`, restarts the
+supervisor, and health-checks the desk. `termux/start-desk.sh` sources
+`.desk_env` on every start, so a respawn or Termux:Boot keeps it on.
+
+Tune in the same command — any value can be overridden:
+```bash
+bash ~/solana-desk-/termux/scalp.sh on TP1=1.025 STOP=0.03 HOLD=8 TIMEOUT=5 \
+     MINAGE=5 MAXAGE=360 MINMCAP=30000 MAXMCAP=500000 MINLIQ=8000
+```
+Keys: `TP1 TP2 STOP TP1FRAC HOLD TIMEOUT ENTRY MINAGE MAXAGE MINMCAP MAXMCAP
+MINLIQ MINVOL TRAIL`.
+
+### Check it / turn it OFF
+```bash
+bash ~/solana-desk-/termux/scalp.sh status   # shows .desk_env + live health
+bash ~/solana-desk-/termux/scalp.sh off      # back to the normal desk
+```
+
+`status` reads `/api/health`, which now reports a `scalp` block, so you can
+confirm the *running* process actually loaded the lane — not just that a file
+exists.
+
+### Normal update loop
+```bash
+bash ~/solana-desk-/termux/update-all.sh        # pull + deps + ledger + restart + health
+```
+Then open `http://127.0.0.1:8000/?v=2` and hard-refresh.
+
+### Why this matters for "Render expired"
+- The scalper's edge is **in-and-out in 1–10 minutes**; it cannot tolerate a box
+  that sleeps mid-position. Termux keeps the process and the wake-lock alive.
+- `SCALP` gates only apply to coins **younger than `scalp_max_age_hours` (6h)**,
+  and with the default `trading.style = both` those coins automatically get the
+  `scalp` horizon → the 3% / +3% / +6% / 10-min ladder. No style change needed.
+- If you still want Render as a backup, keep it as a *second* paper desk — but
+  the authoritative scalper run is the Termux one at `127.0.0.1:8000`.
+
+---
+
 ## 5. Files touched
 
 | File | Change |
@@ -174,5 +230,9 @@ as a **sensible starting geometry**, not a validated 60%-WR promise.
 | `desk/settings.py` | ~19 `scalp.*` settings registered; `hyper_scalp` preset ("Hyper Scalp (1-10 min)") |
 | `scripts/scalper_lab.py` | new 1–10 min backtest lab (all-or-nothing + partial ladder) |
 | `scripts/fetch_fresh.py` | 5m OHLCV + mcap/liq/created_at harvester |
+| `config.py` | `SCALP_<KEY>` env overrides (flip the lane on without editing code) |
+| `termux/scalp.sh` | new: `on` / `off` / `status`, writes `.desk_env`, restarts + health-checks |
+| `termux/start-desk.sh` | sources `.desk_env` on every start (persists across respawn/reboot) |
+| `app.py` | `/api/health` now reports a `scalp` block |
 
 All 983 unit tests pass with `SCALP` off by default.

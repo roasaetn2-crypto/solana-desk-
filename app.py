@@ -362,6 +362,31 @@ def backtest():
     return data
 
 
+def _scalp_health() -> dict:
+    """Geometry of the fast-scalp lane as this process loaded it.
+
+    Reads config.SCALP live (env overrides are applied at import), so a
+    `SCALP_ENABLED=1` in .desk_env shows up here the moment the desk restarts.
+    """
+    try:
+        from config import SCALP
+        return {
+            "enabled": bool(SCALP.get("enabled")),
+            "entry_mode": SCALP.get("entry_mode"),
+            "max_hold_minutes": SCALP.get("max_hold_minutes"),
+            "timeout_minutes": SCALP.get("timeout_minutes"),
+            "min_age_minutes": SCALP.get("min_age_minutes"),
+            "max_age_minutes": SCALP.get("max_age_minutes"),
+            "mcap_band": [SCALP.get("min_mcap_usd"), SCALP.get("max_mcap_usd")],
+            "min_liquidity_usd": SCALP.get("min_liquidity_usd"),
+            "stop_pct": SCALP.get("stop_pct"),
+            "tp1_at": SCALP.get("tp1_at"),
+            "tp2_at": SCALP.get("tp2_at"),
+        }
+    except Exception as exc:  # never let health fail because of this
+        return {"enabled": False, "error": str(exc)}
+
+
 @app.get("/api/health")
 def health():
     pp = pumpportal.health()
@@ -378,6 +403,10 @@ def health():
         # out whether the desk is running the config you just pushed. Geometry
         # only: no keys, no positions, nothing that changes state.
         "exits": meme_tactics.ladder_info(),
+        # The fast-scalp lane, unauthenticated, same reasoning as `exits`: when
+        # you flip SCALP_ENABLED=1 in Termux you need a way to confirm the
+        # running process actually picked it up. Geometry only, no state.
+        "scalp": _scalp_health(),
         # Whether this *process* actually saw the Turso vars and built the
         # schema. The Environment tab cannot tell you that; this can. Cheap:
         # no network, just the result of the boot-time restore.
