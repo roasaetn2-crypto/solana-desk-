@@ -61,17 +61,81 @@ python -m pip install --upgrade -r requirements.txt || {
 
 say ""
 if [ "$LIVE" = "1" ]; then
-  say "=== 3b. installing requirements-live.txt (solders, base58) ==="
-  say "  this is a large compiled dependency; on Termux it may build from source."
-  python -m pip install --upgrade -r requirements-live.txt || {
-    say "FAIL: live deps failed to install. Live mode will refuse to arm, but"
-    say "      PAPER still works. Try: pkg install rust clang binutils"
+  say "=== 3b. installing live signing deps (solders, base58) ==="
+  say "  base58 is pure Python: fast."
+  python -m pip install --upgrade "base58>=2.1" || {
+    say "FAIL: base58 failed to install (this one is pure Python, so it is"
+    say "      usually a network problem, not a compiler problem)."
+    exit 1
+  }
+
+  # solders is the hard part. Two facts, both verified:
+  #
+  #   1. There is no aarch64-Android wheel, so it MUST compile here.
+  #   2. Every solders sdist on PyPI omits `crates/dict-derive`, which the
+  #      root Cargo.toml references as a path dependency. So `pip install
+  #      solders` ALWAYS dies with:
+  #          failed to load source for dependency `dict-derive`
+  #          No such file or directory ... crates/dict-derive/Cargo.toml
+  #      This is an upstream packaging bug, not your phone. Pinning a version
+  #      does not help: 0.21.0, 0.23.0, 0.26.0 and 0.29.0 all ship without it.
+  #
+  # The git repo DOES contain crates/dict-derive, so build from there instead.
+  say ""
+  say "  solders: PyPI sdist is broken (missing crates/dict-derive)."
+  say "  building from the git tag instead, which has the full source tree."
+  say "  this compiles the Solana Rust stack: expect 20-60 minutes."
+  python -m pip install --upgrade maturin || {
+    say "FAIL: could not install maturin (the Rust build backend)."
+    exit 1
+  }
+  python -m pip install --no-build-isolation \
+      "git+https://github.com/kevinheavey/solders.git@v0.27.1" || {
+    say ""
+    say "FAIL: solders still would not build."
+    say "      Live signing needs it, so live mode will refuse to arm."
+    say "      PAPER still works, and the Render lane already has solders"
+    say "      installed -- so use Render as the live engine and this phone"
+    say "      as the dashboard. That needs no build at all."
     exit 1
   }
 else
   say "=== 3b. live signing deps SKIPPED (paper only) ==="
   say "  solders/base58 are only needed to sign real transactions."
   say "  To install them anyway:  bash termux/fix-deps.sh --live"
+fi
+
+# Prove the signing deps actually import. pip can report success on a package
+# that then fails to load (wrong ABI, missing shared lib), and the desk would
+# only discover that the moment you try to arm live.
+if [ "$LIVE" = "1" ]; then
+  say ""
+  say "=== 3c. verifying the signing deps import ==="
+  python - <<'PY'
+import sys
+ok = True
+try:
+    import base58
+    print(f"  base58 : ok ({base58.__file__})")
+except Exception as e:
+    print(f"  base58 : FAIL {type(e).__name__}: {e}")
+    ok = False
+try:
+    from solders.keypair import Keypair
+    kp = Keypair()                      # generate a throwaway keypair
+    print(f"  solders: ok ({Keypair.__module__})")
+    print(f"           test pubkey {kp.pubkey()}")
+except Exception as e:
+    print(f"  solders: FAIL {type(e).__name__}: {e}")
+    ok = False
+sys.exit(0 if ok else 1)
+PY
+  [ $? -eq 0 ] || {
+    say ""
+    say "FAIL: signing deps installed but do not import."
+    say "      Live mode will refuse to arm. Paper still works."
+    exit 1
+  }
 fi
 
 say ""

@@ -24,6 +24,12 @@ desk_dir() {
 
   # 2. the usual places, in order. Both spellings, because the repo name and the
   #    docs have disagreed since the beginning.
+  #
+  #    If MORE THAN ONE of these is a real checkout we warn on stderr. Silently
+  #    picking the first one is how you end up pulling into ~/solana-desk- and
+  #    then running a stale script out of ~/solana-desk, which looks exactly
+  #    like "the fix did not work".
+  local found=""
   for c in \
     "$HOME/solana-desk" \
     "$HOME/solana-desk-" \
@@ -34,10 +40,22 @@ desk_dir() {
     "$HOME/storage/downloads/solana-desk-"
   do
     if [ -f "$c/config.py" ] && [ -f "$c/app.py" ]; then
-      printf '%s' "$c"
-      return 0
+      found="$found $c"
     fi
   done
+
+  if [ -n "$found" ]; then
+    set -- $found
+    if [ "$#" -gt 1 ]; then
+      printf 'WARNING: %s desk checkouts found:%s\n' "$#" "$found" >&2
+      printf '         using %s\n' "$1" >&2
+      printf '         the others are stale copies and will NOT be updated.\n' >&2
+      printf '         to remove the confusion:  DESK_DIR=%s bash <script>\n' "$1" >&2
+      printf '         or delete the spare:      rm -rf %s\n' "$2" >&2
+    fi
+    printf '%s' "$1"
+    return 0
+  fi
 
   # 3. the checkout this script lives inside (BASH_SOURCE[1] is the caller)
   self="$(cd "$(dirname "${BASH_SOURCE[1]:-$0}")/.." 2>/dev/null && pwd)" || self=""

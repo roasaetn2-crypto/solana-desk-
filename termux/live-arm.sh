@@ -37,6 +37,12 @@ say() { printf '%s\n' "$*"; }
 hr()  { say "------------------------------------------------------------"; }
 
 cd "$DESK_DIR" || { say "FAIL: no desk dir at $DESK_DIR"; exit 1; }
+say "checkout: $DESK_DIR"
+say "HEAD    : $(git rev-parse --short HEAD 2>/dev/null || echo 'not a git checkout')"
+if [ -n "$(git status --porcelain --untracked-files=no 2>/dev/null)" ]; then
+  say "WARNING : this checkout has local edits; a later git pull may refuse."
+  say "          run: bash termux/verify-update.sh --fix"
+fi
 
 # ---------- .desk_env helpers ----------
 # The file is a plain `KEY=value` shell fragment sourced by start-desk.sh with
