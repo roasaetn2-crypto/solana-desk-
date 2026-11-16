@@ -161,5 +161,81 @@ class LegendScalperTest(unittest.TestCase):
         self.assertFalse(SIGNAL["require_bullish"])
 
 
+class SuperLegendScalperTest(unittest.TestCase):
+    """The loosest card the registry allows: every floor and ceiling at its limit.
+
+    Same contract as LegendScalperTest -- a wide spread of coins must reach the
+    broker, and the three protective cuts must still fire -- but with the extra
+    limits Legend still enforced (1B mcap ceiling, zero volume/trade floors,
+    30% stop, 60 min holds) pushed to the registry floor.
+    """
+
+    def setUp(self):
+        import desk.settings as st
+        from desk.settings import PRESETS, resolve
+        self._snap = {}
+        for k, v in PRESETS["super_legend_scalp"]["values"].items():
+            s = resolve(k)
+            self._snap[s.key] = s.get()
+            s.set(v)
+
+    def tearDown(self):
+        import desk.settings as st
+        for k, v in self._snap.items():
+            try:
+                st.REGISTRY[k].set(v)
+            except Exception:
+                pass
+
+    def test_preset_is_valid_and_changes_something(self):
+        import desk.settings as st
+        from desk.settings import PRESETS, validate_changes
+        # setUp already applied the values, so restore first: validate_changes
+        # drops no-ops, and every value would look like one.
+        for k, v in self._snap.items():
+            st.REGISTRY[k].set(v)
+        raw = [{"setting": k, "proposed": v}
+               for k, v in PRESETS["super_legend_scalp"]["values"].items()]
+        changes, dropped = validate_changes(raw)
+        self.assertEqual(dropped, [], f"every value must be in bounds: {dropped}")
+        self.assertGreater(len(changes), 30)
+
+    def test_every_reasonable_coin_reaches_the_broker(self):
+        cases = [
+            coin(),
+            coin(mcap_usd=8_000, age_minutes=2),
+            coin(mcap_usd=5_000_000, age_minutes=30),
+            coin(mcap_usd=300_000, age_minutes=60),
+            coin(mcap_usd=1_000_000, age_minutes=720),
+            coin(mcap_usd=800_000, age_minutes=7_200),
+            coin(liquidity_usd=2_500),
+            coin(volume_m5=0),
+            coin(buys_h1=3, sells_h1=2),
+            coin(change_h1=800),
+            coin(mcap_usd=400_000_000, age_minutes=90),   # huge, legend refused it
+            coin(volume_h1=0, buys_h1=0, sells_h1=0),    # dead volume
+        ]
+        for c in cases:
+            self.assertIsNone(scanner.free_kill(c),
+                              f"super legend should trade this: {c}")
+
+    def test_protective_cuts_survive(self):
+        self.assertEqual(scanner.free_kill(coin(mcap_usd=3_000)), "mcap")
+        self.assertEqual(scanner.free_kill(coin(buys_h1=100, sells_h1=0)), "no_sells")
+        self.assertEqual(scanner.free_kill(coin(age_minutes=9 * 24 * 60)), "age")
+
+    def test_super_is_at_least_as_loose_as_legend(self):
+        from desk.settings import PRESETS
+        sup = PRESETS["super_legend_scalp"]["values"]
+        leg = PRESETS["legend_scalp"]["values"]
+        # ceilings only ever go up, floors only ever go down
+        self.assertGreaterEqual(sup["scan.max_mcap_usd"], leg["scan.max_mcap_usd"])
+        self.assertLessEqual(sup["scan.min_mcap_usd"], leg["scan.min_mcap_usd"])
+        self.assertLessEqual(sup["swing.min_volume_h1_usd"], leg["swing.min_volume_h1_usd"])
+        self.assertLessEqual(sup["swing.min_trades_h1"], leg["swing.min_trades_h1"])
+        self.assertGreaterEqual(sup["scalp.stop_pct"], leg["scalp.stop_pct"])
+        self.assertGreaterEqual(sup["scalp.max_hold_minutes"], leg["scalp.max_hold_minutes"])
+
+
 if __name__ == "__main__":
     unittest.main()
