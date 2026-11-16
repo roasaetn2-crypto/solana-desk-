@@ -362,6 +362,33 @@ def backtest():
     return data
 
 
+def _build_id() -> str:
+    """Short git commit of the code this process is running.
+
+    The dashboard shows a build hash, and after a `git pull` the operator needs
+    a way to prove the *running* process is the new code and not a stale
+    supervisor. Render also injects RENDER_GIT_COMMIT, so prefer that there.
+    """
+    env = os.environ.get("RENDER_GIT_COMMIT") or os.environ.get("DESK_BUILD")
+    if env:
+        return env[:10]
+    try:
+        import subprocess
+        out = subprocess.run(
+            ["git", "rev-parse", "--short=10", "HEAD"],
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+            capture_output=True, text=True, timeout=2,
+        )
+        if out.returncode == 0 and out.stdout.strip():
+            return out.stdout.strip()
+    except Exception:
+        pass
+    return "unknown"
+
+
+_BUILD = _build_id()
+
+
 def _scalp_health() -> dict:
     """Geometry of the fast-scalp lane as this process loaded it.
 
@@ -396,6 +423,9 @@ def health():
         # container after ~15 min without inbound traffic, so a small uptime is
         # proof the box slept (or was redeployed) rather than a guess about it.
         "uptime_s": int(time.time() - _BOOT),
+        # Which code is actually running. After a pull/repair the operator needs
+        # to confirm the live process is the new commit, not a stale supervisor.
+        "build": _BUILD,
         "booted_at": _iso(_BOOT),
         "keepalive": keepalive.status(),
         # The ladder in force, unauthenticated. /api/state needs the DESK_TOKEN,
