@@ -20,20 +20,19 @@ It ships three things:
 | Knob | Value | Why |
 |---|---|---|
 | `max_hold_minutes` | **10** | hard exit — this is what makes it a scalp |
-| `timeout_minutes` | **6** | if it isn't green by 6 min, free the slot |
+| `timeout_minutes` | **5** | if it isn't green by 5 min, free the slot |
 | `timeout_min_gain` | **1%** | "green" = +1% (covers half the round-trip cost) |
 | `entry_mode` | **moving_candle** | only enter while the 5m candle is still moving up |
 | `moving_candle_bars` | **1** | signal bar = the most recent closed 5m candle |
-| `moving_candle_min_body_pct` | **0.2%** | reject dead/doji candles |
-| `min_age_minutes` | **5** | not a 30-second-old snipe; needs one closed 5m bar |
-| `max_age_minutes` | **360** | fresh only (≤6 h old) |
-| `min_mcap_usd` / `max_mcap_usd` | **30k / 500k** | the micro-cap band where 5m moves are large |
-| `min_liquidity_usd` | **8k** | enough depth to actually get out |
+| `moving_candle_min_body_pct` | **0.3%** | reject dead/doji candles |
+| `min_age_minutes` / `max_age_minutes` | **1 / 60** | a launch is tradeable in its first hour |
+| `min_mcap_usd` / `max_mcap_usd` | **10k / 100k** | the launch band where 5m moves are large |
+| `min_liquidity_usd` / `max_liquidity_usd` | **5k / 20k** | enough depth to exit, shallow enough to still move |
 | `min_volume_m5_usd` | **500** | the candle must have real volume behind it |
-| `stop_pct` | **3%** | tight stop for a tight clock |
-| `tp1_at` / `tp1_frac` | **+3% / 50%** | bank half at +3% |
-| `tp2_at` / `tp2_frac` | **+6% / 50%** | rest at +6% |
-| `trail_pct` | **2%** | trail the runner after TP1 |
+| `stop_pct` | **5%** | 5–20k liquidity means 2–4% slippage; 3% is noise |
+| `tp1_at` / `tp1_frac` | **+4% / 50%** | bank half at +4% |
+| `tp2_at` / `tp2_frac` | **+8% / 50%** | rest at +8% |
+| `trail_pct` | **3%** | trail the runner after TP1 |
 
 The **scalp lane is opt-in**. `SCALP["enabled"]` is `False` by default so the
 desk's existing behaviour is untouched. Turn it on either by applying the
@@ -217,6 +216,36 @@ Then open `http://127.0.0.1:8000/?v=2` and hard-refresh.
   `scalp` horizon → the 3% / +3% / +6% / 10-min ladder. No style change needed.
 - If you still want Render as a backup, keep it as a *second* paper desk — but
   the authoritative scalper run is the Termux one at `127.0.0.1:8000`.
+
+---
+
+## 4c. The `hyper_scalp` preset card (what it sets)
+
+| Setting | Value |
+|---|---|
+| `trading.style` | `scalp` |
+| `scan.max_age_hours` / `exits.scalp_max_age_hours` | `1` / `1` |
+| `scalp.max_hold_minutes` / `scalp.timeout_minutes` | `10` / `5` |
+| `scalp.min_age_minutes` / `scalp.max_age_minutes` | `1` / `60` |
+| `scalp.min_mcap_usd` / `scalp.max_mcap_usd` | `10,000` / `100,000` |
+| `scalp.min_liquidity_usd` / `scalp.max_liquidity_usd` | `5,000` / `20,000` |
+| `scalp.min_volume_m5_usd` | `500` |
+| `scalp.entry_style` | `moving_candle` (1 bar, body ≥ 0.3%) |
+| `scalp.stop_pct` | `5%` |
+| `scalp.tp1_at` / `tp1_frac` | `1.04` / `50%` |
+| `scalp.tp2_at` / `tp2_frac` | `1.08` / `50%` |
+| `scalp.trail_pct` | `3%` |
+| `agent.cycle_seconds` | `20` |
+
+> Note: the setting key is `scalp.entry_style` (not `..._mode`) because the
+> settings guard treats any `*_mode` key as owner-only. The `SCALP` dict key is
+> still `entry_mode`.
+
+**Risk note.** 10k–100k mcap is the band the desk journal historically bled on
+for *hours* holds (16 trades, 6% WR, −$17.55); 100k–500k was the edge. A 1–10
+minute scalp has no other band with enough movement to beat its round trip, so
+this is a deliberate, paper-only, small-size bet — and the 20k liquidity cap
+mechanically limits position size. Let the journal prove it before real money.
 
 ---
 

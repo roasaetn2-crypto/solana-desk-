@@ -981,8 +981,14 @@ def scalp_kill(t: dict) -> str | None:
     if mcap is not None and not (SCALP["min_mcap_usd"] <= mcap <= SCALP["max_mcap_usd"]):
         return "scalp_mcap"
     liq = t.get("liquidity_usd")
-    if liq is not None and liq < SCALP["min_liquidity_usd"]:
-        return "scalp_liquidity"
+    if liq is not None:
+        if liq < SCALP["min_liquidity_usd"]:
+            return "scalp_liquidity"
+        # Upper bound too: a pool deeper than the cap has no 5m move left to
+        # scalp, and the operator asked for a 5k-20k band specifically.
+        cap = SCALP.get("max_liquidity_usd")
+        if cap is not None and liq > cap:
+            return "scalp_liquidity"
     return None
 
 

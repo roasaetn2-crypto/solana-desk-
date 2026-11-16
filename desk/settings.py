@@ -470,7 +470,7 @@ _R += [
          "if not green by this many minutes, free the slot"),
     _num("scalp.timeout_min_gain", "Scalp timeout min gain", "Scalp", "pct",
          _d(SCALP, "timeout_min_gain"), 0.0, 0.20),
-    Setting("scalp.entry_mode", "Scalp entry mode", "Scalp", "choice",
+    Setting("scalp.entry_style", "Scalp entry style", "Scalp", "choice",
             lambda: str(SCALP.get("entry_mode") or "moving_candle"),
             lambda v: SCALP.__setitem__("entry_mode", str(v)),
             choices=("moving_candle", "dip", "breakout"),
@@ -490,6 +490,9 @@ _R += [
          _d(SCALP, "max_mcap_usd", int), 20_000, 50_000_000, "USD"),
     _num("scalp.min_liquidity_usd", "Scalp min liquidity", "Scalp", "int",
          _d(SCALP, "min_liquidity_usd", int), 1_000, 500_000, "USD"),
+    _num("scalp.max_liquidity_usd", "Scalp max liquidity", "Scalp", "int",
+         _d(SCALP, "max_liquidity_usd", int), 2_000, 5_000_000, "USD",
+         "pools deeper than this have no 5m move left to scalp"),
     _num("scalp.min_volume_m5_usd", "Scalp min 5m volume", "Scalp", "int",
          _d(SCALP, "min_volume_m5_usd", int), 0, 1_000_000, "USD"),
     _num("scalp.stop_pct", "Scalp stop", "Scalp", "pct", _d(SCALP, "stop_pct"), 0.01, 0.30),
@@ -499,6 +502,17 @@ _R += [
     _num("scalp.tp2_frac", "Scalp TP2 sell share", "Scalp", "pct", _d(SCALP, "tp2_frac"), 0.0, 1.0),
     _num("scalp.trail_pct", "Scalp trailing stop", "Scalp", "pct", _d(SCALP, "trail_pct"), 0.005, 0.30),
 ]
+
+# REGISTRY is built above (line ~364) from _R *before* this scalp block was
+# appended, so without this the whole scalp.* surface -- and therefore the
+# `hyper_scalp` preset -- was silently dropped as "unknown setting" by
+# resolve(). Fold the late additions in, with the same exclusion guard.
+for _s in _R:
+    if _s.key in REGISTRY:
+        continue
+    assert not _EXCLUDED_RE.search(_s.key), _s.key
+    REGISTRY[_s.key] = _s
+del _s
 
 _ALIASES = {"stop_loss": "exits.scalp.stop_pct", "stop": "exits.scalp.stop_pct", "risk": "risk.max_risk_per_trade",
             "style": "trading.style", "min_score": "analyst.valid_score", "max_positions": "risk.max_open_positions",
@@ -523,18 +537,19 @@ PRESETS: dict[str, dict] = {
                          "exits.swing.stop_pct": 0.30, "exits.swing.tp1_at": 1.5, "exits.swing.tp2_at": 2.5,
                          "exits.swing.trail_pct": 0.30, "exits.swing.timeout_hours": 3,
                          "exits.swing.max_hold_hours": 4}},
-    "hyper_scalp": {"label": "Hyper Scalp (1-10 min)", "reason": "Fresh coins only, moving 5m candle, in and out inside 10 minutes.",
-                    "values": {"trading.style": "scalp", "scan.max_age_hours": 6, "exits.scalp_max_age_hours": 6,
+    "hyper_scalp": {"label": "Hyper Scalp (1-10 min)", "reason": "Fresh launches only (1-60 min, 10k-100k mcap, 5k-20k liquidity), moving 5m candle, in and out inside 10 minutes.",
+                    "values": {"trading.style": "scalp", "scan.max_age_hours": 1, "exits.scalp_max_age_hours": 1,
                                "exits.tp_plan": "profile", "meme.pullback_entry": False,
-                               "scalp.enabled": True, "scalp.max_hold_minutes": 10, "scalp.timeout_minutes": 6,
-                               "scalp.timeout_min_gain": 0.01, "scalp.entry_mode": "moving_candle",
-                               "scalp.moving_candle_bars": 1, "scalp.moving_candle_min_body_pct": 0.002,
-                               "scalp.min_age_minutes": 5, "scalp.max_age_minutes": 360,
-                               "scalp.min_mcap_usd": 30000, "scalp.max_mcap_usd": 500000,
-                               "scalp.min_liquidity_usd": 8000, "scalp.min_volume_m5_usd": 500,
-                               "scalp.stop_pct": 0.03, "scalp.tp1_at": 1.03, "scalp.tp1_frac": 0.5,
-                               "scalp.tp2_at": 1.06, "scalp.tp2_frac": 0.5, "scalp.trail_pct": 0.02,
-                               "agent.cycle_seconds": 30}},
+                               "scalp.enabled": True, "scalp.max_hold_minutes": 10, "scalp.timeout_minutes": 5,
+                               "scalp.timeout_min_gain": 0.01, "scalp.entry_style": "moving_candle",
+                               "scalp.moving_candle_bars": 1, "scalp.moving_candle_min_body_pct": 0.003,
+                               "scalp.min_age_minutes": 1, "scalp.max_age_minutes": 60,
+                               "scalp.min_mcap_usd": 10000, "scalp.max_mcap_usd": 100000,
+                               "scalp.min_liquidity_usd": 5000, "scalp.max_liquidity_usd": 20000,
+                               "scalp.min_volume_m5_usd": 500,
+                               "scalp.stop_pct": 0.05, "scalp.tp1_at": 1.04, "scalp.tp1_frac": 0.5,
+                               "scalp.tp2_at": 1.08, "scalp.tp2_frac": 0.5, "scalp.trail_pct": 0.03,
+                               "agent.cycle_seconds": 20}},
     "balanced": {"label": "Both (desk default)", "reason": "Back to the desk's default mix: scalp young coins, swing older ones.",
                  "values": {"trading.style": "both", "scan.max_age_hours": 48, "exits.scalp_max_age_hours": 6.0,
                             "exits.tp_plan": "profile", "exits.ladder": "fast",

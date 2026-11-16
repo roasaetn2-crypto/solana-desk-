@@ -62,7 +62,7 @@ SCALP = {
     "enabled": False,                # opt-in: turn on via the `hyper_scalp` preset (or settings)
     # ---- the clock: this is what makes it a scalp ----
     "max_hold_minutes": 10,          # hard exit at 10 minutes
-    "timeout_minutes": 6,            # if not green by 6 min, free the slot
+    "timeout_minutes": 5,            # if not green by 5 min, free the slot
     "timeout_min_gain": 0.01,        # "green" = +1% (covers half the round-trip cost)
     # ---- entry: the "moving candle" ----
     # moving_candle = green 5m body, above prior close, above the lookback close.
@@ -70,21 +70,29 @@ SCALP = {
     # breakout      = only a fresh high of the last `moving_candle_bars`.
     "entry_mode": "moving_candle",
     "moving_candle_bars": 1,         # bars of upward confirmation
-    "moving_candle_min_body_pct": 0.002,  # body must be >=0.2% of price (not a doji)
+    "moving_candle_min_body_pct": 0.003,  # body must be >=0.3% of price (not a doji)
     # ---- freshness / size / depth gates ----
-    "min_age_minutes": 5,            # younger than 5 min is noise, not a trade
-    "max_age_minutes": 360,          # "fresh" = first 6 hours of a launch
-    "min_mcap_usd": 30_000,          # refuse sub-30k dust
-    "max_mcap_usd": 500_000,         # mc cap: stop chasing above 500k
-    "min_liquidity_usd": 8_000,      # need depth to get out
+    # Tuned for a true launch scalp: 1-60 min old, 10k-100k mcap, 5k-20k liquidity.
+    # The band is deliberate. The desk journal bled on sub-100k mcap on *hours*
+    # holds (16 trades, 6% WR), but a 1-10 min scalp cannot clear its round-trip
+    # cost anywhere else: only fresh micro-caps move 4%+ inside 10 minutes.
+    # Paper only, small size, until the journal proves it.
+    "min_age_minutes": 1,            # 1 min = one closed 5m bar is not required; launch is live
+    "max_age_minutes": 60,           # fresh = first hour of a launch
+    "min_mcap_usd": 10_000,          # refuse sub-10k dust
+    "max_mcap_usd": 100_000,         # mc cap: stop chasing above 100k
+    "min_liquidity_usd": 5_000,      # need depth to get out
+    "max_liquidity_usd": 20_000,     # and not so deep the 5m move is gone (no scalp edge)
     "min_volume_m5_usd": 500,        # the 5m candle must have real volume
     # ---- exit geometry (fast ladder) ----
-    "stop_pct": 0.03,                # -3%
-    "tp1_at": 1.03,                  # +3%, sell half
+    # 5-20k liquidity means 2-4% slippage each side; a 3% stop is noise, so the
+    # stop is 5% and TP1 must beat cost+slippage to be worth banking.
+    "stop_pct": 0.05,                # -5%
+    "tp1_at": 1.04,                  # +4%, sell half
     "tp1_frac": 0.5,
-    "tp2_at": 1.06,                  # +6%, sell the rest
+    "tp2_at": 1.08,                  # +8%, sell the rest
     "tp2_frac": 0.5,
-    "trail_pct": 0.02,               # runner trails 2% below peak
+    "trail_pct": 0.03,               # runner trails 3% below peak
 }
 
 # ---- env overrides: flip the lane on from Termux / Render without editing code ----
