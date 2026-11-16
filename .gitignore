@@ -41,6 +41,9 @@ keys.txt
 # supervisor runtime lock
 .supervisor.lock/
 
+# per-phone lane settings written by `termux/scalp.sh on`
+.desk_env
+
 # --- research caches / scratch logs (large, regenerable) ---
 ohlcv_cache.json
 *.log

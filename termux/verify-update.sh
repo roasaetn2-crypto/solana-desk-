@@ -97,7 +97,38 @@ if git fetch --quiet origin 2>/dev/null; then
         say ""
         exec bash "$0" --start
       else
-        bad "git pull failed (local changes or network). Fix that, then re-run."
+        # The usual cause is a modified tracked file: an edit made on the phone,
+        # or a file the desk rewrote that is not gitignored. `--ff-only` refuses
+        # to merge in that state. Stash the tracked edits (never -u: that would
+        # swallow .desk_env) and retry once. The stash is recoverable.
+        if [ -n "$(git status --porcelain --untracked-files=no 2>/dev/null)" ]; then
+          say "  --fix: local edits are blocking the pull; stashing them"
+          git status --porcelain --untracked-files=no | sed 's/^/        /'
+          if git stash push -m "termux-autostash $(date -u +%FT%TZ)" >/dev/null 2>&1; then
+            say "  --fix: stashed (recover with: git stash list / git stash pop)"
+            if git pull --ff-only; then
+              ok "pulled; now $(git rev-parse --short HEAD)"
+              say "  --fix: restarting the desk on the new code"
+              bash termux/stop-desk.sh || true
+              sleep 1
+              PORT="$PORT" nohup bash "$DESK_DIR/termux/start-desk.sh" >/dev/null 2>&1 &
+              sleep 6
+              say ""
+              exec bash "$0" --start
+            else
+              bad "git pull still failed after stashing (network or auth)."
+              say "  recover your edits with:  git stash pop"
+            fi
+          else
+            bad "could not stash local edits; resolve them by hand, then re-run."
+            say "  see what changed:  git status"
+            say "  discard it all  :  git checkout -- ."
+          fi
+        else
+          bad "git pull failed and there are no local edits -- this is network or auth."
+          say "  check:  git fetch origin && git status"
+          say "  auth  :  the origin URL carries a GitHub token; if it expired, re-clone."
+        fi
       fi
     fi
   fi
