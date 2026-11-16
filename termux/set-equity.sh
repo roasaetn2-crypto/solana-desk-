@@ -2,7 +2,9 @@
 # Set the paper book's TOTAL equity to a number, WITHOUT closing any trade.
 #
 #   bash termux/set-equity.sh 46        # make equity read $46, keep every position
-#   bash termux/set-equity.sh 46 --dry  # show the plan, change nothing
+#   bash termux/set-equity.sh 46 --dry    # show the plan, change nothing
+#   bash termux/set-equity.sh 46 --flat   # also mark positions to entry
+#   bash termux/set-equity.sh 46 --scale  # shrink positions so they fit in $46
 #
 # The book is double-entry:  equity = cash + held
 # Your example: total $10, buy a meme for $6 -> cash $4, held $6, equity $10.
@@ -18,11 +20,13 @@ source "$(dirname "$0")/lib-deskdir.sh"
 DESK_DIR="$(desk_dir)" || { desk_dir_hint; exit 1; }
 PORT="${PORT:-8000}"
 TARGET="${1:-}"
+shift 2>/dev/null || true
+EXTRA="$*"          # --dry / --flat / --scale pass straight through
 DRY=""
-[ "${2:-}" = "--dry" ] && DRY="--dry"
+case " $EXTRA " in *" --dry "*) DRY="--dry" ;; esac
 
 if [ -z "$TARGET" ]; then
-  echo "usage: bash termux/set-equity.sh <target_total_usd> [--dry]"
+  echo "usage: bash termux/set-equity.sh <target_total_usd> [--dry] [--flat] [--scale]"
   exit 2
 fi
 
@@ -34,7 +38,7 @@ sleep 1
 
 echo ""
 echo "=== 2. re-basing total equity to \$$TARGET ==="
-python scripts/set_equity.py "$TARGET" $DRY
+python scripts/set_equity.py "$TARGET" $EXTRA
 rc=$?
 if [ "$rc" -ne 0 ]; then
   echo "FAIL: set_equity.py exited $rc -- restarting the desk unchanged"

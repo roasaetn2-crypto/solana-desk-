@@ -62,29 +62,60 @@ def main() -> int:
     positions = s.get("positions") or {}
     closed = s.get("closed") or []
 
+    scale = "--scale" in sys.argv
+
+    # snapshot BEFORE anything is mutated, so the report is honest
+    def _metrics():
+        c = sum(float(x.get("cost") or 0.0) for x in positions.values())
+        pr = sum(float(x.get("proceeds") or 0.0) for x in positions.values())
+        h = sum(float(x.get("qty") or 0.0) * float(x.get("last") or x.get("entry") or 0.0)
+                for x in positions.values())
+        rz = sum(float(y.get("pnl_usd") or 0.0) for y in closed)
+        return c, pr, h, rz
+
+    before = _metrics()
+
     if flat:
         for p in positions.values():
             entry = float(p.get("entry") or 0.0)
             if entry > 0:
                 p["last"] = entry
 
+    if scale:
+        # Shrink every position proportionally so the open cost fits inside the
+        # target with cash left over. Only qty and cost move: entry/last are
+        # PRICES, and scaling them too would shrink value by f^2 instead of f.
+        cost_now = sum(float(p.get("cost") or 0.0) for p in positions.values())
+        want = target * 0.5
+        if cost_now > want > 0:
+            f = want / cost_now
+            for p in positions.values():
+                for k in ("qty", "cost"):
+                    if p.get(k) is not None:
+                        p[k] = float(p[k]) * f
+                if p.get("proceeds") is not None:
+                    p["proceeds"] = float(p["proceeds"]) * f
+            for p in positions.values():
+                entry = float(p.get("entry") or 0.0)
+                if entry > 0:
+                    p["last"] = entry
+            print(f"  --scale: positions shrunk by {f:.6f}x so open cost "
+                  f"${cost_now:,.2f} -> ${want:,.2f}")
+
     cash = float(s.get("cash") or 0.0)
-    cost = sum(float(p.get("cost") or 0.0) for p in positions.values())
-    proceeds = sum(float(p.get("proceeds") or 0.0) for p in positions.values())
-    held = sum(float(p.get("qty") or 0.0) * float(p.get("last") or p.get("entry") or 0.0)
-               for p in positions.values())
-    realized = sum(float(c.get("pnl_usd") or 0.0) for c in closed)
+    b_cost, b_proceeds, b_held, b_realized = before
+    cost, proceeds, held, realized = _metrics()
     unrealized = held - cost + proceeds
-    total = round(cash + held, 2)
+    total = round(cash + b_held, 2)
     start_old = float(s.get("start_equity") or 0.0)
 
     print("=== BEFORE ===")
     print(f"  ledger        {path}")
     print(f"  cash          ${cash:,.2f}")
-    print(f"  held (open)   ${held:,.2f}   ({len(positions)} position(s))")
+    print(f"  held (open)   ${b_held:,.2f}   ({len(positions)} position(s))")
     print(f"  equity        ${total:,.2f}")
-    print(f"  realized      ${realized:,.2f}   ({len(closed)} closed trade(s), kept)")
-    print(f"  unrealized    ${unrealized:,.2f}")
+    print(f"  realized      ${b_realized:,.2f}   ({len(closed)} closed trade(s), kept)")
+    print(f"  unrealized    ${b_held - b_cost + b_proceeds:,.2f}")
     print(f"  start_equity  ${start_old:,.2f}")
 
     if abs(total - target) < 0.005:
