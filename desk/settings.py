@@ -715,6 +715,95 @@ PRESETS: dict[str, dict] = {
             "risk.max_open_positions": 10, "risk.max_daily_loss_pct": 0.10,
             "risk.auto_continue_after_daily_stop": True,
         }},
+    "ultra_scalp": {
+        "label": "Ultra Scalper (on-chain spec: 15m-6h, $30k LP, +9%/+15%)",
+        "reason": "The operator's own on-chain spec, written for Solana memes instead of "
+                  "CEX majors. The generic article it replaces says 'take 0.5-1%' and "
+                  "'a few million in daily volume' -- on-chain that is a guaranteed loss, "
+                  "because fees, priority fees and AMM impact take 1-3% per round trip, so "
+                  "a 1% target is already underwater before the trade starts. This preset "
+                  "uses the numbers that survive that cost: a 7% stop against a blended "
+                  "1.12x target, which is about 1:1.7 risk-to-reward, and targets of +9% "
+                  "and +15% that clear a 1-3% round trip with room left over. "
+                  "Entries are restricted to the window where a meme is actually tradable: "
+                  "15 minutes old at the floor (younger is sniper and rug territory), 6 "
+                  "hours at the ceiling (older is usually past the momentum), $30k of "
+                  "liquidity so an exit exists at all, $100k-$3M of market cap so a move "
+                  "can still happen, and 300 holders so the float is not one wallet. "
+                  "It refuses anything already up 300% inside an hour, and it caps the "
+                  "buy share at 60% by requiring at least 40% sells -- a token nobody can "
+                  "sell is a honeypot, and a token everybody is buying into a vertical "
+                  "candle is the top. "
+                  "The clock is deliberately brutal: if the trade has not moved in 5 "
+                  "minutes it is closed, because a scalper's edge is turnover, not "
+                  "patience. The trail is 5%, the volume-decay exit fires when 6h volume "
+                  "falls under half of its 24h pace, and three losses in a row pause new "
+                  "entries for an hour while two losses in a row halve the size. "
+                  "KNOWN GAPS -- these parts of the spec are not settings, they need code: "
+                  "(1) the 9 EMA on the 1m chart is not wired into the entry path, so "
+                  "'price above the 9 EMA' is not enforced; (2) 'volume at least 2x the "
+                  "10-candle average' has no setting, the closest is the moving-candle "
+                  "body filter; (3) top-10 holder concentration under 25-30% and dev "
+                  "under 5% have no setting; (4) mint/freeze authority revocation and "
+                  "bundled-supply detection have no setting; (5) the 5% trail cannot be "
+                  "armed only after +8% -- it arms at TP1; (6) priority fee and tip are "
+                  "not exposed as settings; (7) paper.slippage_pct is capped at 0.10, so "
+                  "the spec's 10-15% exit slippage is expressed at its floor. "
+                  "SIZING WARNING: 2% of the book per trade is the spec's number, but the "
+                  "desk's live minimum ticket is $10, so a 2% position needs a $500 book. "
+                  "Below that the live desk cannot size a trade at all and will sit idle "
+                  "while looking healthy. On a $46 book this preset is paper-only.",
+        "values": {
+            # ---- cadence: this is a scalper, it must look often ----
+            "trading.style": "scalp", "agent.cycle_seconds": 20,
+            # ---- entry filters: the tradable window of a meme's life ----
+            "scan.min_age_minutes": 15, "scan.max_age_hours": 6,
+            "scan.min_liquidity_usd": 30000,
+            "scan.min_volume_h1_usd": 50000,
+            "scan.min_mcap_usd": 100000, "scan.max_mcap_usd": 3000000,
+            "scan.min_trades_h1": 100,
+            "scan.max_h1_change_pct": 300.0,
+            # 40% sells is the closest the desk gets to "buys at most 60%":
+            # it rejects both the honeypot (no sells) and the vertical top.
+            "scan.min_sells_ratio_h1": 0.40,
+            # ---- float quality ----
+            "meme.min_holders": 300, "meme.min_community_score": 0,
+            "meme.pullback_entry": True,
+            # ---- quality gate: safety-first, so fewer red flags tolerated ----
+            "analyst.valid_score": 6, "analyst.max_red_flags": 2,
+            "signal.min_confidence": 50, "signal.min_win_probability": 0.40,
+            "signal.require_bullish": True,
+            # ---- entry trigger: green and rising, never chasing ----
+            "entry.max_price_gap_pct": 20.0, "entry.min_confirm_liq_ratio": 0.5,
+            "scalp.enabled": True,
+            "scalp.entry_style": "moving_candle",
+            "scalp.moving_candle_bars": 1,
+            "scalp.moving_candle_min_body_pct": 0.005,
+            # ---- scalp band: same window, minute clock ----
+            "scalp.min_age_minutes": 15, "scalp.max_age_minutes": 360,
+            "scalp.min_mcap_usd": 100000, "scalp.max_mcap_usd": 3000000,
+            "scalp.min_liquidity_usd": 30000, "scalp.max_liquidity_usd": 3000000,
+            "scalp.min_volume_m5_usd": 10000,
+            # ---- exit geometry: 7% risk, +9%/+15% reward, 5m time stop ----
+            "scalp.stop_pct": 0.07,
+            "scalp.tp1_at": 1.09, "scalp.tp1_frac": 0.5,
+            "scalp.tp2_at": 1.15, "scalp.tp2_frac": 0.5,
+            "scalp.trail_pct": 0.05,
+            "scalp.timeout_minutes": 5, "scalp.timeout_min_gain": 0.0,
+            "scalp.max_hold_minutes": 60,
+            # ---- emergency exit: volume halved ----
+            "exits.volume_decay_ratio": 0.5, "exits.ladder": "fast",
+            # ---- no swing band: this desk only scalps ----
+            "swing.enabled": False,
+            # ---- sizing: 2% per trade, 3 losses pause the day ----
+            "risk.max_position_pct": 0.02, "risk.max_risk_per_trade": 0.015,
+            "risk.max_open_positions": 10, "risk.max_daily_loss_pct": 0.05,
+            "risk.auto_continue_after_daily_stop": False,
+            "breaker.streak_pause": 3, "breaker.streak_reduce": 2,
+            "breaker.cooldown_minutes": 60,
+            # ---- cost assumption: the spec's exit slippage, at its floor ----
+            "paper.slippage_pct": 0.10,
+        }},
     "super_legend_scalp": {
         "label": "Super Legend Scalper (floor of every floor)",
         "reason": "Legend Scalper with every remaining limit pushed to its registry "

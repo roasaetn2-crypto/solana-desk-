@@ -365,5 +365,89 @@ class GuideScalpTest(unittest.TestCase):
         self.assertGreater(v["scan.min_trades_h1"], 0)
 
 
+
+class UltraScalpTest(unittest.TestCase):
+    """The operator's on-chain scalping spec, as a preset.
+
+    Replaces the generic article settings ("take 0.5-1%", "a few million in
+    daily volume") which cannot work on-chain: fees, priority fees and AMM
+    impact take 1-3% per round trip, so a 1% target is underwater on entry.
+    These assertions pin the numbers that do survive that cost.
+    """
+
+    def setUp(self):
+        from desk.settings import PRESETS
+        self.v = PRESETS["ultra_scalp"]["values"]
+
+    def test_every_value_is_in_bounds(self):
+        from desk.settings import PRESETS, validate_changes
+        raw = [{"setting": k, "proposed": v}
+               for k, v in PRESETS["ultra_scalp"]["values"].items()]
+        changes, dropped = validate_changes(raw)
+        self.assertEqual(dropped, [], f"every value must be in bounds: {dropped}")
+        self.assertGreater(len(changes), 30)
+
+    def test_scalp_block_is_enabled_and_swing_is_off(self):
+        """exits.profile() ignores every scalp.* key unless enabled is True."""
+        self.assertTrue(self.v["scalp.enabled"])
+        self.assertFalse(self.v["swing.enabled"])
+        self.assertEqual(self.v["trading.style"], "scalp")
+
+    def test_targets_clear_a_real_round_trip(self):
+        """1-3% is the real round-trip cost; a target under it is a loss."""
+        self.assertGreater(self.v["scalp.tp1_at"] - 1.0, 0.03)
+        self.assertGreater(self.v["scalp.tp2_at"] - 1.0, self.v["scalp.tp1_at"] - 1.0)
+
+    def test_risk_reward_is_about_one_to_one_point_five(self):
+        f1, f2 = self.v["scalp.tp1_frac"], self.v["scalp.tp2_frac"]
+        tp = (f1 * self.v["scalp.tp1_at"] + f2 * self.v["scalp.tp2_at"]) / (f1 + f2)
+        rr = (tp - 1.0) / self.v["scalp.stop_pct"]
+        self.assertGreaterEqual(rr, 1.5)
+        self.assertLessEqual(rr, 2.5)
+
+    def test_scale_out_is_half_at_tp1(self):
+        self.assertAlmostEqual(self.v["scalp.tp1_frac"], 0.5)
+        self.assertAlmostEqual(self.v["scalp.tp2_frac"], 0.5)
+
+    def test_time_stop_is_minutes_not_hours(self):
+        """A scalper's edge is turnover. 3-5 minutes, not an hour."""
+        self.assertLessEqual(self.v["scalp.timeout_minutes"], 5)
+        self.assertLessEqual(self.v["scalp.timeout_minutes"],
+                             self.v["scalp.max_hold_minutes"])
+
+    def test_age_window_is_15m_to_6h(self):
+        """Under 15m is sniper/rug territory; over 6h is past the momentum."""
+        self.assertGreaterEqual(self.v["scan.min_age_minutes"], 15)
+        self.assertLessEqual(self.v["scan.max_age_hours"], 6)
+        self.assertEqual(self.v["scalp.max_age_minutes"], 360)
+
+    def test_liquidity_and_mcap_band(self):
+        self.assertGreaterEqual(self.v["scan.min_liquidity_usd"], 30_000)
+        self.assertGreaterEqual(self.v["scan.min_mcap_usd"], 100_000)
+        self.assertLessEqual(self.v["scan.max_mcap_usd"], 3_000_000)
+        self.assertLess(self.v["scan.min_mcap_usd"], self.v["scan.max_mcap_usd"])
+
+    def test_holder_floor_and_no_vertical_chase(self):
+        self.assertGreaterEqual(self.v["meme.min_holders"], 300)
+        self.assertLessEqual(self.v["scan.max_h1_change_pct"], 300)
+        self.assertLessEqual(self.v["entry.max_price_gap_pct"], 20)
+
+    def test_sell_side_floor_rejects_honeypots(self):
+        """A token nobody can sell is a honeypot, not a discount."""
+        self.assertGreaterEqual(self.v["scan.min_sells_ratio_h1"], 0.40)
+
+    def test_three_losses_pause_the_day(self):
+        self.assertEqual(self.v["breaker.streak_pause"], 3)
+        self.assertEqual(self.v["breaker.streak_reduce"], 2)
+        self.assertFalse(self.v["risk.auto_continue_after_daily_stop"])
+
+    def test_position_size_is_one_to_two_percent(self):
+        self.assertLessEqual(self.v["risk.max_position_pct"], 0.02)
+        self.assertGreaterEqual(self.v["risk.max_position_pct"], 0.01)
+
+    def test_volume_decay_exit_is_armed(self):
+        self.assertLessEqual(self.v["exits.volume_decay_ratio"], 0.5)
+
+
 if __name__ == "__main__":
     unittest.main()
