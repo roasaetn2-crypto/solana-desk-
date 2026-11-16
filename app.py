@@ -740,7 +740,8 @@ def get_mode():
 
 @app.post("/api/mode")
 def set_mode(payload: dict = Body(...)):
-    return agent.set_mode(str(payload.get("mode", "")), str(payload.get("confirm", "")))
+    return agent.set_mode(str(payload.get("mode", "")), str(payload.get("confirm", "")),
+                          force=bool(payload.get("force", False)))
 
 
 @app.post("/api/agent/start")

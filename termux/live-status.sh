@@ -3,6 +3,8 @@
 #
 #   bash ~/solana-desk-/termux/live-status.sh
 #   bash ~/solana-desk-/termux/live-status.sh --remote   # check Render instead
+#   bash ~/solana-desk-/termux/live-status.sh --paper    # switch to paper
+#   bash ~/solana-desk-/termux/live-status.sh --live     # arm live (asks phrase)
 #
 # The ONLY field that proves a live account exists is `wallet`. If it is null
 # there is no key, and no key means no live account -- no matter what any other
@@ -16,11 +18,14 @@ DESK_DIR="$(desk_dir)" || { desk_dir_hint; exit 1; }
 PORT="${PORT:-8000}"
 REMOTE="${REMOTE:-https://solana-desk-1.onrender.com}"
 TARGET="local"
+ACTION="status"
 
 for a in "$@"; do
   case "$a" in
     --remote) TARGET="remote" ;;
-    -h|--help) sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --paper)  ACTION="paper" ;;
+    --live)   ACTION="live" ;;
+    -h|--help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
   esac
 done
 
@@ -56,6 +61,47 @@ if [ -z "$BODY" ]; then
   say "  is the desk running?   bash termux/verify-update.sh --start"
   say "  or check the log:      tail -40 $DESK_DIR/desk.log"
   exit 1
+fi
+
+# ---- switch the seat, if asked ----
+if [ "$ACTION" != "status" ]; then
+  hr
+  say "switching to $ACTION  ($TARGET: $BASE)"
+  hr
+  if [ "$ACTION" = "paper" ]; then
+    PAYLOAD='{"mode":"paper"}'
+  else
+    PHRASE="I understand this is real money"
+    say "  live arming needs the confirm phrase. Type it exactly:"
+    say "    $PHRASE"
+    printf '  > '
+    read -r TYPED || TYPED=""
+    if [ "$TYPED" != "$PHRASE" ]; then
+      say "  phrase did not match -- nothing changed."
+      exit 1
+    fi
+    PAYLOAD="$(PHRASE="$PHRASE" python -c 'import json,os;print(json.dumps({"mode":"live","confirm":os.environ["PHRASE"]}))')"
+  fi
+  RESP="$(curl -s -m 20 -b "$JAR" -X POST -H 'Content-Type: application/json' \
+          -d "$PAYLOAD" "$BASE/api/mode" 2>/dev/null)"
+  RESP="$RESP" python -c '
+import json, os
+try:
+    d = json.loads(os.environ["RESP"])
+except Exception:
+    print("  could not read the answer:", os.environ["RESP"][:200]); raise SystemExit(1)
+if d.get("ok"):
+    print("  OK -> mode is now", d.get("mode"))
+    if d.get("dry_run"):
+        print("  (dry run is ON: orders are quoted, never signed)")
+else:
+    print("  REFUSED:", d.get("error"))
+    if d.get("open_live"):
+        print("  open live positions:", d["open_live"])
+    raise SystemExit(1)
+'
+  say ""
+  say "  re-checking:"
 fi
 
 hr

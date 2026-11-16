@@ -112,3 +112,111 @@ def test_demo_token_refused_live(monkeypatch, tmp_path):
     with pytest.raises(live.LiveError) as e:
         broker.buy("DEMO123", "DEMO", 1.0, 1.0)
     assert "demo" in str(e.value).lower()
+
+
+# ---------------------------------------------------------------------------
+# Switching seats. Paper <-> live is a real operator action, so it needs the
+# same proof as arming: paper must always be reachable, live must never be
+# reachable without the phrase, and leaving live must not orphan real money.
+# ---------------------------------------------------------------------------
+
+def _agent(monkeypatch, tmp_path):
+    """A minimal SolanaAgent with both books pointed at tmp files."""
+    live = _reload(monkeypatch, LIVE_TRADING_ENABLED="1", LIVE_DRY_RUN="1")
+    monkeypatch.setattr(live, "killed", lambda: False)
+    from desk import solana_agent as sa
+    importlib.reload(sa)
+    ag = sa.SolanaAgent.__new__(sa.SolanaAgent)
+    ag.mode = "paper"
+    ag.paper = live.PaperBroker(path=tmp_path / "paper.json")
+    ag.live = live.LiveBroker(path=tmp_path / "live_ledger.json")
+    ag.events = __import__("collections").deque(maxlen=10)
+    ag.lock = __import__("threading").RLock()
+    ag.emit = lambda kind, msg, **kw: None
+    return ag, live
+
+
+def test_switch_to_paper_is_always_allowed(monkeypatch, tmp_path):
+    ag, _ = _agent(monkeypatch, tmp_path)
+    ag.mode = "live"
+    out = ag.set_mode("paper")
+    assert out["ok"] is True
+    assert out["mode"] == "paper"
+    assert ag.mode == "paper"
+
+
+def test_switch_to_live_needs_the_phrase(monkeypatch, tmp_path):
+    ag, _ = _agent(monkeypatch, tmp_path)
+    out = ag.set_mode("live", confirm="yes")
+    assert out["ok"] is False
+    assert "phrase" in out["error"]
+    assert ag.mode == "paper"
+
+
+def test_switch_to_live_needs_a_key_when_not_dry_run(monkeypatch, tmp_path):
+    """With dry run OFF, arming requires a real key. (In dry run, arming without
+    a key is deliberate: the guards and quotes are what is being exercised.)"""
+    ag, live = _agent(monkeypatch, tmp_path)
+    live = _reload(monkeypatch, LIVE_TRADING_ENABLED="1")   # dry run off
+    monkeypatch.delenv("SOLANA_PRIVATE_KEY", raising=False)
+    ag.live = live.LiveBroker(path=tmp_path / "live2.json")
+    out = ag.set_mode("live", confirm=live.EXECUTION["live_confirm_phrase"])
+    assert out["ok"] is False
+    assert "SOLANA_PRIVATE_KEY" in out["error"]
+    assert ag.mode == "paper"
+
+
+def test_dry_run_can_arm_without_a_key(monkeypatch, tmp_path):
+    ag, live = _agent(monkeypatch, tmp_path)          # LIVE_DRY_RUN=1
+    monkeypatch.delenv("SOLANA_PRIVATE_KEY", raising=False)
+    out = ag.set_mode("live", confirm=live.EXECUTION["live_confirm_phrase"])
+    assert out["ok"] is True
+    assert out["dry_run"] is True
+    assert ag.mode == "live"
+
+
+def test_leaving_live_with_open_position_is_refused(monkeypatch, tmp_path):
+    """The orphan guard: paper and live keep separate books, so flipping to
+    paper while a live position is open leaves it with no stop loss at all."""
+    ag, _ = _agent(monkeypatch, tmp_path)
+    ag.mode = "live"
+    ag.live.s["positions"]["So11111111111111111111111111111111111111112"] = {
+        "symbol": "SOL", "qty": 0.1, "entry": 100.0, "last": 100.0,
+        "opened": 0.0, "cost": 10.0, "half_taken": False, "live": True,
+    }
+    out = ag.set_mode("paper")
+    assert out["ok"] is False
+    assert "orphan" in out["error"]
+    assert ag.mode == "live"                      # still live, nothing abandoned
+    assert len(out["open_live"]) == 1
+
+
+def test_leaving_live_with_no_positions_is_allowed(monkeypatch, tmp_path):
+    ag, _ = _agent(monkeypatch, tmp_path)
+    ag.mode = "live"
+    ag.live.s["positions"] = {}
+    out = ag.set_mode("paper")
+    assert out["ok"] is True
+    assert ag.mode == "paper"
+
+
+def test_force_abandons_open_positions_on_purpose(monkeypatch, tmp_path):
+    ag, _ = _agent(monkeypatch, tmp_path)
+    ag.mode = "live"
+    ag.live.s["positions"]["So11111111111111111111111111111111111111112"] = {
+        "symbol": "SOL", "qty": 0.1, "entry": 100.0, "last": 100.0,
+        "opened": 0.0, "cost": 10.0, "half_taken": False, "live": True,
+    }
+    out = ag.set_mode("paper", force=True)
+    assert out["ok"] is True
+    assert ag.mode == "paper"
+
+
+def test_demo_positions_do_not_block_the_switch(monkeypatch, tmp_path):
+    """A DEMO token is not real money, so it must not trap the operator in live."""
+    ag, _ = _agent(monkeypatch, tmp_path)
+    ag.mode = "live"
+    ag.live.s["positions"]["DEMOabc"] = {"symbol": "DEMO", "qty": 1.0,
+                                         "entry": 1.0, "last": 1.0}
+    out = ag.set_mode("paper")
+    assert out["ok"] is True

@@ -162,10 +162,26 @@ class SolanaAgent:
             "live_pnl": self.live.equity(),
         }
 
-    def set_mode(self, mode: str, confirm: str = "") -> dict:
+    def set_mode(self, mode: str, confirm: str = "", force: bool = False) -> dict:
         """Switch seat 5. Paper is instant and safe. Live needs the phrase + a key."""
         mode = (mode or "").strip().lower()
         if mode == "paper":
+            # Switching to paper does NOT close live positions: the two seats keep
+            # separate books, and every exit/stop path iterates self.broker, which
+            # would become the PAPER book the instant we flip. A live position left
+            # open that way is orphaned -- no stop loss, no take profit, no exit --
+            # while real money sits on chain. Refuse unless the operator forces it.
+            if self.mode == "live" and not force:
+                open_live = [m for m in self.live.s["positions"]
+                             if not str(m).startswith("DEMO")]
+                if open_live:
+                    return {
+                        "ok": False,
+                        "error": (f"{len(open_live)} live position(s) still open. "
+                                  "Switching to paper would orphan them with no stop "
+                                  "loss. Close them first, or force=true to abandon them."),
+                        "open_live": open_live,
+                    }
             self.mode = "paper"
             self.emit("info", "Execution mode: PAPER. No real money can move.")
             return {"ok": True, **self.mode_info()}
