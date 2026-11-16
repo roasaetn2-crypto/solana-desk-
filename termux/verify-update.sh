@@ -39,7 +39,12 @@ fail=0        # code problems only
 warn=0        # not-code problems (server stopped)
 say()  { printf '%s\n' "$*"; }
 ok()   { printf '  OK    %s\n' "$*"; }
-bad()  { printf '  MISS  %s\n' "$*"; fail=1; }
+# Every failure is also written to a recap file, because the MISS line can be
+# 60 lines up a phone screen by the time the RESULT line is printed. Telling
+# someone to "fix the MISS lines above" is useless if they have scrolled away.
+FAILS="$(mktemp 2>/dev/null || echo /tmp/desk-verify-fails.$$)"
+trap 'rm -f "$FAILS"' EXIT
+bad()  { printf '  MISS  %s\n' "$*"; fail=1; printf '%s\n' "$*" >>"$FAILS"; }
 note() { printf '  ..    %s\n' "$*"; warn=1; }   # a serving problem
 tip()  { printf '  ..    %s\n' "$*"; }          # advice only, not a failure
 
@@ -164,6 +169,13 @@ grep -q "quotaBars"      web/index.html        && ok "dashboard has the AI quota
 grep -q "renderQuota"    web/app.js            && ok "dashboard renders quota bars"        || bad "web/app.js missing renderQuota"
 grep -q "BRAIN_ADVISE_ON" desk/brain_advisor.py && ok "AI advice is exit-only by default"   || bad "desk/brain_advisor.py missing advise mode"
 grep -q "_advise_exit"    desk/solana_agent.py  && ok "agent reviews exits with the AI"      || bad "desk/solana_agent.py missing _advise_exit"
+# The presets are the operator's own settings. If the phone has not pulled, the
+# button is missing from the dashboard and nothing else here would say so.
+for p in ultra_scalp guide_scalp; do
+  grep -q "\"$p\":" desk/settings.py && ok "preset $p is on this phone" || bad "preset $p missing -> run: git pull"
+done
+grep -q "max_position_pct" desk/settings.py && ok "2% position sizing is settable" || bad "desk/settings.py missing max_position_pct"
+grep -q "volume_decay_ratio" desk/settings.py && ok "volume-decay exit is settable" || bad "desk/settings.py missing volume_decay_ratio"
 
 say ""
 say "=== 4b. backtest -> AI recommendation feature ==="
@@ -456,14 +468,22 @@ if [ "$SHOWLOG" -eq 1 ]; then
 fi
 
 say ""
-if [ "$fail" -eq 0 ] && running && [ "$warn" -eq 0 ]; then
-  say "RESULT: up to date, all features present, desk running and answering."
-  exit 0
-fi
 if [ "$fail" -ne 0 ]; then
-  say "RESULT: the CODE is out of date or broken. Fix the MISS lines above, then re-run."
+  # Repeat the failures right where the operator is looking. This is the whole
+  # point: the detail is far up the scrollback, the verdict is here.
+  say "=== what actually failed (recap) ==="
+  nl -ba "$FAILS" 2>/dev/null | sed 's/^/  /'
+  say ""
+  say "RESULT: the CODE is out of date or broken -- $(( $(wc -l <"$FAILS" 2>/dev/null || echo 0) )) problem(s), listed above."
+  say ""
+  say "  Most failures here are one thing: the phone is behind GitHub."
+  say "  This pulls, stashes any local edits, restarts, and re-checks by itself:"
+  say ""
+  say "      bash termux/verify-update.sh --fix"
+  say ""
   exit 1
-elif [ "$warn" -ne 0 ]; then
+fi
+if [ "$warn" -ne 0 ] || ! running; then
   say "RESULT: code is current, but the desk is not serving."
   say "        Start it:        bash termux/start-desk.sh"
   say "        Or let me do it: bash termux/verify-update.sh --start"
