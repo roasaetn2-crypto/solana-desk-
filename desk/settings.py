@@ -401,6 +401,21 @@ _OWNER_R: list[Setting] = [
     _own("execution.live_max_slippage_bps", "Live max slippage", "Owner \u00b7 Live caps", "int",
          _d(EXECUTION, "live_max_slippage_bps", int), 10, 2_000, "bps",
          "a live fill worse than this is refused rather than chased."),
+    _own("execution.live_priority_fee_max_lamports", "Priority fee cap",
+         "Owner \u00b7 Live fees", "int",
+         _d(EXECUTION, "live_priority_fee_max_lamports", int), 0, 20_000_000,
+         "lamports",
+         "ceiling on the priority fee Jupiter may bid per transaction. 0 = "
+         "\"auto\", which has no ceiling and can exceed the trade's edge on a "
+         "hot launch."),
+    _own("execution.live_max_fee_share_pct", "Max fee share", "Owner \u00b7 Live fees",
+         "pct", _d(EXECUTION, "live_max_fee_share_pct"), 0.005, 0.5, "of ticket",
+         "refuse to arm when the round-trip cost on the smallest ticket exceeds "
+         "this share of it. Stops the live floor drifting back under the fee."),
+    _own("execution.live_sol_price_usd", "SOL price for fees", "Owner \u00b7 Live fees",
+         "float", _d(EXECUTION, "live_sol_price_usd"), 0.0, 10_000.0, "USD",
+         "pins the SOL price used to price lamport fees. 0 = use the pessimistic "
+         "fallback, which over-states fees rather than under-stating them."),
     # chain kills
     _own("chain.max_top_wallet", "Max top-wallet share", "Owner \u00b7 Chain kills", "pct",
          _d(CHAIN, "max_top_wallet"), 0.01, 1.0, "of supply",

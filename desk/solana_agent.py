@@ -46,7 +46,8 @@ from desk.netutil import offline
 from desk.ops import Bench, alert, data_file, journal, killed
 from desk.risk import daily_loss_hit, daily_loss_limit_usd, daily_override_active
 from desk.risk import (Account, check_live_trade, check_token_trade,
-                       fit_risk_budget, live_cap_problems, live_sizing_breakdown,
+                       fit_risk_budget, live_cap_problems, live_fee_model,
+                       live_sizing_breakdown,
                        open_risk_usd,
                        risk_budget_usd, sizing_base, sizing_breakdown)
 
@@ -163,6 +164,10 @@ class SolanaAgent:
             # A contradictory cap pair (per-trade cap under the fee floor) looks
             # perfectly healthy in the UI but refuses every fill. Surface it.
             "cap_problems": live_cap_problems(),
+            # Jupiter charges 0%. This is what Solana actually costs per round
+            # trip at the smallest ticket, so the dashboard can show the real
+            # break-even instead of a decorative fee column.
+            "fees": live_fee_model(EXECUTION["live_min_ticket_usd"]),
             "paper_equity": self.paper.equity(),
             "live_pnl": self.live.equity(),
         }

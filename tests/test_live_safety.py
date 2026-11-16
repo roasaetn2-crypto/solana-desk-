@@ -372,3 +372,127 @@ def test_arming_is_refused_when_caps_deadlock(monkeypatch, tmp_path):
     assert out["ok"] is False
     assert "contradictory" in out["error"]
     assert ag.mode == "paper"
+
+
+# ---------- fee model (Jupiter charges 0%; Solana does not) ----------
+
+def test_fee_model_charges_no_jupiter_platform_fee(monkeypatch):
+    """Jupiter's protocol fee is 0 and we never send platformFeeBps. Everything
+    in the model must be Solana cost: base + capped priority + rent + spread."""
+    from desk import risk
+    monkeypatch.setitem(risk.EXECUTION, "live_sol_price_usd", 100.0)
+    m = risk.live_fee_model(10.0)
+    # 2 x 5,000 base + 2 x 200,000 priority + 2,039,280 rent = 2,449,280 lamports
+    assert m["fixed_usd"] == round(2_449_280 / 1e9 * 100.0, 4)
+    assert m["spread_usd"] == round(10.0 * 0.015, 4)   # half the 300bps cap each way
+    assert m["total_usd"] == round(m["fixed_usd"] + m["spread_usd"], 4)
+
+
+def test_fee_model_pct_falls_as_the_ticket_grows(monkeypatch):
+    """Rent is fixed, so it is 7% of a $2 ticket and 0.7% of a $20 one. This is
+    the entire reason a live floor exists."""
+    from desk import risk
+    monkeypatch.setitem(risk.EXECUTION, "live_sol_price_usd", 100.0)
+    small = risk.live_fee_model(2.0)["pct"]
+    large = risk.live_fee_model(20.0)["pct"]
+    assert small > large * 3, (small, large)
+
+
+def test_fee_model_pins_the_sol_price_when_configured(monkeypatch):
+    from desk import risk
+    monkeypatch.setitem(risk.EXECUTION, "live_sol_price_usd", 71.23)
+    assert risk.sol_price_usd() == 71.23
+    monkeypatch.setitem(risk.EXECUTION, "live_sol_price_usd", 0.0)
+    monkeypatch.setitem(risk.EXECUTION, "live_sol_price_fallback_usd", 150.0)
+    assert risk.sol_price_usd() == 150.0
+
+
+def test_fee_share_guard_catches_a_floor_under_the_fee(monkeypatch):
+    """A $2 live floor pays ~20% round trip. The guard must refuse to arm."""
+    from desk import risk
+    monkeypatch.setitem(risk.EXECUTION, "live_min_ticket_usd", 2.0)
+    monkeypatch.setitem(risk.EXECUTION, "live_max_trade_usd", 15.0)
+    monkeypatch.setitem(risk.EXECUTION, "live_max_fee_share_pct", 0.08)
+    problems = risk.live_cap_problems()
+    assert any("fee-share" in p for p in problems), problems
+
+
+def test_fee_share_guard_passes_the_shipped_floor(monkeypatch):
+    from desk import risk
+    monkeypatch.setitem(risk.EXECUTION, "live_min_ticket_usd", 10.0)
+    monkeypatch.setitem(risk.EXECUTION, "live_max_trade_usd", 15.0)
+    monkeypatch.setitem(risk.EXECUTION, "live_max_fee_share_pct", 0.08)
+    assert risk.live_cap_problems() == []
+
+
+def test_priority_fee_is_capped_not_auto(monkeypatch, tmp_path):
+    """'auto' let Jupiter bid unbounded. The swap build must send a capped
+    object so a hot launch cannot charge more in priority than the edge."""
+    from desk import live as livemod
+    monkeypatch.setitem(livemod.EXECUTION, "live_priority_fee_max_lamports", 200000)
+    monkeypatch.setitem(livemod.EXECUTION, "live_priority_level", "high")
+    sent = {}
+
+    class Resp:
+        status_code = 200
+        text = ""
+        def json(self): return {"swapTransaction": "AAAA"}
+
+    class Http:
+        def post(self, url, json=None, timeout=None):
+            sent.update(json or {})
+            return Resp()
+
+    class KP:
+        def pubkey(self): return "PUBKEY"
+        def sign_message(self, m): raise RuntimeError("stop here")
+
+    b = livemod.LiveBroker(tmp_path / "l.json")
+    b.http = Http()
+    monkeypatch.setattr(livemod, "_keypair", lambda: KP())
+    monkeypatch.setattr(livemod, "dry_run", lambda: False)
+    monkeypatch.setattr(livemod, "LIVE_DISABLED", "")
+    try:
+        b._sign_and_send({"outAmount": "1"})
+    except Exception:
+        pass
+    assert sent["prioritizationFeeLamports"] == {"maxLamports": 200000,
+                                                 "priorityLevel": "high"}
+
+
+def test_loss_limit_covers_one_full_stop_out(monkeypatch, tmp_path):
+    """$0.30 was below a single $15 stop-out, so the first loss ended live for
+    the day. The stop must always cover at least one ordinary stop-out."""
+    ag, live = _agent(monkeypatch, tmp_path)
+    monkeypatch.setitem(live.EXECUTION, "live_max_trade_usd", 15.0)
+    monkeypatch.setitem(live.EXECUTION, "live_max_notional_usd", 20.0)
+    monkeypatch.setitem(live.EXECUTION, "live_daily_loss_pct", 0.015)
+    limit = ag.live.loss_limit_usd()
+    one_stop = 15.0 * 0.20          # scalp profile stop
+    assert limit >= one_stop, (limit, one_stop)
+    assert limit > 0.30
+
+
+def test_loss_limit_scales_with_the_book(monkeypatch, tmp_path):
+    ag, live = _agent(monkeypatch, tmp_path)
+    ag.live.s["cash"] = 500.0
+    monkeypatch.setitem(live.EXECUTION, "live_daily_loss_pct", 0.02)
+    monkeypatch.setitem(live.EXECUTION, "live_max_trade_usd", 15.0)
+    assert ag.live.loss_limit_usd() >= 500.0 * 0.02
+
+
+def test_fills_record_the_measured_fee_not_zero(monkeypatch, tmp_path):
+    """The fee column was hardcoded 0.0, so realised P&L absorbed every fee."""
+    from desk import live as livemod
+    b = livemod.LiveBroker(tmp_path / "l.json")
+    monkeypatch.setattr(b, "_rpc", lambda m, p: {"meta": {"fee": 1_000_000}})
+    monkeypatch.setitem(livemod.EXECUTION, "live_sol_price_usd", 100.0)
+    assert b._fee_usd("sig") == 0.1
+
+
+def test_fee_lookup_failure_never_fails_a_fill(monkeypatch, tmp_path):
+    from desk import live as livemod
+    b = livemod.LiveBroker(tmp_path / "l.json")
+    def boom(m, p): raise RuntimeError("rpc down")
+    monkeypatch.setattr(b, "_rpc", boom)
+    assert b._fee_usd("sig") == 0.0

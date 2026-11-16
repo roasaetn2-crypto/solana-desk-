@@ -363,6 +363,57 @@ def check_live_trade(thesis, day_pnl: float, open_positions: int, liquidity_usd:
     return True, ticket, "approved"
 
 
+def sol_price_usd() -> float:
+    """SOL price used to turn lamport fees into dollars.
+
+    Config wins, then a deliberately pessimistic fallback. Never fetched here:
+    this runs inside the entry gate and a network call in the hot path is how a
+    risk check turns into a timeout. Over-stating the SOL price over-states the
+    fee, which is the safe direction to be wrong in.
+    """
+    pinned = float(EXECUTION.get("live_sol_price_usd") or 0.0)
+    if pinned > 0:
+        return pinned
+    return float(EXECUTION.get("live_sol_price_fallback_usd") or 150.0)
+
+
+def live_fee_model(ticket_usd: float | None = None,
+                   sol_usd: float | None = None) -> dict:
+    """What one live round trip actually costs, in dollars and as a percentage.
+
+    Jupiter charges 0%. The bill is Solana's:
+
+        base     5,000 lamports x 2 swaps
+        priority capped at live_priority_fee_max_lamports x 2 swaps
+        ATA rent 0.00203928 SOL once per NEW mint (never reclaimed today)
+        spread   half the slippage cap each way, the realistic mid-case
+
+    The rent line is the one that decides the floor. It is fixed, so it is a
+    rounding error on a $200 ticket and 7% of a $2 one.
+    """
+    sol = sol_usd if sol_usd is not None else sol_price_usd()
+    ticket = float(ticket_usd if ticket_usd is not None
+                   else EXECUTION["live_min_ticket_usd"])
+    base = float(EXECUTION.get("live_base_fee_lamports") or 0) * 2
+    prio = float(EXECUTION.get("live_priority_fee_max_lamports") or 0) * 2
+    rent = float(EXECUTION.get("live_ata_rent_lamports") or 0)
+    fixed_usd = (base + prio + rent) / 1_000_000_000 * sol
+    spread_pct = float(EXECUTION.get("live_max_slippage_bps") or 0) / 2 / 10_000
+    spread_usd = ticket * spread_pct
+    total = fixed_usd + spread_usd
+    return {
+        "ticket_usd": round(ticket, 2),
+        "sol_usd": round(sol, 2),
+        "fixed_usd": round(fixed_usd, 4),
+        "spread_usd": round(spread_usd, 4),
+        "total_usd": round(total, 4),
+        "pct": round(total / ticket * 100, 2) if ticket > 0 else 0.0,
+        "break_even_pct": round(total / ticket * 100, 2) if ticket > 0 else 0.0,
+        "rent_usd": round(rent / 1_000_000_000 * sol, 4),
+        "priority_cap_usd": round(prio / 1_000_000_000 * sol, 4),
+    }
+
+
 def live_cap_problems() -> list[str]:
     """Contradictions in the live caps that would silently block every fill.
 
@@ -384,6 +435,17 @@ def live_cap_problems() -> list[str]:
         problems.append(
             f"live_max_notional_usd ${max_notional:.2f} is below the "
             f"${min_ticket:.2f} live fee floor: no position could ever open")
+    # Fee-share check: a floor that is technically above zero but still lets the
+    # round-trip cost eat most of the target move is not a floor, it is a slow
+    # leak. Measured against the smallest ticket the desk would actually place.
+    if min_ticket > 0:
+        cap = float(EXECUTION.get("live_max_fee_share_pct") or 0.05)
+        fee = live_fee_model(min_ticket)
+        if fee["pct"] / 100 > cap:
+            problems.append(
+                f"a ${min_ticket:.2f} ticket pays {fee['pct']:.2f}% round trip "
+                f"(${fee['total_usd']:.2f}), above the {cap * 100:.0f}% fee-share "
+                f"limit: raise live_min_ticket_usd")
     return problems
 
 

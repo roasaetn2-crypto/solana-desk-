@@ -509,6 +509,15 @@ function renderMode(s) {
       : "—";
   }
   if ($("capNotional")) $("capNotional").textContent = caps.max_notional != null ? fmtMoney(caps.max_notional, 0) : "—";
+  // Jupiter charges 0%; this is Solana's bill. Show it as a percentage of the
+  // smallest ticket, because that percentage is the break-even the trade must
+  // clear before it makes a cent.
+  const fees = ex.fees || {};
+  if ($("capFees")) {
+    $("capFees").textContent = fees.pct != null
+      ? fees.pct.toFixed(1) + "% (" + fmtMoney(fees.total_usd) + ")"
+      : "—";
+  }
   if ($("armPhraseHint")) $("armPhraseHint").textContent = ex.confirm_phrase || "—";
   const msg = $("modeMsg");
   if (msg && !msg.dataset.sticky) {

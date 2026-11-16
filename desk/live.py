@@ -29,10 +29,11 @@ from pathlib import Path
 
 import requests
 
-from config import EXECUTION, RISK
+from config import EXECUTION, EXITS, RISK
 from desk import chain
 from desk.broker import PaperBroker
 from desk.ops import killed
+from desk.risk import live_fee_model as fee_model
 
 LIVE_LEDGER = Path("live_ledger.json")
 
@@ -231,11 +232,21 @@ class LiveBroker(PaperBroker):
             # this function can never sign or broadcast while LIVE_DRY_RUN is on.
             raise LiveError("DRY RUN: refusing to sign or send a transaction")
         kp = _keypair()
+        # Priority fee is the only fee we control, and "auto" gave that control
+        # away: Jupiter bids a network percentile with no ceiling, so a hot
+        # memecoin launch could charge more in priority than the trade's edge.
+        # A capped object keeps the bid competitive but bounded.
+        max_lamports = int(EXECUTION.get("live_priority_fee_max_lamports") or 0)
+        if max_lamports > 0:
+            prio = {"maxLamports": max_lamports,
+                    "priorityLevel": EXECUTION.get("live_priority_level") or "high"}
+        else:
+            prio = "auto"
         r = self.http.post(
             f"{EXECUTION['jupiter_base']}/swap",
             json={"quoteResponse": quote, "userPublicKey": str(kp.pubkey()),
                   "wrapAndUnwrapSol": True, "dynamicComputeUnitLimit": True,
-                  "prioritizationFeeLamports": "auto"},
+                  "prioritizationFeeLamports": prio},
             timeout=30,
         )
         if r.status_code != 200:
@@ -263,6 +274,26 @@ class LiveBroker(PaperBroker):
         self._confirm(sig)
         return sig
 
+    def _fee_usd(self, sig: str) -> float:
+        """The fee the chain actually charged for this transaction, in dollars.
+
+        The fills used to record a hardcoded 0.0, so the dashboard's fee column
+        was decorative and realised P&L silently absorbed every fee. Read it
+        from the transaction meta instead. Best-effort: a lookup failure must
+        never fail a fill that already landed.
+        """
+        try:
+            res = self._rpc("getTransaction", [
+                sig, {"encoding": "json", "maxSupportedTransactionVersion": 0,
+                      "commitment": "confirmed"}])
+            fee = ((res or {}).get("meta") or {}).get("fee")
+            if not isinstance(fee, int):
+                return 0.0
+        except Exception:
+            return 0.0
+        from desk.risk import sol_price_usd
+        return round(fee / 1_000_000_000 * sol_price_usd(), 4)
+
     def _confirm(self, sig: str):
         deadline = time.time() + EXECUTION["confirm_timeout_seconds"]
         while time.time() < deadline:
@@ -285,7 +316,25 @@ class LiveBroker(PaperBroker):
         return round(sum(p.get("cost", 0.0) for p in self.s["positions"].values()), 2)
 
     def loss_limit_usd(self) -> float:
-        return round(EXECUTION["live_daily_loss_pct"] * EXECUTION["live_max_notional_usd"], 2)
+        """Today's live loss stop, in dollars.
+
+        It used to be `pct * live_max_notional_usd` = 1.5% of $20 = $0.30. A
+        single $15 ticket stopped out at the 5% stop loses $0.75, so the FIRST
+        loss of the day tripped the stop and live went quiet until midnight.
+        A daily stop that one ordinary stop-out can breach is not a risk limit,
+        it is an off switch.
+
+        Two floors now:
+          * pct of the ACTUAL live book (cash + marks), so it scales with capital
+          * one full stop-out on the largest allowed ticket, so a single loss
+            never ends the day on its own
+        """
+        book = max(self.equity(), EXECUTION["live_max_notional_usd"])
+        by_pct = EXECUTION["live_daily_loss_pct"] * book
+        one_stop = EXECUTION["live_max_trade_usd"] * float(
+            (EXITS.get("profiles") or {}).get("scalp", {}).get(
+                "stop_pct", EXITS.get("stop_pct", 0.05)))
+        return round(max(by_pct, one_stop), 2)
 
     def _guard_buy(self, mint: str, ticket_usd: float):
         ok, why = ready()
@@ -325,8 +374,10 @@ class LiveBroker(PaperBroker):
         qty = out_raw / 10 ** dec
         if dry_run():
             sig = f"dryrun-{int(time.time())}"
+            fee_usd = 0.0
         else:
             sig = self._sign_and_send(q)
+            fee_usd = self._fee_usd(sig)
         fill = ticket_usd / qty if qty else price
 
         self.s["cash"] -= ticket_usd
@@ -342,7 +393,7 @@ class LiveBroker(PaperBroker):
             self.s["positions"][mint]["groq_mult"] = float(groq_mult)
         self._save()
         return {"side": "buy", "mint": mint, "symbol": symbol, "qty": qty, "fill": fill,
-                "fee": 0.0, "ticket_usd": ticket_usd, "tx": sig, "live": True,
+                "fee": fee_usd, "ticket_usd": ticket_usd, "tx": sig, "live": True,
                 "price_impact": q.get("priceImpactPct")}
 
     def sell(self, mint: str, fraction: float, price: float, reason: str) -> dict:
@@ -358,8 +409,10 @@ class LiveBroker(PaperBroker):
         proceeds = int(q["outAmount"]) / 10 ** 6
         if dry_run():
             sig = f"dryrun-{int(time.time())}"
+            fee_usd = 0.0
         else:
             sig = self._sign_and_send(q)
+            fee_usd = self._fee_usd(sig)
         fill = proceeds / qty if qty else price
 
         self.s["cash"] += proceeds
@@ -367,7 +420,7 @@ class LiveBroker(PaperBroker):
         p["last"] = fill
         p["proceeds"] = p.get("proceeds", 0.0) + proceeds
         out = {"side": "sell", "mint": mint, "symbol": p["symbol"], "qty": qty,
-               "fill": fill, "fee": 0.0, "reason": reason, "tx": sig, "live": True}
+               "fill": fill, "fee": fee_usd, "reason": reason, "tx": sig, "live": True}
         if fraction >= 1 or p["qty"] <= 1e-12:
             pnl = round(p["proceeds"] - p["cost"], 2)
             out["pnl_usd"] = pnl
@@ -400,6 +453,10 @@ class LiveBroker(PaperBroker):
                 "min_ticket": EXECUTION["live_min_ticket_usd"],
                 "max_notional": EXECUTION["live_max_notional_usd"],
                 "daily_loss_usd": self.loss_limit_usd(),
+                "priority_fee_cap_lamports": EXECUTION["live_priority_fee_max_lamports"],
             },
+            # What a round trip actually costs, measured not guessed. Jupiter
+            # charges 0%; this is base fee + capped priority + ATA rent + spread.
+            "fees": fee_model(),
         })
         return snap

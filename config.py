@@ -411,6 +411,36 @@ EXECUTION = {
     "live_max_notional_usd": 20.0,     # hard ceiling on all live money at risk at once
     "live_daily_loss_pct": 0.015,      # -1.5% on the live book -> no new live buys today
     "live_max_slippage_bps": 300,      # 3%. Wider than this and the route is a trap
+
+    # ---------- fee model (measured 2026-11-16 against live Jupiter quotes) ----------
+    # Jupiter itself charges NOTHING: we never send platformFeeBps and a live
+    # quote comes back with "platformFee": null. Every real cost below is
+    # Solana's, and these numbers are what the live floor is supposed to be
+    # derived from instead of a guess.
+    #
+    #   base fee      = 5,000 lamports per signature (one per swap), 50% burned
+    #   priority fee  = what you bid to land; "auto" had NO ceiling before
+    #   ATA rent      = 0.00203928 SOL per NEW mint, locked until the ATA closes
+    #
+    # All lamport figures are PER TRANSACTION.
+    "live_base_fee_lamports": 5000,
+    "live_priority_fee_max_lamports": 200000,  # 0.0002 SOL (~$0.014) hard ceiling.
+                                               # "auto" let Jupiter bid unbounded on
+                                               # a hot launch; a $0.70 priority fee on
+                                               # a $10 ticket is 7% gone before the
+                                               # trade starts. Capped, not auto.
+    "live_priority_level": "high",             # Jupiter priorityLevel when capped
+    "live_ata_rent_lamports": 2039280,         # 0.00203928 SOL, refundable only on close
+    "live_sol_price_usd": 0.0,                 # 0 = use the fallback below
+    "live_sol_price_fallback_usd": 150.0,      # deliberately high: over-estimating a
+                                               # fee is safe, under-estimating is not
+    "live_max_fee_share_pct": 0.08,            # refuse a ticket whose round-trip
+                                               # cost exceeds 8% of the ticket.
+                                               # At the pessimistic $150 SOL
+                                               # fallback: $10 -> 5.2%, $5 -> 8.8%
+                                               # (blocked), $2 -> 19.8% (blocked).
+                                               # This is the guard that stops the
+                                               # floor drifting back under the fee.
     "live_confirm_phrase": "I understand this is real money",
     "jupiter_base": "https://lite-api.jup.ag/swap/v1",
     "usdc_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
