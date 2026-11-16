@@ -16,8 +16,13 @@ python-multipart>=0.0.9
 # PumpPortal new-token feed (desk/pumpportal.py). Optional: the desk runs without it.
 websocket-client>=1.7
 
-# LIVE signing deps. Paper mode never imports these; live mode refuses to arm
-# without them (desk/live.py ready()). Installed by default so a live deploy
-# does not fail at the last moment on a missing package.
-solders>=0.21
-base58>=2.1
+# NOTE: the live signing deps (solders, base58) are deliberately NOT here.
+# They live in requirements-live.txt and are only installed where live trading
+# actually runs. Reason: solders is an ~12 MB compiled wheel with no Android
+# build, so `pip install -r requirements.txt` on Termux would pull a Rust
+# toolchain and compile it from source on the phone. Paper mode never imports
+# solders, so the phone must not pay for it.
+#
+#   Render / VPS : pip install -r requirements.txt -r requirements-live.txt
+#   Termux       : pip install -r requirements.txt        (paper is enough)
+#   Termux, live : bash termux/fix-deps.sh --live

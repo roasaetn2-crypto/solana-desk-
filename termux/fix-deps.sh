@@ -20,6 +20,18 @@ cd "$DESK_DIR" || { echo "FAIL: no desk dir at $DESK_DIR"; exit 1; }
 
 say() { printf '%s\n' "$*"; }
 
+# Live signing deps (solders, base58) are OPT-IN on Termux. solders is an ~12 MB
+# compiled wheel with no Android build, so installing it pulls a Rust toolchain
+# and compiles on the phone — minutes of CPU and a big download. Paper mode
+# never imports it, so the default is to skip it.
+LIVE=0
+for a in "$@"; do
+  case "$a" in
+    --live) LIVE=1 ;;
+    -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+  esac
+done
+
 say "=== 1. python / pip ==="
 python -V || { say "FAIL: python not found"; exit 1; }
 python -m pip -V || { say "FAIL: pip not found (pkg install python)"; exit 1; }
@@ -34,13 +46,28 @@ else
 fi
 
 say ""
-say "=== 3. installing requirements.txt ==="
+say "=== 3. installing requirements.txt (paper deps) ==="
 python -m pip install --upgrade -r requirements.txt || {
   say "FAIL: pip install failed. If it is a build error, try:"
   say "  pkg install clang rust binutils libffi openssl"
   say "  pip install --upgrade pip setuptools wheel"
   exit 1
 }
+
+say ""
+if [ "$LIVE" = "1" ]; then
+  say "=== 3b. installing requirements-live.txt (solders, base58) ==="
+  say "  this is a large compiled dependency; on Termux it may build from source."
+  python -m pip install --upgrade -r requirements-live.txt || {
+    say "FAIL: live deps failed to install. Live mode will refuse to arm, but"
+    say "      PAPER still works. Try: pkg install rust clang binutils"
+    exit 1
+  }
+else
+  say "=== 3b. live signing deps SKIPPED (paper only) ==="
+  say "  solders/base58 are only needed to sign real transactions."
+  say "  To install them anyway:  bash termux/fix-deps.sh --live"
+fi
 
 say ""
 say "=== 4. verifying the websocket module is the RIGHT one ==="

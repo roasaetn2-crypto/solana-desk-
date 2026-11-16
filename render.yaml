@@ -3,7 +3,7 @@ services:
     name: solana-desk
     runtime: python
     plan: free
-    buildCommand: pip install --no-cache-dir -r requirements.txt
+    buildCommand: pip install --no-cache-dir -r requirements.txt -r requirements-live.txt
     startCommand: bash start.sh
     healthCheckPath: /api/health
     autoDeploy: true
