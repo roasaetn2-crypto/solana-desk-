@@ -271,7 +271,10 @@ class SolanaAgent:
             reason=fill.get("reason"), mint=fill.get("mint"),
             entry=extra.get("entry"), fill=fill.get("fill"),
             mult=extra.get("mult"), mcap_usd=extra.get("mcap_usd"))
-        self._snapshot_equity(ts)   # also persists the curve + this mark
+        # force=True: a fill must be on disk immediately, not 20s later.
+        with self.lock:
+            equity_curve.save(self.equity_curve, self.curve_marks, force=True)
+        self._snapshot_equity(ts)
         return mark
 
     def _mcap_of(self, mint: str | None) -> float | None:

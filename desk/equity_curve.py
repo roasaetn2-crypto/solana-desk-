@@ -80,9 +80,25 @@ def window(points: Iterable[dict], marks: Iterable[dict], tf: str, now: float) -
 
 
 # ---------------------------------------------------------------- persistence
-def save(points: Iterable[dict], marks: Iterable[dict], path: Path | None = None) -> bool:
-    """Write the curve atomically. Never raises: a chart must not kill the desk."""
+_WRITE_EVERY_S = 20.0
+_last_write = [0.0]
+
+
+def save(points: Iterable[dict], marks: Iterable[dict], path: Path | None = None,
+         force: bool = False) -> bool:
+    """Write the curve atomically. Never raises: a chart must not kill the desk.
+
+    Throttled to one write every 20s unless `force` is set. The curve is
+    rewritten on every scan cycle, and a 20k-point JSON blob written each time
+    would be needless flash wear on a phone that runs this 24/7. Trades pass
+    force=True so a fill is never lost; a crash otherwise costs at most 20s of
+    chart, which the next cycle re-appends anyway.
+    """
     p = path or store_path()
+    now = time.time()
+    if not force and now - _last_write[0] < _WRITE_EVERY_S:
+        return False
+    _last_write[0] = now
     try:
         p.parent.mkdir(parents=True, exist_ok=True)
         blob = json.dumps({

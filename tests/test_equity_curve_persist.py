@@ -17,6 +17,7 @@ from desk import equity_curve as ec
 def store(tmp_path, monkeypatch):
     monkeypatch.setenv("DESK_DATA_DIR", str(tmp_path))
     monkeypatch.setattr(ec, "_last_sync", [time.time()])   # never hit the network
+    monkeypatch.setattr(ec, "_last_write", [0.0])          # never throttle a test
     return tmp_path
 
 
@@ -31,7 +32,7 @@ def test_roundtrip_survives_restart(store):
         ec.record_point(pts, now - 300 + i * 60, 46.0 + i * 0.25, i * 0.25)
     ec.record_mark(mks, now - 200, "buy", "WIF", usd=3.0, mint="m1", entry=0.001)
     ec.record_mark(mks, now - 100, "sell", "WIF", pnl_usd=0.8, reason="tp", mint="m1")
-    assert ec.save(pts, mks) is True
+    assert ec.save(pts, mks, force=True) is True
 
     pts2, mks2 = _deques()          # a fresh process
     assert ec.load(pts2, mks2) == 4
@@ -44,7 +45,7 @@ def test_every_timeframe_has_data_after_restart(store):
     now = time.time()
     ec.record_point(pts, now - 60, 46.0, 0.0)
     ec.record_mark(mks, now - 60, "buy", "BONK", usd=2.0)
-    ec.save(pts, mks)
+    ec.save(pts, mks, force=True)
 
     pts2, mks2 = _deques()
     ec.load(pts2, mks2)
@@ -67,7 +68,7 @@ def test_dedupe_drops_repeated_rows(store):
     pts.append(dict(pt))               # same instant, same point
     ec.record_mark(mks, t, "buy", "WIF", usd=1.0)
     ec.record_mark(mks, t, "buy", "WIF", usd=1.0)
-    ec.save(pts, mks)
+    ec.save(pts, mks, force=True)
 
     pts2, mks2 = _deques()
     ec.load(pts2, mks2)
