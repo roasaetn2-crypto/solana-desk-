@@ -456,8 +456,11 @@ def test_priority_fee_is_capped_not_auto(monkeypatch, tmp_path):
         b._sign_and_send({"outAmount": "1"})
     except Exception:
         pass
-    assert sent["prioritizationFeeLamports"] == {"maxLamports": 200000,
-                                                 "priorityLevel": "high"}
+    # Jupiter's schema is NESTED. A flat {maxLamports, priorityLevel} returns
+    # 422 and no transaction, so this shape is load-bearing, not cosmetic.
+    assert sent["prioritizationFeeLamports"] == {
+        "priorityLevelWithMaxLamports": {"maxLamports": 200000,
+                                         "priorityLevel": "high"}}
 
 
 def test_loss_limit_covers_one_full_stop_out(monkeypatch, tmp_path):

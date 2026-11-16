@@ -238,8 +238,13 @@ class LiveBroker(PaperBroker):
         # A capped object keeps the bid competitive but bounded.
         max_lamports = int(EXECUTION.get("live_priority_fee_max_lamports") or 0)
         if max_lamports > 0:
-            prio = {"maxLamports": max_lamports,
-                    "priorityLevel": EXECUTION.get("live_priority_level") or "high"}
+            # Jupiter's schema is nested: a flat {maxLamports, priorityLevel}
+            # is rejected with a 422 "did not match any variant of untagged
+            # enum PrioritizationFeeLamports" and NO transaction is returned,
+            # which would have failed every live swap.
+            prio = {"priorityLevelWithMaxLamports": {
+                "maxLamports": max_lamports,
+                "priorityLevel": EXECUTION.get("live_priority_level") or "high"}}
         else:
             prio = "auto"
         r = self.http.post(
