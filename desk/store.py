@@ -49,6 +49,29 @@ _KV = (
 _JOURNAL = "journal"
 
 
+def namespace() -> str:
+    """Which lane owns this row.
+
+    Two Render services can share one Turso database (a free plan gives you one
+    DB, not two). Without a namespace they would fight: both write the kv key
+    `paper_ledger`, so the live lane's book would silently overwrite the paper
+    lane's and vice versa, and the journal would interleave two unrelated
+    histories. DESK_STORE_NAMESPACE separates them inside one database.
+
+    Empty (the default) means "legacy / single lane": keys stay unprefixed and
+    journal rows keep ns='', so an existing deployment is byte-for-byte
+    unaffected by this feature existing.
+    """
+    raw = (os.environ.get("DESK_STORE_NAMESPACE") or "").strip().lower()
+    # Keep it to something safe for a key prefix and a SQL parameter.
+    return "".join(c for c in raw if c.isalnum() or c in "-_")[:32]
+
+
+def _ns_key(key: str) -> str:
+    ns = namespace()
+    return f"{ns}:{key}" if ns else key
+
+
 def _clean(url: str) -> str:
     return (url or "").strip().strip('"').strip("'")
 
@@ -196,8 +219,21 @@ def _ensure() -> bool:
         )
         execute(
             "CREATE TABLE IF NOT EXISTS journal ("
-            "id INTEGER PRIMARY KEY AUTOINCREMENT, time TEXT, kind TEXT, mint TEXT, body TEXT NOT NULL)"
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, time TEXT, kind TEXT, mint TEXT, "
+            "body TEXT NOT NULL, ns TEXT NOT NULL DEFAULT '')"
         )
+        # Migration for a database created before namespaces existed. ADD COLUMN
+        # is an O(1) metadata change in SQLite even on 100k+ rows, so this is
+        # cheap. Existing rows get ns='' which is exactly the legacy lane, so a
+        # single-lane deployment keeps reading all of its history.
+        try:
+            execute("ALTER TABLE journal ADD COLUMN ns TEXT NOT NULL DEFAULT ''")
+        except Exception:
+            pass  # already there
+        try:
+            execute("CREATE INDEX IF NOT EXISTS journal_ns_id ON journal(ns, id)")
+        except Exception:
+            pass
         _ready = True
         return True
 
@@ -219,7 +255,7 @@ def put_kv(key: str, value: str) -> None:
         execute(
             "INSERT INTO kv(key, value, updated_at) VALUES(?,?,?) "
             "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
-            [key, value, now],
+            [_ns_key(key), value, now],
         )
     except Exception as e:
         print(f"[desk] store: put {key} failed ({_redact(str(e))})")
@@ -229,7 +265,7 @@ def get_kv(key: str) -> str | None:
     if not configured() and _poster is None:
         return None
     _ensure()
-    out = execute("SELECT value FROM kv WHERE key=?", [key])
+    out = execute("SELECT value FROM kv WHERE key=?", [_ns_key(key)])
     rows = out.get("rows") or []
     if not rows:
         return None
@@ -257,8 +293,9 @@ def append_journal(row: dict) -> None:
     try:
         _ensure()
         execute(
-            "INSERT INTO journal(time, kind, mint, body) VALUES(?,?,?,?)",
-            [row.get("time"), row.get("kind"), row.get("mint"), json.dumps(row, default=str)],
+            "INSERT INTO journal(time, kind, mint, body, ns) VALUES(?,?,?,?,?)",
+            [row.get("time"), row.get("kind"), row.get("mint"),
+             json.dumps(row, default=str), namespace()],
         )
     except Exception as e:
         print(f"[desk] store: journal append failed ({_redact(str(e))})")
@@ -288,8 +325,9 @@ def iter_journal_rows(page: int | None = None):
     size = int(page or JOURNAL_PAGE)
     last = 0
     while True:
-        out = execute("SELECT id, body FROM journal WHERE id > ? ORDER BY id LIMIT ?",
-                      [last, size])
+        out = execute(
+            "SELECT id, body FROM journal WHERE ns=? AND id > ? ORDER BY id LIMIT ?",
+            [namespace(), last, size])
         rows = out.get("rows") or []
         if not rows:
             return
@@ -322,7 +360,7 @@ def load_journal_rows() -> list[dict]:
 
 def journal_count() -> int:
     _ensure()
-    out = execute("SELECT COUNT(*) AS n FROM journal")
+    out = execute("SELECT COUNT(*) AS n FROM journal WHERE ns=?", [namespace()])
     rows = out.get("rows") or []
     if not rows:
         return 0
@@ -529,12 +567,15 @@ def probe() -> dict:
             "select name from sqlite_master where type='table' order by name")["rows"]]
         rows = None
         try:
-            got = execute("select count(*) as n from journal")["rows"]
+            got = execute("select count(*) as n from journal where ns=?",
+                          [namespace()])["rows"]
             rows = got[0]["n"] if got else 0
         except Exception:
             rows = None  # table missing: schema not created yet
         body.update(ok=True, tables=names, journal_rows_remote=rows,
                     schema_ready=("journal" in names and "kv" in names))
+        if namespace():
+            body["namespace"] = namespace()
     except Exception as e:
         body["error"] = _redact(str(e))
     _probe_cache.update(at=now, body=body)
