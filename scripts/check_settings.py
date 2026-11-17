@@ -36,6 +36,23 @@ WHY = [
 ]
 
 
+def _worse(key: str, now, tgt) -> bool:
+    """True when `now` is LOOSER than the preset (the only direction that hurts results).
+
+    A stricter value is a deliberate choice, not a mistake, so it is not flagged:
+    min_* / valid_score: higher is stricter; max_*: lower is stricter. Anything that is not a
+    plain number (a switch, a choice) is flagged on any difference.
+    """
+    num = (int, float)
+    if not (isinstance(now, num) and isinstance(tgt, num)) or isinstance(now, bool) or isinstance(tgt, bool):
+        return now != tgt
+    if "max_" in key:
+        return now > tgt
+    if "min_" in key or key.endswith("valid_score"):
+        return now < tgt
+    return now != tgt
+
+
 def main() -> int:
     try:
         snap = json.load(sys.stdin)
@@ -49,9 +66,9 @@ def main() -> int:
     want = PRESETS["strategy"]["values"]
     bad, shown = [], set()
     for key, why in WHY:
-        if key in want and key in cur and cur[key] != want[key]:
+        if key in want and key in cur and _worse(key, cur[key], want[key]):
             bad.append((key, cur[key], want[key], why)); shown.add(key)
-    rest = [(k, cur[k], v) for k, v in want.items() if k in cur and cur[k] != v and k not in shown]
+    rest = [(k, cur[k], v) for k, v in want.items() if k in cur and _worse(k, cur[k], v) and k not in shown]
     if not bad and not rest:
         print("All checked settings already match the Strategy preset.")
         return 0
