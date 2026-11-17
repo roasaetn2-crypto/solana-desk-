@@ -187,6 +187,14 @@ SCAN_FETCH = {
     "pp_cold_recheck_s": 300,      # re-check a quiet launch this often (late movers)
 }
 
+# ---- env overrides for the fetch budgets: from Termux, SCANFETCH_DS_PER_MIN=30 ----
+# The defaults are tuned for Render's shared outbound IPs. On a phone's own connection the
+# public DexScreener limit is far higher, so a faster open-position refresh is safe there.
+# Unset = unchanged. Any key works as SCANFETCH_<KEY_UPPER>.
+for _k in list(SCAN_FETCH):
+    SCAN_FETCH[_k] = _env_override("SCANFETCH_", _k, SCAN_FETCH[_k])
+del _k
+
 # ---------- Seat 2: chain facts (Solana RPC) ----------
 CHAIN = {
     "max_top_wallet": 0.08,        # biggest real wallet, excl. curve / pool / program accounts
