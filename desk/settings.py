@@ -922,6 +922,16 @@ PRESETS: dict[str, dict] = {
                             "exits.swing.stop_pct": 0.30, "exits.swing.tp1_at": 1.5, "exits.swing.tp2_at": 2.0,
                             "exits.swing.trail_pct": 0.30, "exits.swing.timeout_hours": 3.0,
                             "exits.swing.max_hold_hours": 4.0}},
+    # Built from the ChartingLens scalping rules, keeping only what holds up on meme coins: liquid pools,
+    # trade only the pullback, ~1.5-2R target (fast ladder 1.25x/1.6x on a 30% stop), risk <= 1% per
+    # trade, hard daily stop. Stock/forex triggers (EMA/VWAP) are NOT used.
+    "strategy": {"label": "Strategy (scalp rules)",
+                 "reason": "Liquid pools only, pullback entry, quick 1.5-2R exits, 1% risk per trade, hard daily stop.",
+                 "values": {"scan.min_liquidity_usd": 50_000, "scan.min_volume_h1_usd": 20_000,
+                            "scan.min_trades_h1": 100, "scan.min_mcap_usd": 100_000,
+                            "scan.min_age_minutes": 120, "meme.pullback_entry": True,
+                            "exits.tp_plan": "profile", "exits.ladder": "fast",
+                            "risk.max_risk_per_trade": 0.01, "risk.max_daily_loss_pct": 0.03}},
 }
 
 
