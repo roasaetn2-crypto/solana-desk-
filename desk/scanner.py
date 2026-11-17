@@ -1154,16 +1154,30 @@ def quote_many(mints: list[str], session: requests.Session | None = None) -> dic
             mint = ((p.get("baseToken") or {}).get("address")) or ""
             if mint:
                 by_mint.setdefault(mint, []).append(p)
+        unpriced: list[str] = []
         for mint in chunk:
             q = _quote_from_pairs(by_mint.get(mint) or [])
             if not q:
-                stale = _QUOTE_CACHE.get(mint)
-                if stale:
-                    out[mint] = stale["q"]
+                unpriced.append(mint)
                 continue
             out[mint] = q
             _QUOTE_CACHE[mint] = {"exp": now + SCAN_FETCH["quote_ttl_s"], "q": q}
             _record_quote_tick(mint, q)
+        if unpriced:
+            # DexScreener answered 200 but has no pair for these mints (a brand-new or
+            # PumpSwap pool it has not indexed yet). Before this, the only fallback ran when
+            # the request FAILED, so such a position was priced from its own stale ENTRY quote
+            # forever: Last == Entry, +0.00%, no exit ever fires. Ask Jupiter, then stale.
+            jq = _jup_quotes(s, unpriced, now)
+            for mint in unpriced:
+                if mint in jq:
+                    out[mint] = jq[mint]
+                    _QUOTE_CACHE[mint] = {"exp": now + SCAN_FETCH["quote_ttl_s"], "q": jq[mint]}
+                    _record_quote_tick(mint, jq[mint])
+                    continue
+                stale = _QUOTE_CACHE.get(mint)
+                if stale:
+                    out[mint] = stale["q"]
     return out
 
 
