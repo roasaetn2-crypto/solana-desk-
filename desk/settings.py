@@ -927,11 +927,28 @@ PRESETS: dict[str, dict] = {
     # trade, hard daily stop. Stock/forex triggers (EMA/VWAP) are NOT used.
     "strategy": {"label": "Strategy (scalp rules)",
                  "reason": "Liquid pools only, pullback entry, quick 1.5-2R exits, 1% risk per trade, hard daily stop.",
-                 "values": {"scan.min_liquidity_usd": 50_000, "scan.min_volume_h1_usd": 20_000,
+                 # Self-contained: it also resets every gate a looser preset (legend_scalp etc.) leaves
+                 # behind, including the swing lane's own gates and the fast scalp lane switch.
+                 "values": {"scalp.enabled": False, "swing.enabled": True,
+                            "scan.min_liquidity_usd": 50_000, "scan.min_volume_h1_usd": 20_000,
                             "scan.min_trades_h1": 100, "scan.min_mcap_usd": 100_000,
-                            "scan.min_age_minutes": 120, "meme.pullback_entry": True,
+                            "scan.max_mcap_usd": 2_000_000, "scan.min_age_minutes": 120,
+                            "scan.max_age_hours": 48, "scan.max_h1_change_pct": 250.0,
+                            "scan.min_sells_ratio_h1": 0.1,
+                            "swing.min_liquidity_usd": 50_000, "swing.min_volume_h1_usd": 20_000,
+                            "swing.min_trades_h1": 100, "swing.min_mcap_usd": 100_000,
+                            "swing.max_mcap_usd": 2_000_000, "swing.min_age_minutes": 120,
+                            "swing.max_age_hours": 48,
+                            "analyst.valid_score": 6, "analyst.max_red_flags": 3,
+                            "signal.min_confidence": 60, "signal.min_win_probability": 0.52,
+                            "signal.require_bullish": True,
+                            "meme.min_holders": 150, "meme.min_community_score": 35,
+                            "entry.max_price_gap_pct": 25.0, "entry.min_confirm_liq_ratio": 0.5,
+                            "meme.pullback_entry": True,
                             "exits.tp_plan": "profile", "exits.ladder": "fast",
-                            "risk.max_risk_per_trade": 0.01, "risk.max_daily_loss_pct": 0.03}},
+                            "risk.max_risk_per_trade": 0.01, "risk.max_daily_loss_pct": 0.03,
+                            "risk.max_open_positions": 6, "risk.auto_continue_after_daily_stop": False,
+                            "agent.cycle_seconds": 30}},
 }
 
 
