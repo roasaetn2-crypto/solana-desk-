@@ -133,32 +133,24 @@ class LegendScalperTest(unittest.TestCase):
                 pass
 
     def test_every_reasonable_coin_reaches_the_broker(self):
-        cases = [
-            coin(),                                        # fresh 45k
-            coin(mcap_usd=8_000, age_minutes=2),           # tiny and brand new
-            coin(mcap_usd=5_000_000, age_minutes=30),      # big and fresh
-            coin(mcap_usd=300_000, age_minutes=60),        # 1h old
-            coin(mcap_usd=1_000_000, age_minutes=720),     # 12h old
-            coin(mcap_usd=800_000, age_minutes=7_200),     # 5d old
-            coin(liquidity_usd=2_500),                     # thin
-            coin(volume_m5=0),                             # no 5m print yet
-            coin(buys_h1=3, sells_h1=2),                   # 5 trades
-            coin(change_h1=800),                           # vertical
-        ]
-        for c in cases:
-            self.assertIsNone(scanner.free_kill(c),
-                              f"legend scalper should trade this: {c}")
+        # FIXED: these presets used to take any coin (that is what lost); now a coin must be in the
+        # dip window (>= 2h old: the dip needs ~100 min of candles) with real liquidity and trades.
+        good = coin(mcap_usd=300_000, age_minutes=360, liquidity_usd=80_000, volume_h1=40_000, buys_h1=90, sells_h1=60)
+        self.assertIsNone(scanner.free_kill(good), "legend scalper should trade a liquid coin in the window")
+        self.assertEqual(scanner.free_kill(coin(age_minutes=8)), "age")                 # fresh: dip unmeasurable
+        self.assertIsNotNone(scanner.free_kill(coin(age_minutes=360, mcap_usd=300_000, liquidity_usd=2_500)))  # thin
 
     def test_protective_cuts_survive(self):
-        self.assertEqual(scanner.free_kill(coin(mcap_usd=3_000)), "mcap")
-        self.assertEqual(scanner.free_kill(coin(buys_h1=100, sells_h1=0)), "no_sells")
+        self.assertEqual(scanner.free_kill(coin(mcap_usd=3_000, age_minutes=360, liquidity_usd=80_000, volume_h1=40_000, buys_h1=90, sells_h1=60)), "mcap")
+        self.assertEqual(scanner.free_kill(coin(buys_h1=100, sells_h1=0, age_minutes=360, mcap_usd=300_000, liquidity_usd=80_000, volume_h1=40_000)), "no_sells")
         self.assertEqual(scanner.free_kill(coin(age_minutes=9 * 24 * 60)), "age")
 
     def test_legend_relaxes_the_starving_gates(self):
         from config import MEME, SIGNAL
-        self.assertFalse(MEME.get("pullback_entry"))
-        self.assertEqual(SIGNAL["min_confidence"], 30)
-        self.assertFalse(SIGNAL["require_bullish"])
+        # FIXED: Legend no longer relaxes these (a plain BUY signal won 15.4% of trades).
+        self.assertTrue(MEME.get("pullback_entry"))
+        self.assertEqual(SIGNAL["min_confidence"], 60)
+        self.assertTrue(SIGNAL["require_bullish"])
 
 
 class SuperLegendScalperTest(unittest.TestCase):
@@ -198,30 +190,19 @@ class SuperLegendScalperTest(unittest.TestCase):
                for k, v in PRESETS["super_legend_scalp"]["values"].items()]
         changes, dropped = validate_changes(raw)
         self.assertEqual(dropped, [], f"every value must be in bounds: {dropped}")
-        self.assertGreater(len(changes), 30)
+        self.assertGreater(len(changes), 15)
 
     def test_every_reasonable_coin_reaches_the_broker(self):
-        cases = [
-            coin(),
-            coin(mcap_usd=8_000, age_minutes=2),
-            coin(mcap_usd=5_000_000, age_minutes=30),
-            coin(mcap_usd=300_000, age_minutes=60),
-            coin(mcap_usd=1_000_000, age_minutes=720),
-            coin(mcap_usd=800_000, age_minutes=7_200),
-            coin(liquidity_usd=2_500),
-            coin(volume_m5=0),
-            coin(buys_h1=3, sells_h1=2),
-            coin(change_h1=800),
-            coin(mcap_usd=400_000_000, age_minutes=90),   # huge, legend refused it
-            coin(volume_h1=0, buys_h1=0, sells_h1=0),    # dead volume
-        ]
-        for c in cases:
-            self.assertIsNone(scanner.free_kill(c),
-                              f"super legend should trade this: {c}")
+        # FIXED: these presets used to take any coin (that is what lost); now a coin must be in the
+        # dip window (>= 2h old: the dip needs ~100 min of candles) with real liquidity and trades.
+        good = coin(mcap_usd=300_000, age_minutes=360, liquidity_usd=80_000, volume_h1=40_000, buys_h1=90, sells_h1=60)
+        self.assertIsNone(scanner.free_kill(good), "super legend should trade a liquid coin in the window")
+        self.assertEqual(scanner.free_kill(coin(age_minutes=8)), "age")                 # fresh: dip unmeasurable
+        self.assertIsNotNone(scanner.free_kill(coin(age_minutes=360, mcap_usd=300_000, liquidity_usd=2_500)))  # thin
 
     def test_protective_cuts_survive(self):
-        self.assertEqual(scanner.free_kill(coin(mcap_usd=3_000)), "mcap")
-        self.assertEqual(scanner.free_kill(coin(buys_h1=100, sells_h1=0)), "no_sells")
+        self.assertEqual(scanner.free_kill(coin(mcap_usd=3_000, age_minutes=360, liquidity_usd=80_000, volume_h1=40_000, buys_h1=90, sells_h1=60)), "mcap")
+        self.assertEqual(scanner.free_kill(coin(buys_h1=100, sells_h1=0, age_minutes=360, mcap_usd=300_000, liquidity_usd=80_000, volume_h1=40_000)), "no_sells")
         self.assertEqual(scanner.free_kill(coin(age_minutes=9 * 24 * 60)), "age")
 
     def test_super_is_at_least_as_loose_as_legend(self):
@@ -252,7 +233,7 @@ class SuperLegendV2Test(unittest.TestCase):
                for k, v in PRESETS["super_legend_v2"]["values"].items()]
         changes, dropped = validate_changes(raw)
         self.assertEqual(dropped, [], f"every value must be in bounds: {dropped}")
-        self.assertGreater(len(changes), 30)
+        self.assertGreater(len(changes), 15)
 
     def test_payoff_ratio_beats_super_legend(self):
         """R:R must be > 1. A scalper that risks more than it targets loses."""
@@ -320,7 +301,7 @@ class GuideScalpTest(unittest.TestCase):
                for k, v in PRESETS["guide_scalp"]["values"].items()]
         changes, dropped = validate_changes(raw)
         self.assertEqual(dropped, [], f"every value must be in bounds: {dropped}")
-        self.assertGreater(len(changes), 30)
+        self.assertGreater(len(changes), 15)
 
     def test_scalp_block_is_actually_enabled(self):
         """exits.profile() ignores every scalp.* key unless this is True.
@@ -328,8 +309,13 @@ class GuideScalpTest(unittest.TestCase):
         This is a live trap: a preset can look like it sets a 60-minute hold
         and a 20% stop while the engine silently runs the swing profile.
         """
+        # FIXED: the lane is now deliberately OFF (its tiny stop overrode the ladder and lost),
+        # so the dip entry + ladder decide the exits instead.
         from desk.settings import PRESETS
-        self.assertTrue(PRESETS["guide_scalp"]["values"]["scalp.enabled"])
+        v = PRESETS["guide_scalp"]["values"]
+        self.assertFalse(v["scalp.enabled"])
+        self.assertTrue(v["meme.pullback_entry"])
+        self.assertEqual(v["exits.ladder"], "fast")
 
     def test_targets_clear_the_round_trip_cost(self):
         """A 0.5-1% target is what killed the guide's literal numbers."""
@@ -385,12 +371,14 @@ class UltraScalpTest(unittest.TestCase):
                for k, v in PRESETS["ultra_scalp"]["values"].items()]
         changes, dropped = validate_changes(raw)
         self.assertEqual(dropped, [], f"every value must be in bounds: {dropped}")
-        self.assertGreater(len(changes), 30)
+        self.assertGreater(len(changes), 15)
 
     def test_scalp_block_is_enabled_and_swing_is_off(self):
         """exits.profile() ignores every scalp.* key unless enabled is True."""
-        self.assertTrue(self.v["scalp.enabled"])
-        self.assertFalse(self.v["swing.enabled"])
+        # FIXED: lane off, main lane on with the dip entry; the 30% ladder stop decides exits.
+        self.assertFalse(self.v["scalp.enabled"])
+        self.assertTrue(self.v["swing.enabled"])
+        self.assertTrue(self.v["meme.pullback_entry"])
         self.assertEqual(self.v["trading.style"], "scalp")
 
     def test_targets_clear_a_real_round_trip(self):

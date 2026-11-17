@@ -952,6 +952,57 @@ PRESETS: dict[str, dict] = {
 }
 
 
+# ---- 2026-11 fix: every scalper preset was losing (0% wins on the dashboard) ----------------
+# What they shared, and what the repo's own tests say about it:
+#   * the fast scalp lane ON: its 5-12% stop sits inside normal meme-coin noise, and its +4..+15%
+#     targets are eaten by ~2% simulated slippage + fees on each side; the lane also OVERRIDES the
+#     ladder, so even the presets that turned the dip entry on exited at the lane's tiny stop;
+#   * no dip entry: a plain BUY signal won 15.4% of trades (profit factor 0.50);
+#   * floors at $1-5k liquidity, so thin pools and rugs.
+# The only entry that cleared in the tests is the 20% dip with a 30% stop on liquid pools, which is
+# exactly the `strategy` preset. So every scalper preset is now `strategy` plus its own exit ladder;
+# the ladder is the one real trade-off left (same win rate, patient earns more per trade).
+_FIXED_SCALPERS = {
+    "scalper": "fast", "hyper_scalp": "single", "legend_scalp": "fast", "guide_scalp": "fast",
+    "ultra_scalp": "fast", "super_legend_scalp": "patient", "super_legend_v2": "patient",
+}
+
+
+def _stricter(key: str, own, core):
+    """Merge one value: a preset's own protection survives when it is already stricter.
+
+    min_* / valid_score: higher is stricter (a 300-holder floor must not drop to 150);
+    max_*: lower is stricter (a 6h age cap must not widen to 48h). Switches and choices
+    (lane off, dip entry on, bullish required) take the core value.
+    """
+    num = (int, float)
+    if isinstance(own, bool) or isinstance(core, bool) or not (isinstance(own, num) and isinstance(core, num)):
+        return core
+    if "max_" in key:
+        return min(own, core)
+    if "min_" in key or key.endswith("valid_score"):
+        return max(own, core)
+    return core
+
+
+for _name, _ladder in _FIXED_SCALPERS.items():
+    _p = PRESETS[_name]
+    _own = _p["values"]
+    _p["values"] = {**_own, **{k: _stricter(k, _own[k], v) if k in _own else v
+                               for k, v in PRESETS["strategy"]["values"].items()},
+                    "exits.ladder": _ladder}
+    # The dip needs ~100 min of candles, so min age is 120 min. A preset whose own age cap was
+    # shorter (Hyper Scalp: 1h) would leave an impossible window; widen the cap to the core's.
+    for _k in ("scan.max_age_hours", "swing.max_age_hours"):
+        if _p["values"][_k] * 60 <= _p["values"]["scan.min_age_minutes"] + 60:
+            _p["values"][_k] = PRESETS["strategy"]["values"][_k]
+    _p["label"] = _p["label"].split(" (")[0] + " (fixed: dip entry, 30% stop)"
+    _p["reason"] = ("FIXED. Liquid pools only, 20% dip entry, 30% stop, " + _ladder + " exits, "
+                    "fast scalp lane off, 1% risk, 6 slots, hard 3% daily stop. "
+                    "Was: " + _p["reason"][:140])
+del _name, _ladder, _p, _own, _k
+
+
 STYLE_PRESET = {"scalp": "scalper", "swing": "swing", "both": "balanced"}
 
 
