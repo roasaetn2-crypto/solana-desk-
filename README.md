@@ -643,7 +643,7 @@ all — 360 calls, ending the day with 40 to spare. Spreading costs nothing when
 desk is idle, because the bucket is capped: quiet hours cannot be banked into a
 spending spree.
 
-`termux/set-ai-keys.sh` sets `BRAIN_SPREAD_DAY=groq` for you as part of its quota
+`termux/set-ai-keys.sh` sets `BRAIN_SPREAD_DAY=all` for you as part of its quota
 profile.
 
 #### Ollama local is the free one, and it goes first

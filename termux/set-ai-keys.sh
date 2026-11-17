@@ -222,7 +222,7 @@ if [ "${KEEP_QUOTA:-1}" = "1" ]; then
     # rule-based heuristic until midnight. Measured: a review every 60s with no
     # spreading runs dry at hour 6.7 and refuses 1040 calls; with spreading the
     # first refusal is at hour 23.98. Costs nothing when the desk is idle.
-    echo "BRAIN_SPREAD_DAY=${BRAIN_SPREAD_DAY:-groq}"
+    echo "BRAIN_SPREAD_DAY=${BRAIN_SPREAD_DAY:-all}"
     # The Analyst seat (desk/brain.py) is a SEPARATE module from the advisory
     # second opinion (desk/brain_advisor.py) and does not read a cloud key on its
     # own: it stays on the deterministic heuristic unless DESK_BRAIN names a

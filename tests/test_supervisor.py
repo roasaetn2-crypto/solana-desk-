@@ -157,6 +157,7 @@ def test_groq_is_also_accepted_as_the_ninth_argument(tmp_path):
     assert env.get("GROQ_API_KEY", "").startswith("gsk_")
 
 
-def test_quota_saver_spreads_the_groq_budget_across_the_day(tmp_path):
+def test_quota_saver_spreads_every_provider_budget_across_the_day(tmp_path):
+    # Gemini is tried first, so spreading only Groq let Gemini's 200 calls go in a few hours.
     env = _route(tmp_path, "-", "gsk_FAKEFAKEFAKE1234567890")
-    assert env.get("BRAIN_SPREAD_DAY") == "groq"
+    assert env.get("BRAIN_SPREAD_DAY") == "all"
