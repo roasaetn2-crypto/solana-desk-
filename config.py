@@ -172,6 +172,7 @@ SCAN_FETCH = {
     "gt_max_page": 3,              # GT rotation walks pages 1..3 of new_pools / trending 5m / trending 1h
     "pool_ttl_s": 600,             # rolling candidate pool, keyed by mint (~10 min)
     "quote_ttl_s": 15,             # short cache for open-position price refreshes
+    "pos_per_min": 12,             # own DexScreener budget for open-position prices (never shared with scanning)
     "cooldown_floor_s": 45,        # even if Retry-After is 1s, back off at least this (was 30)
     "cooldown_cap_s": 180,         # exponential 429 cooldown cap; never sleep the cycle (was 120)
     "cooldown_jitter": 0.15,       # up to +15% on every cooldown so probes never sync up

@@ -98,6 +98,11 @@ def _new_buckets() -> dict[str, TokenBucket]:
         "geckoterminal": TokenBucket(SCAN_FETCH["gt_per_min"], SCAN_FETCH["gt_burst"]),
         "dexscreener": TokenBucket(SCAN_FETCH["ds_per_min"], SCAN_FETCH["ds_burst"]),
         "jupiter": TokenBucket(SCAN_FETCH["jup_per_min"], SCAN_FETCH["jup_burst"]),
+        # Open-position prices get their OWN budget so discovery can never starve them.
+        # A held coin showing Last == Entry for minutes was this: the scanner had spent
+        # the shared DexScreener budget, the refresh was refused, and the stale entry
+        # quote was served instead.
+        "dexscreener_pos": TokenBucket(SCAN_FETCH.get("pos_per_min", 12), 4),
     }
 
 
@@ -522,10 +527,19 @@ def _fetch_endpoint(s: requests.Session, ep: dict, now: float):
     return body, True
 
 
-def _fetch_live(s: requests.Session, ep: dict, now: float):
-    """Like _fetch_endpoint but never serves a cached body (the URL varies per call)."""
+def _fetch_live(s: requests.Session, ep: dict, now: float, positions: bool = False):
+    """Like _fetch_endpoint but never serves a cached body (the URL varies per call).
+
+    positions=True is the open-position price lane: its own token bucket, and it ignores
+    the host-wide cooldown that scanner discovery calls cause (it still honours a cooldown
+    on this exact endpoint, and a 429 it triggers itself still cools the host).
+    """
     source = ep["source"]
-    if is_cooling(ep["id"], now) or not _host_of(source).allow(1, now=now):
+    if positions:
+        until = float((_COOL.get(ep["id"]) or {}).get("until") or 0)
+        if until > now or not _BUCKETS["dexscreener_pos"].allow(1, now=now):
+            return None
+    elif is_cooling(ep["id"], now) or not _host_of(source).allow(1, now=now):
         return None
     r = _get_once(s, ep["url"], ep.get("params"), source, ep["label"], ep["id"])
     if r is None:
@@ -1119,7 +1133,7 @@ def quote_many(mints: list[str], session: requests.Session | None = None) -> dic
         # and the desk rejected the entry as "no_confirm_quote" — 156 times in a
         # row. Per-mint results are cached by _QUOTE_CACHE and _PAIR_CACHE below,
         # which are correctly keyed, so nothing is lost by fetching live here.
-        body = _fetch_live(s, ep, now)
+        body = _fetch_live(s, ep, now, positions=True)
         if body is None:
             # DexScreener cooling / 429: price from Jupiter, then any stale quote
             jq = _jup_quotes(s, chunk, now)
