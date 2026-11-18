@@ -338,6 +338,13 @@ EXITS = {
     "quote_max_jump_x": 25.0,      # up: price may at most 25x in one tick
     "quote_max_drop_x": 25.0,      # down: at most 1/25th in one tick
     "quote_confirm_reads": 2,      # agreeing reads needed to accept a new level
+    # PAPER stop fill model (2026-11-19). "realistic" = the market print past the
+    # stop, but no worse than stop_gap_cap_pct under the stop level (a one-tick
+    # rug print is not a fill you would get across a 15s quote gap; a few % past
+    # the stop is). "stop" = exactly at the stop (old behaviour), "market" = raw
+    # print. Live sells ignore this: they fill at the real swap.
+    "stop_fill_mode": "realistic",
+    "stop_gap_cap_pct": 0.05,
     "stop_fill_at_stop": True,     # PAPER: a stop fills at the stop level, not at a gapped-through
                                    # rug print. Keeps a 1.5%-risk trade a 1.5% loss, so the daily
                                    # stop is reachable instead of being blown past in one tick.
@@ -382,6 +389,26 @@ RULEBOOK = {
     "top10_drop_exit": 0.05,        # top-10 share fell by >= 5 points of supply since entry
     "dev_sell_exit": 0.50,          # dev sold >= half of what he held at entry
     "holder_check_s": 120,          # re-read holders (RugCheck) at most once per position per 2 min
+}
+
+# ---------- Confirmed scalp entry + momentum exit (PAPER only, desk/confirm.py) ----------
+# Five checks on every scalp candidate; any known FAIL skips the coin, a check
+# with no data is n/a and never blocks. Thresholds catch clear red flags, not
+# "perfect" setups, so the scalper keeps trading (Romz 2026-11-19).
+CONFIRM = {
+    "enabled": True,
+    "checks": {"trend": True, "buy": True, "turnover": True, "knife": True, "extended": True},
+    "min_trend_bars": 5,       # fewer bars than this on a timeframe = trend n/a there
+    "min_buy_sell": 1.2,       # 5m buys / sells (same floor as the rulebook)
+    "min_turnover": 0.15,      # 1h volume / liquidity (pro rata for coins < 1h old)
+    "knife_bars": 3,           # this many falling 1m closes in a row = falling knife
+    "knife_drop": 0.08,        # or the latest 1m bar down 8%+
+    "max_run_5m": 0.40,        # already up 40%+ in 5m = vertical, do not chase
+    "max_run_1m": 0.15,        # last 1m bar up 15%+ = chasing the wick
+    # exits (before TP1 only; after TP1 the cost-aware breakeven + trail run it)
+    "momentum_exit": True,
+    "min_hold_s": 90,          # give the entry 90s before judging momentum
+    "ema_break_buffer": 0.005, # 1m close must be 0.5% under the 9 EMA to count
 }
 
 # ---------- Trade signal engine (buy / sell recommendation) ----------

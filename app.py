@@ -484,7 +484,26 @@ def health():
         },
         "ai": _ai_health(),
         "desk": _desk_health(),
+        "confirm": _confirm_health(),
     }
+
+
+def _confirm_health() -> dict:
+    """Confirmed scalp entry checklist: totals and the last candidates, pass/fail per check.
+    Symbols and reasons only: no keys, no positions."""
+    try:
+        from config import CONFIRM, EXITS
+        st = agent.confirm_stats
+        return {
+            "enabled": bool(CONFIRM.get("enabled", True)),
+            "momentum_exit": bool(CONFIRM.get("momentum_exit", True)),
+            "stop_fill_mode": EXITS.get("stop_fill_mode"),
+            "checked": st.get("checked", 0), "passed": st.get("passed", 0),
+            "failed_by": {k: v for k, v in st.items() if k.startswith("confirm_")},
+            "recent": list(agent.confirm_recent)[:8],
+        }
+    except Exception as exc:  # never let health fail because of this
+        return {"enabled": None, "error": str(exc)}
 
 
 @app.get("/api/store")

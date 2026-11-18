@@ -229,8 +229,15 @@ def evaluate(pos: dict, q: dict | None, now: float, prof: dict | None = None) ->
         # stop (a rug), and filling there turns a 1.5%-risk trade into a 20%-of-book
         # loss. That is exactly how a desk advertising a 3% daily stop ended a day
         # at -80%. EXITS["stop_fill_at_stop"] = False restores raw market fills.
-        if EXITS.get("stop_fill_at_stop", True):
+        mode = str(EXITS.get("stop_fill_mode")
+                   or ("stop" if EXITS.get("stop_fill_at_stop", True) else "market")).lower()
+        if mode == "stop":
             pos["fill_at"] = pos["stop_price"]
+        elif mode == "realistic":
+            # Past the stop like a real market sell, but capped: a gap print far
+            # under the stop is mostly quote lag, not the price a 15s seller gets.
+            cap = float(EXITS.get("stop_gap_cap_pct", 0.05) or 0.0)
+            pos["fill_at"] = min(pos["stop_price"], max(price, pos["stop_price"] * (1 - cap)))
         return (1.0, tag)
     if pos["stage"] >= 1:
         # Runner (what is left after TP1). It trails no looser than runner_trail_pct and

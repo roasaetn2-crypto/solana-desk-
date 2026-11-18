@@ -289,7 +289,9 @@ def test_stop_fills_at_the_stop_not_at_a_rug_print():
     sig = exits.evaluate(pos, {"price_usd": 0.10, "volume_h24": 1e6, "volume_h6": 1e6},
                          time.time())
     assert sig is not None and sig[1].startswith("stop"), sig
-    assert pos["fill_at"] == stop_price, (pos.get("fill_at"), stop_price)
+    # default "realistic" fill: past the stop, capped stop_gap_cap_pct under it
+    cap = EXITS.get("stop_gap_cap_pct", 0.05)
+    assert abs(pos["fill_at"] - stop_price * (1 - cap)) < 1e-9, (pos.get("fill_at"), stop_price)
     assert pos["fill_at"] > 0.10, "the fill must not be the rug print"
 
 

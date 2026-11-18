@@ -31,13 +31,14 @@ from datetime import date, datetime, timezone
 
 import requests
 
-from config import AGENT, ENTRY, EXECUTION, EXITS, FOMO, MEME, PAPER, RISK, RULEBOOK, SCALP
+from config import AGENT, CONFIRM, ENTRY, EXECUTION, EXITS, FOMO, MEME, PAPER, RISK, RULEBOOK, SCALP
 from desk.brain_advisor import ADVISOR, should_advise, wants_entry, wants_exit
 from desk import (analyst, analyst_ai, brain, chain, dexscreener, devcheck, dialogue, exits, fomo, goplus, gmgn,
                   groq_postmortem, groq_sizer, guard, heartbeat, helius, meme, meme_tactics,
                   pumpportal, regime, risk, scanner, signal_engine, signals, social)
 from desk import chart as candle_chart
 from desk import rulebook
+from desk import confirm as entry_confirm
 from desk import links as fomo_links
 from desk.age import created_at_of
 from desk import equity_curve
@@ -97,6 +98,10 @@ class SolanaAgent:
         _sit = self.bench.sit
 
         self.funnel: Counter = Counter()   # reject reasons since the last funnel log line
+        # Confirmed scalp entry checklist (desk/confirm.py): totals and the last
+        # few candidates with per-check pass/fail, shown on /api/health.
+        self.confirm_stats: Counter = Counter()
+        self.confirm_recent: deque = deque(maxlen=12)
 
         def _counting_sit(mint, reason, *a, **k):
             self.reject_reasons[reason] += 1
@@ -840,6 +845,14 @@ class SolanaAgent:
                                 reason="scalp_candle", detail=ce)
                         continue
 
+                # Confirmed scalp entry (PAPER): trend 1m+5m, buy pressure, turnover,
+                # no falling knife, not overextended. A check with no data is n/a.
+                if (CONFIRM.get("enabled", True) and self.mode != "live"
+                        and not t["mint"].startswith("DEMO")
+                        and exits.horizon_for(t.get("age_minutes")) == "scalp"):
+                    if self._confirm_skip(t, ds, f):
+                        continue
+
                 # seat 2b+: free security / launch / promo signals (fail open to "unknown")
                 sec = signals.security(t["mint"], self.session)
                 if sec["block"]:
@@ -1139,6 +1152,8 @@ class SolanaAgent:
                                       # same basis (RugCheck) as the exit's re-read
                                       "entry_top10": (dev.get("concentration") or {}).get("top_10_pct"),
                                       "entry_dev_hold": dev.get("creator_hold_pct")})
+                        if f.get("entry_candle_low"):
+                            _meta["entry_candle_low"] = f["entry_candle_low"]
                     fill = self.broker.buy(
                         t["mint"], t["symbol"], ticket, buy_price,
                         horizon=sizes.get("horizon", "swing"),
@@ -1261,7 +1276,9 @@ class SolanaAgent:
         st = self.stats
         print(f"[desk] funnel: cycles {cycle - self.FUNNEL_EVERY + 1}-{cycle} rejects {top}; "
               f"totals seen={st.get('seen', 0)} entries={st.get('entries', 0)} "
-              f"exits={st.get('exits', 0)} open={self.broker.open_count()}", flush=True)
+              f"exits={st.get('exits', 0)} open={self.broker.open_count()} "
+              f"confirm checked={self.confirm_stats.get('checked', 0)} "
+              f"passed={self.confirm_stats.get('passed', 0)}", flush=True)
         self.funnel.clear()
 
     def _caution(self, t: dict, ticket: float, sec: dict, brk: dict, stop: float,
@@ -1397,10 +1414,57 @@ class SolanaAgent:
         journal("reject", stage="rulebook", mint=t["mint"], symbol=t.get("symbol"), reason=reason)
         print(msg, flush=True)
 
+    def _confirm_skip(self, t: dict, ds: dict | None, f: dict) -> bool:
+        """Run the confirmed-entry checklist; True = skip this coin (logged + funnel)."""
+        now = time.time()
+        c5, c1 = [], []
+        try:
+            c5 = candle_chart.series(t["mint"], "5m", session=self.session).get("candles") or []
+        except Exception:
+            c5 = []
+        try:
+            c1 = candle_chart.series(t["mint"], "1m", session=self.session).get("candles") or []
+        except Exception:
+            c1 = []
+        cc = entry_confirm.checklist(t, ds, c1, c5, now)
+        f["confirm"] = cc
+        low = entry_confirm.entry_candle_low(c1, c5, now)
+        if low:
+            f["entry_candle_low"] = low
+        with self.lock:
+            self.confirm_stats["checked"] += 1
+            self.confirm_stats["passed" if cc["ok"] else "failed"] += 1
+            if not cc["ok"]:
+                self.confirm_stats[cc["reason"]] += 1
+            self.confirm_recent.appendleft({
+                "at": int(now), "symbol": t.get("symbol"), "ok": cc["ok"], "fail": cc["fail"],
+                "checks": {k: ({True: "pass", False: "FAIL", None: "n/a"}[v["ok"]], v["why"])
+                           for k, v in cc["checks"].items()}})
+        if cc["ok"]:
+            print(f"confirm: ${t.get('symbol')} PASS {cc['passed']}/{cc['known']} known checks", flush=True)
+            return False
+        why = cc["checks"][cc["fail"]]["why"]
+        self.bench.sit(t["mint"], cc["reason"])
+        self.emit("reject", f"{t.get('symbol')}: confirm {cc['fail']} failed ({why})",
+                  stage="confirm_entry", reason=cc["reason"], symbol=t.get("symbol"), mint=t["mint"])
+        journal("reject", stage="confirm_entry", mint=t["mint"], symbol=t.get("symbol"),
+                reason=cc["reason"], detail={k: v.get("why") for k, v in cc["checks"].items()})
+        print(f"confirm: ${t.get('symbol')} skip {cc['reason']} ({why})", flush=True)
+        return True
+
     def _rulebook_exit(self, mint: str, pos: dict, q: dict | None):
-        """PAPER fast exits: liquidity -20% from entry, or the dev / top-10 sold.
-        Missing data never forces a sell; it is logged once per position."""
+        """PAPER fast exits: momentum broke before TP1, liquidity -20% from entry,
+        or the dev / top-10 sold. Missing data never forces a sell; it is logged once per position."""
         sym = pos.get("symbol") or mint[:6]
+        if pos.get("horizon") == "scalp" and CONFIRM.get("momentum_exit", True):
+            try:
+                c1 = candle_chart.series(mint, "1m", session=self.session).get("candles") or []
+                why = entry_confirm.momentum_exit(pos, c1, time.time())
+            except Exception:
+                why = None
+            if why:
+                print(f"exit: ${sym} {why}", flush=True)
+                return (1.0, why)
         notes = []
         why, note = rulebook.liq_exit(pos, q)
         if note:
