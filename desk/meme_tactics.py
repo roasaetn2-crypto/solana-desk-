@@ -192,6 +192,68 @@ def bar_high(c) -> float | None:
     return b[1] if b else None
 
 
+def scalp_entry_state(candles, mode: str | None = None, bars: int | None = None,
+                      min_body: float | None = None, now: float | None = None,
+                      max_stale_s: float = 600.0) -> dict:
+    """The scalp lane's entry rule (SCALP["entry_mode"]) on 5m candles.
+
+    The setting existed, the dashboard showed it and the Hyper Scalp preset set
+    it, but no code ever read it: the desk bought whatever passed the other
+    gates, including coins in the middle of a red 5m crash. This is the rule the
+    preset and SCALPER.md describe, on the LAST bar (the candle still forming):
+
+      moving_candle : green, body >= min_body of price, close above the prior
+                      close and above the close `bars` bars back
+      dip           : red and below the prior close (buy the shakeout)
+      breakout      : close at or above the highest high of the prior `bars` bars
+
+    ok=None (neutral, never a veto) when there are no usable bars: a 1-minute-old
+    launch has no 5m history yet, and missing data must not starve the lane.
+    With exactly one bar, moving_candle checks the bar itself (green + body).
+    Also neutral when `now` is given and the last bar opened more than
+    `max_stale_s` ago: a cached series from 15 minutes back is not "the candle
+    still moving".
+    """
+    mode = str(mode or "moving_candle").lower()
+    bars = max(1, int(bars or 1))
+    min_body = float(min_body or 0.0)
+    bs = [b for b in (_bar(c) for c in (candles or [])) if b]
+    if not bs:
+        return {"ok": None, "why": "no candles", "mode": mode}
+    if now is not None:
+        last = candles[-1] if isinstance(candles[-1], dict) else {}
+        ts = _num(last.get("t", last.get("ts")))
+        if ts and ts > 1e12:
+            ts /= 1000.0
+        if ts and now - ts > max_stale_s:
+            return {"ok": None, "why": "stale candles", "mode": mode}
+    o, h, l, c, _v = bs[-1]
+    body = (c - o) / c if c else 0.0
+    out = {"mode": mode, "body_pct": round(body * 100, 3), "n": len(bs)}
+    if mode == "moving_candle":
+        if c <= o:
+            return {**out, "ok": False, "why": f"5m candle is red ({body * 100:+.1f}%)"}
+        if body < min_body:
+            return {**out, "ok": False, "why": f"5m candle body {body * 100:.2f}% under {min_body * 100:.2f}%"}
+        if len(bs) >= 2 and c <= bs[-2][3]:
+            return {**out, "ok": False, "why": "not above the prior 5m close"}
+        if len(bs) > bars and c <= bs[-1 - bars][3]:
+            return {**out, "ok": False, "why": f"not above the close {bars} bar(s) back"}
+        return {**out, "ok": True, "why": "moving 5m candle"}
+    if mode == "dip":
+        if len(bs) < 2:
+            return {**out, "ok": None, "why": "one bar: no prior close"}
+        ok = c < o and c < bs[-2][3]
+        return {**out, "ok": ok, "why": "red dip below prior close" if ok else "not a dip"}
+    if mode == "breakout":
+        if len(bs) <= bars:
+            return {**out, "ok": None, "why": "too few bars for the lookback"}
+        hi = max(b[1] for b in bs[-1 - bars:-1])
+        ok = c >= hi
+        return {**out, "ok": ok, "why": "fresh high" if ok else "below the lookback high"}
+    return {**out, "ok": None, "why": f"unknown mode {mode}"}
+
+
 def retest_state(candles, lookback: int | None = None, vol_mult: float | None = None,
                  zone: float | None = None, max_age: int | None = None) -> dict:
     """Breakout, then a retest of the broken level, then a bounce (the chart-pattern entry).

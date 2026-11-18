@@ -87,6 +87,63 @@ def init_state(pos: dict, horizon: str) -> None:
     pr = profile(horizon)
     pos.update({"horizon": horizon, "stop_pct": pr["stop_pct"], "peak": pos["entry"],
                 "stage": 0, "miss": 0, "stop_price": pos["entry"] * (1 - pr["stop_pct"])})
+    # Cost basis per unit (ticket incl. the buy fee / units received). The exit
+    # ladder needs it to know where "breakeven" really is; `entry` alone is the
+    # slipped fill and ignores the buy fee.
+    if pos.get("cost") and pos.get("qty"):
+        pos.setdefault("qty0", pos["qty"])
+        pos.setdefault("basis", pos["cost"] / pos["qty"])
+
+
+def _sell_fee_usd(notional: float) -> float:
+    """The paper sell fee for one leg (same model and 50% cap as the broker)."""
+    try:
+        from desk import fees
+        f = fees.side_fee_usd(notional, first_buy=False, include_spread=False,
+                              include_rent=False)["total_usd"]
+    except Exception:
+        return 0.0
+    return min(f, notional * 0.5)
+
+
+def net_breakeven_mult(pos: dict, frac: float) -> float | None:
+    """Price multiple of `entry` at which selling `frac` of what is left nets zero.
+
+    Selling q units at quote P books q*P*(1-slip) - fee. That covers those
+    units' share of the cost (q * basis) only when
+        P >= (basis + fee/q) / (1 - slip).
+    None when the position carries no cost basis (old rows, pure-rule tests),
+    so callers fall back to the configured ladder unchanged.
+    """
+    entry = pos.get("entry") or 0.0
+    qty = pos.get("qty") or 0.0
+    basis = pos.get("basis")
+    if basis is None and pos.get("cost") and pos.get("qty0"):
+        basis = pos["cost"] / pos["qty0"]
+    if not (entry > 0 and qty > 0 and basis and basis > 0 and frac > 0):
+        return None
+    slip = float(PAPER.get("slippage_pct") or 0.0)
+    if not (0 <= slip < 1):
+        return None
+    q = qty * min(frac, 1.0)
+    fee = _sell_fee_usd(q * basis)
+    return ((basis + fee / q) / (1 - slip)) / entry
+
+
+def effective_ladder(pos: dict, pr: dict) -> tuple[float, float]:
+    """TP1/TP2 after the cost floor: a take-profit may never book a loss."""
+    tp1, tp2 = float(pr["tp1_at"]), float(pr["tp2_at"])
+    if not EXITS.get("tp_cost_floor", True) or pos.get("stage", 0) >= 1:
+        return tp1, tp2
+    be = net_breakeven_mult(pos, float(pr.get("tp1_frac") or 1.0))
+    if be is None:
+        return tp1, tp2
+    floor = be * (1 + float(EXITS.get("tp_min_net_edge", 0.01) or 0.0))
+    if floor > tp1:
+        gap = max(tp2 - tp1, 0.0)
+        tp1 = round(floor, 4)
+        tp2 = max(tp2, round(tp1 + gap, 4))
+    return tp1, tp2
 
 
 def plausible(pos: dict, price: float) -> bool:
@@ -186,16 +243,32 @@ def evaluate(pos: dict, q: dict | None, now: float, prof: dict | None = None) ->
             half_at = pos.setdefault("half_at", now)   # older runners: the clock starts now
             if (now - half_at) / 60 >= cap_min:
                 return (1.0, f"runner time cap {int(cap_min)}m after TP1")
-    if pos["stage"] == 1 and price >= entry * pr["tp2_at"]:
+    if pos["stage"] == 0:
+        tp1_at, tp2_at = effective_ladder(pos, pr)
+        if (tp1_at, tp2_at) != (pr["tp1_at"], pr["tp2_at"]):
+            # Remembered so TP2 uses the same floored ladder after TP1 fires.
+            pos["tp1_eff"], pos["tp2_eff"] = tp1_at, tp2_at
+    else:
+        tp1_at = pos.get("tp1_eff", pr["tp1_at"])
+        tp2_at = pos.get("tp2_eff", pr["tp2_at"])
+    if pos["stage"] == 1 and price >= entry * tp2_at:
         pos["stage"] = 2
-        return (pr["tp2_frac"], f"TP2 at {pr['tp2_at']}x")
-    if pos["stage"] == 0 and price >= entry * pr["tp1_at"]:
+        return (pr["tp2_frac"], f"TP2 at {tp2_at:g}x")
+    if pos["stage"] == 0 and price >= entry * tp1_at:
         pos["stage"] = 1
         pos["half_taken"] = True
         pos["half_at"] = now
         if EXITS.get("breakeven_after_half", True):
-            pos["stop_price"] = max(pos["stop_price"], entry)     # only ever up
-        return (pr["tp1_frac"], f"TP1 at {pr['tp1_at']}x")
+            be_px = entry
+            if EXITS.get("cost_aware_breakeven", True):
+                # The runner is what is left AFTER this TP1 sell.
+                runner = dict(pos, qty=(pos.get("qty") or 0.0) * (1 - min(pr["tp1_frac"], 1.0)))
+                m = net_breakeven_mult(runner, 1.0)
+                if m:
+                    be_px = entry * m * 1.002     # a hair above zero so it books green
+            pos["stop_price"] = max(pos["stop_price"], be_px)     # only ever up
+        floored = "" if tp1_at == pr["tp1_at"] else f" (cost floor; set {pr['tp1_at']:g}x)"
+        return (pr["tp1_frac"], f"TP1 at {tp1_at:g}x{floored}")
     if held_min >= EXITS["volume_decay_min_minutes"] and q.get("volume_h24", 0) > 0:
         ratio = q.get("volume_h6", 0) / (q["volume_h24"] / 4)
         if ratio < EXITS["volume_decay_ratio"]:

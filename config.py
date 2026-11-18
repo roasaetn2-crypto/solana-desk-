@@ -69,6 +69,7 @@ SCALP = {
     # dip           = buy the shakeout (the repo's proven pullback edge).
     # breakout      = only a fresh high of the last `moving_candle_bars`.
     "entry_mode": "moving_candle",
+    "entry_gate": True,              # enforce entry_mode on scalp buys (it was never read before 2026-11-19)
     "moving_candle_bars": 1,         # bars of upward confirmation
     "moving_candle_min_body_pct": 0.003,  # body must be >=0.3% of price (not a doji)
     # ---- freshness / size / depth gates ----
@@ -284,6 +285,18 @@ EXITS = {
     "missing_quote_closes": 3,     # close only after N quote misses in a row (one API blip is not an exit)
     # PAPER runner rules (after TP1 sells part): the rest must not squat on a slot for days.
     "breakeven_after_half": True,  # after TP1 the stop moves up to entry (never down)
+    # ---------- cost-aware ladder (fix 2026-11-19: 30 closed paper trades, 0 wins) ----------
+    # `entry` is the slipped FILL, and every sell pays slippage + a fixed Solana fee again.
+    # At a ~$2.50 paper ticket that round trip is ~6% of price, so the Hyper Scalp
+    # ladder's +4% TP1 booked a LOSS, and the "breakeven" stop at entry lost another ~4%
+    # on the runner: a trade that hit TP1 and faded still closed red. With these on:
+    #   * "breakeven" means NET breakeven: the runner's stop sits where selling it
+    #     returns its share of the cost after slippage and the sell fee;
+    #   * a take-profit is never below cost: TP1 is floored at net breakeven for its
+    #     slice + tp_min_net_edge, and TP2 keeps its spacing above the floored TP1.
+    "cost_aware_breakeven": True,
+    "tp_cost_floor": True,
+    "tp_min_net_edge": 0.01,       # TP1 slice must net at least +1% after all costs
     "runner_trail_pct": 0.20,      # runner trails at most 20% below its peak (tighter profile trail wins)
     "runner_max_minutes": 180,     # runner closes 3h after TP1, freeing the slot
     # ---------- quote sanity: a bad print must never reprice the book ----------
@@ -476,7 +489,8 @@ BENCH_MINUTES = {
     "age": 10, "liquidity": 10, "volume": 10, "mcap": 15, "trades": 10,
 }
 BENCH_MINUTES.update({"style": 30, "chase": 20, "price_gap": 10, "liq_unconfirmed": 15, "no_confirm_quote": 5,
-                      "scalp_age": 10, "scalp_mcap": 15, "scalp_liquidity": 10})
+                      "scalp_age": 10, "scalp_mcap": 15, "scalp_liquidity": 10,
+                      "scalp_candle": 3})   # re-check on the next 5m candle, not 30 min later
 DEFAULT_BENCH = 30
 
 # ---------- Meme coin value framework ----------

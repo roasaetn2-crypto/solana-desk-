@@ -31,7 +31,7 @@ from datetime import date, datetime, timezone
 
 import requests
 
-from config import AGENT, ENTRY, EXECUTION, EXITS, FOMO, MEME, PAPER, RISK
+from config import AGENT, ENTRY, EXECUTION, EXITS, FOMO, MEME, PAPER, RISK, SCALP
 from desk.brain_advisor import ADVISOR, should_advise, wants_entry, wants_exit
 from desk import (analyst, brain, chain, dexscreener, devcheck, dialogue, exits, fomo, goplus, gmgn,
                   groq_postmortem, groq_sizer, guard, heartbeat, helius, meme, meme_tactics,
@@ -788,6 +788,29 @@ class SolanaAgent:
                         f["candle_n"] = len(candles)
                     except Exception:
                         pass
+
+                # Scalp entry rule (SCALP["entry_mode"], default moving_candle). It was a
+                # setting nobody read; now a scalp-horizon buy needs the 5m candle to
+                # agree. No candles -> neutral, so a brand-new launch is not starved.
+                if (SCALP.get("enabled") and SCALP.get("entry_gate", True)
+                        and not t["mint"].startswith("DEMO")
+                        and exits.horizon_for(t.get("age_minutes")) == "scalp"):
+                    try:
+                        cs5 = candle_chart.series(t["mint"], "5m", session=self.session)
+                        ce = meme_tactics.scalp_entry_state(
+                            cs5.get("candles") or [], SCALP.get("entry_mode"),
+                            SCALP.get("moving_candle_bars"), SCALP.get("moving_candle_min_body_pct"),
+                            now=time.time())
+                    except Exception:
+                        ce = {"ok": None, "why": "candle fetch failed"}
+                    f["scalp_entry"] = ce
+                    if ce.get("ok") is False:
+                        self.bench.sit(t["mint"], "scalp_candle")
+                        self.emit("reject", f"{t['symbol']}: scalp entry ({ce.get('mode')}): {ce['why']}",
+                                  stage="entry", reason="scalp_candle", symbol=t["symbol"], mint=t["mint"])
+                        journal("reject", stage="entry", mint=t["mint"], symbol=t["symbol"],
+                                reason="scalp_candle", detail=ce)
+                        continue
 
                 # seat 2b+: free security / launch / promo signals (fail open to "unknown")
                 sec = signals.security(t["mint"], self.session)
