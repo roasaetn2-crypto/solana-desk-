@@ -245,6 +245,10 @@ _R: list[Setting] = [
     _num("breaker.cooldown_minutes", "Breaker: pause length", "Breaker", "int",
          (lambda: int(_guard()["cooldown_s"] // 60), lambda v: _guard().__setitem__("cooldown_s", int(v) * 60)),
          5, 240, "min"),
+    Setting("breaker.cooldown_enabled", "Breaker: pause after a loss streak", "Breaker", "bool",
+            lambda: bool(_guard().get("cooldown_enabled", True)),
+            lambda v: _guard().__setitem__("cooldown_enabled", bool(v)),
+            help="Off skips only the pause. Half size after losses and the daily loss stop stay on."),
     # exits
     _num("exits.scalp_max_age_hours", "Scalp if coin younger than", "Exits", "float", _d(EXITS, "scalp_max_age_hours"), 0.5, 24, "h"),
     _num("exits.stop_pct", "Fallback stop loss", "Exits", "pct", _d(EXITS, "stop_pct"), 0.05, 0.60, "",

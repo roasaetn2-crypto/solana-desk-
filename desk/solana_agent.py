@@ -643,8 +643,10 @@ class SolanaAgent:
             self.emit("warn", f"regime unavailable ({type(e).__name__}); treating as UNKNOWN",
                       stage="guard")
             self.regime = {"tag": "UNKNOWN", "halve": False}
+        # The pause switch is a PAPER setting. Real money always keeps the pause.
         brk = guard.circuit_breaker(self.broker.s["closed"], self.broker.day_pnl(),
-                                    self.broker.s["day_start"])
+                                    self.broker.s["day_start"],
+                                    pause_enabled=True if self.mode == "live" else None)
         if brk["state"] != self.breaker.get("state"):
             self.emit("info" if brk["state"] == "ok" else "warn",
                       f"breaker: {brk['state']} ({brk['reason']})", stage="guard")

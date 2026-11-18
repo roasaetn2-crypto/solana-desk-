@@ -280,6 +280,51 @@ def _same_coin(row: dict, query: str) -> bool:
     return len(qn) >= 3 and (sym.startswith(qn) or qn.startswith(sym))
 
 
+_PAUSE_WORD = r"(?:breaker|loss[- ]streak)(?:\s+pause)"
+_PAUSE_ON_OFF = [
+    re.compile(r"\b(?:turn|switch|set)\s+(?:the\s+)?" + _PAUSE_WORD + r"\s+(on|off)\b", re.I),
+    re.compile(r"\b(?:turn|switch)\s+(on|off)\s+(?:the\s+)?" + _PAUSE_WORD + r"\b", re.I),
+    re.compile(r"\b(enable|disable)\s+(?:the\s+)?" + _PAUSE_WORD + r"\b", re.I),
+    re.compile(r"\b" + _PAUSE_WORD + r"\s+(on|off)\b", re.I),
+]
+
+
+def breaker_pause_command(question: str) -> bool | None:
+    """'turn breaker pause on/off' -> True/False, else None. Deterministic, no model, no key.
+
+    It only ever becomes a PENDING proposal for breaker.cooldown_enabled; Confirm applies it."""
+    q = (question or "")[:500]
+    for rx in _PAUSE_ON_OFF:
+        m = rx.search(q)
+        if m:
+            return m.group(1).lower() in ("on", "enable")
+    return None
+
+
+# What Recommend settings always suggests for the loss-streak pause: keep it ON, 15 minutes.
+BREAKER_RECOMMEND = (
+    {"setting": "breaker.cooldown_minutes", "proposed": 15,
+     "reason": "pause 15 min after a loss streak, not 60"},
+    {"setting": "breaker.cooldown_enabled", "proposed": True,
+     "reason": "keep the loss-streak pause on"},
+)
+
+
+def add_breaker_recommendation(out: dict) -> dict:
+    """Make sure a Recommend answer carries the breaker pause suggestion (15 min, pause on).
+
+    Plain data in, plain data out: the caller still validates it and stores it as a
+    pending proposal. It replaces any other cooldown value the model suggested."""
+    keys = {r["setting"] for r in BREAKER_RECOMMEND}
+    props = [x for x in (out.get("proposals") or [])
+             if isinstance(x, dict) and (x.get("setting") or x.get("key")) not in keys]
+    props.extend(dict(r) for r in BREAKER_RECOMMEND)
+    out["proposals"] = props
+    note = "Breaker: pause new buys 15 min after a loss streak, pause kept on. Tap Confirm to apply."
+    out["reply"] = (str(out.get("reply") or "").rstrip() + "\n" + note)[:MAX_REPLY + len(note) + 1]
+    return out
+
+
 def _is_settings_request(q: str) -> bool:
     return bool(re.search(
         r"\b(recommend\s+settings|set\s+\w|change\s+(the\s+)?(setting|risk|stop|ticket|style)|"

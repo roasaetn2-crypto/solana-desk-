@@ -21,6 +21,9 @@ BREAKER = {
     "streak_reduce": 2,              # 2 losses in a row -> half size
     "streak_pause": 3,               # 3 losses in a row -> pause new entries
     "cooldown_s": 30 * 60,           # ... for 30 minutes after the last loss
+    # On/off switch for the streak PAUSE only (PAPER setting breaker.cooldown_enabled,
+    # changed only through Confirm). Off never touches the half-size cut or the daily stop.
+    "cooldown_enabled": True,
 }
 MIN_SIZE_MULT = 0.25                 # stacked cuts never go below a quarter
 
@@ -42,11 +45,16 @@ def loss_streak(closed: list[dict]) -> tuple[int, float | None]:
 
 
 def circuit_breaker(closed: list[dict], day_pnl: float, day_start: float,
-                    now: float | None = None) -> dict:
-    """{"state": ok|reduce|cooldown, "mult": 1|0.5|0, "reason": str}. Tighten-only."""
+                    now: float | None = None, pause_enabled: bool | None = None) -> dict:
+    """{"state": ok|reduce|cooldown, "mult": 1|0.5|0, "reason": str}. Tighten-only.
+
+    pause_enabled=None follows BREAKER["cooldown_enabled"]. False skips ONLY the
+    streak pause; the half-size cuts (loss streak, day loss) still apply."""
     now = time.time() if now is None else now
+    if pause_enabled is None:
+        pause_enabled = bool(BREAKER.get("cooldown_enabled", True))
     streak, last = loss_streak(closed)
-    if streak >= BREAKER["streak_pause"] and last is not None \
+    if pause_enabled and streak >= BREAKER["streak_pause"] and last is not None \
             and now - last < BREAKER["cooldown_s"]:
         left = int((BREAKER["cooldown_s"] - (now - last)) // 60) + 1
         return {"state": "cooldown", "mult": 0.0,

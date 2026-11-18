@@ -594,13 +594,36 @@ def ai_chat(payload: dict = Body(...)):
     why = desk_chat.LIMITER.take()
     if why:
         return JSONResponse({"ok": False, "error": why}, status_code=429)
+    from desk import settings as desk_settings
+    pause = desk_chat.breaker_pause_command(q)
+    if pause is not None:
+        # "turn breaker pause on/off": no model, no key. Only a PENDING proposal; Confirm applies it.
+        made = desk_settings.create_values({"breaker.cooldown_enabled": pause},
+                                           title="Breaker pause " + ("on" if pause else "off"),
+                                           source="desk_ai")
+        word = "on" if pause else "off"
+        if made.get("ok"):
+            p = made["proposal"]
+            out = {"ok": True, "agents": ["risk"], "proposals": [p], "dropped": [], "provider": None,
+                   "source": "desk",
+                   "reply": (f"Here's the change: breaker pause {word}. "
+                             + ("The desk will keep trading through loss streaks (half size still applies)."
+                                if not pause else "New buys pause after a loss streak.")
+                             + " Nothing moves until you tap Confirm.")}
+            agent.emit("info", f"Desk AI proposed breaker pause {word}; waiting for Confirm", stage="settings")
+        else:
+            out = {"ok": True, "agents": ["risk"], "proposals": [], "dropped": made.get("dropped") or [],
+                   "provider": None, "source": "desk",
+                   "reply": f"The breaker pause is already {word}. Nothing to change."}
+        _remember_chat("user", q)
+        _remember_chat("ai", out["reply"], out)
+        return out
     client_hist = (payload or {}).get("history")
     client_hist = client_hist if isinstance(client_hist, list) else None
     server_hist = chat_memory.history_for_model()
     hist = server_hist or client_hist
     if client_hist and (not server_hist or len(client_hist) > len(server_hist)):
         hist = client_hist
-    from desk import settings as desk_settings
     out = desk_chat.answer(q, agent.status(), hist,
                            settings=desk_settings.compact_for_ai())
     out = _with_proposals(out, "desk_ai")
@@ -663,6 +686,7 @@ def ai_recommend():
         bt = None
     out = desk_chat.answer(desk_chat.RECOMMEND_Q, st, None, settings=desk_settings.compact_for_ai(),
                            perf=desk_chat.performance(st, bt))
+    out = desk_chat.add_breaker_recommendation(out)
     out = _with_proposals(out, "recommend")
     _remember_chat("user", "Recommend settings")
     if out.get("reply"):
