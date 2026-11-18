@@ -426,7 +426,16 @@ class PaperBroker:
         fee_total = buy + sell
         total = fee_total + spread
         pct = round(total / ticket * 100, 2) if ticket > 0 else 0.0
+        # The quote move a full round trip needs with the PAPER fill model: buy at
+        # quote x (1+slip), sell at quote x (1-slip), both flat fees. This is what the
+        # exit ladder's cost floor uses; break_even_pct above is fees + spread only.
+        slip = float(PAPER.get("slippage_pct") or 0.0)
+        move = None
+        if ticket > buy and 0 <= slip < 1:
+            move = round(((ticket + sell) * (1 + slip) / ((ticket - buy) * (1 - slip)) - 1) * 100, 2)
         return {
+            "break_even_move_pct": move,
+            "slippage_pct": slip,
             "ticket_usd": round(ticket, 2),
             "buy_fee_usd": round(buy, 4),
             "sell_fee_usd": round(sell, 4),

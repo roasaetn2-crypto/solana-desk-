@@ -209,3 +209,29 @@ class AgentWiring(unittest.TestCase):
         d = TestClient(app_mod.app).get("/api/health").json()
         self.assertIn("confirm", d)
         self.assertIn("checked", d["confirm"])
+
+
+class BreakEvenIncludesSlippage(unittest.TestCase):
+    def test_round_trip_move_at_2_usd(self):
+        import os, tempfile
+        from desk.broker import PaperBroker
+        saved = (config.PAPER.get("slippage_pct"), config.PAPER.get("fee_per_side_usd"),
+                 config.PAPER.get("use_live_fee_model"))
+        try:
+            config.PAPER.update({"slippage_pct": 0.02, "fee_per_side_usd": 0.10, "use_live_fee_model": True})
+            b = PaperBroker(os.path.join(tempfile.mkdtemp(), "p.json"))
+            fm = b.fee_model(2.0)
+            want = (2.1 * 1.02 / (1.9 * 0.98) - 1) * 100
+            self.assertAlmostEqual(fm["break_even_move_pct"], want, places=1)   # ~15.0%
+            # the exit ladder's cost floor also includes both slippages:
+            # selling half at TP1 needs ~+18% on the slipped entry fill.
+            config.SCALP_SAVED = dict(config.SCALP)
+            config.SCALP.update({"enabled": True, "tp1_at": 1.15, "tp1_frac": 0.5, "tp2_at": 1.25})
+            b.reset()
+            b.buy("M", "X", 2.0, 1.0, horizon="scalp")
+            m = exits.net_breakeven_mult(b.s["positions"]["M"], 0.5)
+            self.assertAlmostEqual(m, (2 / 1.9) * 1.1 / 0.98, places=3)
+        finally:
+            config.PAPER.update(dict(zip(("slippage_pct", "fee_per_side_usd", "use_live_fee_model"), saved)))
+            if hasattr(config, "SCALP_SAVED"):
+                config.SCALP.clear(); config.SCALP.update(config.SCALP_SAVED); del config.SCALP_SAVED
