@@ -23,7 +23,8 @@ os.environ["DESK_NO_DOTENV"] = "1"
 
 # CoinGecko Demo, Gemini, Groq and OpenRouter keys must never be used by tests;
 # they mock HTTP and, when needed, set fake keys themselves.
-for _name in ("COINGECKO_DEMO_API_KEY", "GEMINI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY"):
+for _name in ("COINGECKO_DEMO_API_KEY", "GEMINI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY",
+              "XAI_API_KEY"):
     os.environ.pop(_name, None)
 
 # Never write into the repo: the journal and ledgers must stay the operator's.

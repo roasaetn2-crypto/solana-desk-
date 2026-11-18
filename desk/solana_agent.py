@@ -773,7 +773,14 @@ class SolanaAgent:
                 # calls), then 5m volume rising and no-chase on 5m candles. Missing
                 # data is a skip, never a pass.
                 if self.mode != "live" and not t["mint"].startswith("DEMO"):
-                    k = rulebook.tx_ratio_gate(ds) or rulebook.lp_gate(dev)
+                    k = rulebook.tx_ratio_gate(ds)
+                    if k == "tx_ratio_unknown":
+                        # DexScreener has no 5m counts (cooling / not listed): ask
+                        # GeckoTerminal for this pool. No data there either -> still a skip.
+                        gt_tx = scanner.gt_tx_m5(t, self.session)
+                        if gt_tx:
+                            k = rulebook.tx_ratio_gate(gt_tx)
+                    k = k or rulebook.lp_gate(dev)
                     if not k and (RULEBOOK.get("volume_rising_gate", True)
                                   or RULEBOOK.get("no_chase_gate", True)):
                         try:

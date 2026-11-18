@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 import random
 import time
+from collections import OrderedDict
 from datetime import datetime
 
 import requests
@@ -126,6 +127,12 @@ _QUOTE_CACHE: dict[str, dict] = {}
 _JUP_ROWS: dict[str, dict] = {}
 # mint -> ts of the last Jupiter hydrate (PumpPortal mints), so we rotate through them
 _JUP_HYDRATED: dict[str, float] = {}
+# pool address -> {"exp": ts, "c": (buys, sells) | None}  (5m tx-count fallback, bounded)
+_TX_CACHE: "OrderedDict[str, dict]" = OrderedDict()
+GT_TX_TTL_S = 60            # a pool's 5m counts are reused this long
+GT_TX_MAX = 500
+# Own cap on top of the shared GT bucket so this fallback can never starve discovery.
+_TX_BUCKET = TokenBucket(3, 1)
 
 
 def _host_of(source: str) -> TokenBucket:
@@ -169,6 +176,8 @@ def reset_runtime() -> None:
     _POOL.clear()
     _PAIR_CACHE.clear()
     _QUOTE_CACHE.clear()
+    _TX_CACHE.clear()
+    _TX_BUCKET.reset()
     CALLS["geckoterminal"] = 0
     CALLS["dexscreener"] = 0
     CALLS["jupiter"] = 0
@@ -549,6 +558,50 @@ def _fetch_live(s: requests.Session, ep: dict, now: float, positions: bool = Fal
     except ValueError:
         _note(source, f"{ep['label']} -> 200 but body was not JSON")
         return None
+
+
+# ---------- 5m buy/sell counts: GeckoTerminal fallback for the rulebook ----------
+
+def _gt_m5_counts(body) -> tuple[int, int] | None:
+    try:
+        m5 = body["data"]["attributes"]["transactions"]["m5"]
+        return int(m5["buys"]), int(m5["sells"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def gt_tx_m5(t: dict, s: requests.Session | None = None, now: float | None = None) -> dict | None:
+    """5m buy/sell counts for t's pool from GeckoTerminal, for when DexScreener has none.
+
+    One call to /networks/solana/pools/{pool}, cached GT_TX_TTL_S per pool. It honours the
+    GT 429 cooldown and the shared GT bucket, plus its own small cap. Returns a gate-shaped
+    dict ({"available": True, "buys_m5", "sells_m5", "source"}) or None when there is no data
+    (offline, cooling, throttled, no pool, failed call): the caller then skips as unknown.
+    """
+    from desk.netutil import offline
+    pool = t.get("pool")
+    if not pool or offline():
+        return None
+    now = time.time() if now is None else now
+    hit = _TX_CACHE.get(pool)
+    if hit and hit["exp"] > now:
+        c = hit["c"]
+    else:
+        ep = {"id": "gt:pooltx", "source": "geckoterminal", "label": "pool 5m txns",
+              "url": f"{GT}/networks/solana/pools/{pool}"}
+        if is_cooling(ep["id"], now) or not _TX_BUCKET.allow(1, now=now):
+            return None
+        body = _fetch_live(s or requests.Session(), ep, now)
+        if body is None:
+            return None
+        c = _gt_m5_counts(body)
+        _TX_CACHE[pool] = {"exp": now + GT_TX_TTL_S, "c": c}
+        _TX_CACHE.move_to_end(pool)
+        while len(_TX_CACHE) > GT_TX_MAX:
+            _TX_CACHE.popitem(last=False)
+    if c is None:
+        return None
+    return {"available": True, "source": "geckoterminal", "buys_m5": c[0], "sells_m5": c[1]}
 
 
 # ---------- rolling pool ----------
