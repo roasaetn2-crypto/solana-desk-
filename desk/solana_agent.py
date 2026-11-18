@@ -33,7 +33,7 @@ import requests
 
 from config import AGENT, ENTRY, EXECUTION, EXITS, FOMO, MEME, PAPER, RISK, SCALP
 from desk.brain_advisor import ADVISOR, should_advise, wants_entry, wants_exit
-from desk import (analyst, brain, chain, dexscreener, devcheck, dialogue, exits, fomo, goplus, gmgn,
+from desk import (analyst, analyst_ai, brain, chain, dexscreener, devcheck, dialogue, exits, fomo, goplus, gmgn,
                   groq_postmortem, groq_sizer, guard, heartbeat, helius, meme, meme_tactics,
                   pumpportal, regime, risk, scanner, signal_engine, signals, social)
 from desk import chart as candle_chart
@@ -608,6 +608,7 @@ class SolanaAgent:
         with self.lock:
             self.data_source = source
         ADVISOR.new_cycle()
+        analyst_ai.new_cycle()
 
         # rank by volume churn: the loudest pools first
         tokens.sort(key=lambda t: t["volume_h1"] / max(t["mcap_usd"], 1), reverse=True)
@@ -861,7 +862,7 @@ class SolanaAgent:
                     continue
 
                 # seat 3: analyst
-                th = analyst.analyze_token(t, f, links,
+                th = analyst.analyze_token(t, f, links, mode=self.mode,
                                            context={"scorecard": sc, "dev": dev, "ds": ds,
                                                     "security": {"flags": [c["t"] for c in sec["chips"]],
                                                                  "regime": self.regime.get("tag")}})
@@ -1577,8 +1578,9 @@ class SolanaAgent:
                 "cycle": self.cycle_no,
                 "last_cycle_at": self.last_cycle_at,
                 "data_source": self.data_source,
-                "analyst": analyst.analyst_name(),
+                "analyst": analyst.analyst_name(self.mode),
                 "brain": brain.health(),
+                "analyst_ai": analyst_ai.status(),
                 "advisor": ADVISOR.status(),
                 "rpc": {**helius.health(), "endpoint": chain.rpc_source()},
                 "execution": self.mode_info(),

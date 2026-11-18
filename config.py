@@ -218,6 +218,23 @@ MIN_SCORE = 6                        # 0-10, the analyst's score must clear this
 ANALYST_VALID_SCORE = 6              # 0-10 (owner set 6 on 2026-11-12; was 5)
 ANALYST_MAX_RED_FOR_VALID = 3        # red flags allowed on a valid setup
 
+# PAPER analyst on a real AI model (owner, 2026-11-19: "add it"). Before this the analyst seat
+# was the deterministic heuristic unless DESK_BRAIN was set on Render. With enabled=True the
+# PAPER analyst uses the first provider in `prefer` whose API key is present (xAI/Grok first,
+# then the existing Groq key). LIVE mode is untouched: it keeps whatever brain.active() says.
+# The model only fills the same TokenThesis; code re-checks valid_setup against
+# ANALYST_VALID_SCORE / ANALYST_MAX_RED_FOR_VALID, and any error, timeout, 429 or spent budget
+# falls straight back to the heuristic. Set enabled=False to put the heuristic back.
+ANALYST_AI = {
+    "enabled": True,
+    "prefer": ("xai", "groq"),      # first one with a key wins; the next is the fallback
+    "daily_cap": 120,               # model calls per UTC day, all providers together
+    "per_cycle": 2,                 # model calls per agent cycle (AGENT["analyst_budget"] still caps the rest)
+    "timeout_s": 8,                 # per call; the loop never waits longer than this
+    "max_tokens": 1500,
+    "cooldown_s": 300,              # after a 429/5xx/timeout that provider rests this long
+}
+
 # ---------- Seat 4: risk engine (pure code) ----------
 RISK = {
     "max_risk_per_trade": 0.015,   # 1.5% of the paper book (retune 2026-11-12: was 5%)

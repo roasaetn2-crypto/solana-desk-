@@ -820,3 +820,5 @@ _ok, _why = _live.ready()
 print(f"[desk] execution: paper by default. live signing: "
       f"{'available' if _ok else 'unavailable'} ({_why})")
 print(f"[desk] brain: {_brain.describe()}" + (" (free)" if _brain.health()["free"] else ""))
+from desk import analyst_ai as _analyst_ai
+print(f"[desk] brain: paper analyst -> {_analyst_ai.describe('paper')}")

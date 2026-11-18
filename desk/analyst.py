@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 import config
 from config import ANALYST_MAX_TOKENS, ANALYST_MAX_RED_FOR_VALID
-from desk import brain
+from desk import analyst_ai, brain
 
 
 # ---------- the shapes the model must fill ----------
@@ -221,14 +221,32 @@ def heuristic_thesis(t: dict, f: dict, links: dict) -> TokenThesis:
     )
 
 
+def _guard_ai_thesis(th: TokenThesis) -> TokenThesis:
+    """Code, not the model, decides what counts as valid_setup (same bar as the heuristic)."""
+    th.score = max(0, min(10, int(th.score)))
+    serious = [r for r in th.red_flags if "honeypot" not in r.lower() and "authority" not in r.lower()]
+    if th.verdict == "valid_setup" and (th.score < config.ANALYST_VALID_SCORE
+                                        or len(serious) > ANALYST_MAX_RED_FOR_VALID):
+        th.verdict = "watch"
+    return th
+
+
 def analyze_token(t: dict, f: dict, links: dict, client=None,
-                  context: dict | None = None) -> TokenThesis:
+                  context: dict | None = None, mode: str | None = None) -> TokenThesis:
     """Ask the configured brain for a thesis. Falls back to the heuristic.
 
     `client` is accepted for backwards compatibility with the old Claude-only
     signature; the brain layer owns provider selection now.
+
+    PAPER mode (mode == "paper") may use the budgeted AI analyst in desk/analyst_ai.py when
+    brain.active() is still the heuristic. Any other mode behaves exactly as before.
     """
     if brain.active() == "heuristic":
+        if analyst_ai.enabled(mode):
+            th = analyst_ai.thesis(TOKEN_PROMPT,
+                                   token_state(t, f, links, context), TokenThesis)
+            if th is not None:
+                return _guard_ai_thesis(th)
         return heuristic_thesis(t, f, links)
     th = brain.structured(
         TOKEN_PROMPT,
@@ -243,5 +261,7 @@ def analyze_token(t: dict, f: dict, links: dict, client=None,
     return th
 
 
-def analyst_name() -> str:
+def analyst_name(mode: str | None = None) -> str:
+    if brain.active() == "heuristic" and analyst_ai.enabled(mode):
+        return analyst_ai.describe(mode) + " + heuristic fallback"
     return brain.describe()
