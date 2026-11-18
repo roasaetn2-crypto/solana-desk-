@@ -170,6 +170,64 @@ def _num(x):
     return v if v == v else None          # reject NaN
 
 
+def _bar(c) -> tuple[float, float, float, float, float] | None:
+    """(open, high, low, close, volume) from either candle spelling, or None.
+
+    desk/chart.py emits short keys (o/h/l/c/v) for every live series; the offline harness and
+    the committed data use long ones. The live dip gate read only the long spelling, so
+    `high_20` was never set and the gate silently never blocked a buy.
+    """
+    if not isinstance(c, dict):
+        return None
+    vals = [_num(c.get(a, c.get(b))) for a, b in
+            (("open", "o"), ("high", "h"), ("low", "l"), ("close", "c"))]
+    if any(v is None or v <= 0 for v in vals):
+        return None
+    vol = _num(c.get("vol", c.get("volume", c.get("v")))) or 0.0
+    return vals[0], vals[1], vals[2], vals[3], vol
+
+
+def bar_high(c) -> float | None:
+    b = _bar(c)
+    return b[1] if b else None
+
+
+def retest_state(candles, lookback: int | None = None, vol_mult: float | None = None,
+                 zone: float | None = None, max_age: int | None = None) -> dict:
+    """Breakout, then a retest of the broken level, then a bounce (the chart-pattern entry).
+
+    resistance R = highest high of the `lookback` bars before a breakout bar. The breakout bar is
+    green, closes above R, and trades >= vol_mult x the average volume of those bars. Within
+    `max_age` bars after it, price must dip back to within `zone` of R (low <= R*(1+zone)) WITHOUT
+    closing below R*(1-zone) (the level held), and the latest bar must be green and close above R.
+    Missing or short data never passes: this can only ADD an entry, never create one from nothing.
+    """
+    L = int(MEME.get("retest_lookback", 20)) if lookback is None else int(lookback)
+    vm = float(MEME.get("retest_volume_mult", 1.5)) if vol_mult is None else float(vol_mult)
+    z = float(MEME.get("retest_zone_pct", 0.03)) if zone is None else float(zone)
+    age = int(MEME.get("retest_max_age_bars", 12)) if max_age is None else int(max_age)
+    bars = [b for b in (_bar(c) for c in candles or []) if b]
+    n = len(bars)
+    if n < L + 3:
+        return {"ok": False, "why": "not enough bars"}
+    last = bars[-1]
+    for i in range(n - 2, max(L, n - 2 - age) - 1, -1):
+        prior = bars[i - L:i]
+        res = max(b[1] for b in prior)
+        avg_v = sum(b[4] for b in prior) / L
+        bo = bars[i]
+        if avg_v <= 0 or not (bo[3] > res and bo[3] > bo[0] and bo[4] >= vm * avg_v):
+            continue
+        after = bars[i + 1:]
+        if any(b[3] < res * (1 - z) for b in after):
+            continue                                   # the broken level did not hold
+        if not any(b[2] <= res * (1 + z) for b in after):
+            continue                                   # never came back to retest it
+        if last[3] > last[0] and last[3] > res:
+            return {"ok": True, "resistance": res, "why": f"retest of broken resistance {res:.6g}"}
+    return {"ok": False, "why": "no breakout-retest"}
+
+
 def pullback_ok(price, high_20, min_drop: float | None = None) -> tuple[bool, str]:
     """Rule B. True when price is far enough below the recent 20-bar high.
 
@@ -261,6 +319,7 @@ def flags() -> dict:
     """Which tactics the operator has switched on."""
     return {
         "pullback": bool(MEME.get("pullback_entry", False)),
+        "retest": bool(MEME.get("retest_entry", False)),
         "flash": bool(MEME.get("flash_pump_guard", False)),
         "atr_stop": bool(MEME.get("atr_stop", False)),
         "vol_ceiling": bool(MEME.get("vol_ceiling", False)),
@@ -347,6 +406,12 @@ def apply(sig: dict, token: dict | None = None, facts: dict | None = None) -> di
     if on["pullback"]:
         hi = f.get("high_20", t.get("high_20"))
         ok, why = pullback_ok(t.get("price_usd"), hi)
+        if not ok and on.get("retest"):
+            # "dip OR retest": a confirmed breakout-retest-bounce is a second way in.
+            rt = f.get("retest") or {}
+            if rt.get("ok"):
+                ok, why = True, "retest"
+                reasons.append(f"meme tactic: {rt.get('why', 'retest')}")
         if not ok:
             blocked = f"meme tactic: {why}"
         elif why == "unknown":

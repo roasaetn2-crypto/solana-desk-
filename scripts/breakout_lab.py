@@ -36,6 +36,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import config  # noqa: E402
 from desk import exits as exit_rules  # noqa: E402
+from desk import meme_tactics  # noqa: E402
 from desk.signal_backtest import simulate  # noqa: E402
 
 LOOKBACK = 20          # bars (5m) -> 100 minutes of history
@@ -74,6 +75,8 @@ def _entries(candles: list[dict]) -> dict[str, list[int]]:
             "breakout 20-bar high, vol>=1.5x": c["close"] > hi and green and vmult >= 1.5,
             "breakout 20-bar high, vol>=2x": c["close"] > hi and green and vmult >= 2.0,
             "breakout 20-bar high, vol>=3x": c["close"] > hi and green and vmult >= 3.0,
+            # the desk's own meme.retest_entry rule: breakout, retest of the level, bounce
+            "breakout RETEST + bounce": meme_tactics.retest_state(candles[max(0, i - 45):i + 1])["ok"],
         }
         for k, ok in fire.items():
             if ok and i - last[k] > COOLDOWN:
@@ -84,7 +87,7 @@ def _entries(candles: list[dict]) -> dict[str, list[int]]:
 
 RULES = ["any bar (no filter)", "dip 10%", "dip 20%",
          "breakout 20-bar high, vol>=1.5x", "breakout 20-bar high, vol>=2x",
-         "breakout 20-bar high, vol>=3x"]
+         "breakout 20-bar high, vol>=3x", "breakout RETEST + bounce"]
 
 
 def load(args) -> list[dict]:

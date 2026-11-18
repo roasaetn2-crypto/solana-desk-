@@ -765,14 +765,19 @@ class SolanaAgent:
                 # different, much twitchier rule than the one that was tested.
                 # Unknown values stay neutral (never a veto).
                 if (MEME.get("pullback_entry") or MEME.get("pullback_shadow")
-                        or MEME.get("atr_stop") or MEME.get("vol_ceiling")) \
+                        or MEME.get("atr_stop") or MEME.get("vol_ceiling")
+                        or MEME.get("retest_entry")) \
                         and not t["mint"].startswith("DEMO"):
                     try:
                         cs = candle_chart.series(t["mint"], "5m", session=self.session)
                         candles = cs.get("candles") or []
-                        highs = [c.get("high") for c in candles[-20:] if c.get("high")]
+                        # chart.py candles use short keys (h/l/c): reading only "high" left
+                        # high_20 unset and the dip gate permanently neutral.
+                        highs = [h for h in (meme_tactics.bar_high(c) for c in candles[-20:]) if h]
                         if highs:
                             f["high_20"] = max(highs)
+                        if MEME.get("retest_entry"):
+                            f["retest"] = meme_tactics.retest_state(candles)
                         # Same bars, same basis as the eval: ATR14 / close.
                         a = meme_tactics.atr_pct_from(candles)
                         if a is not None:

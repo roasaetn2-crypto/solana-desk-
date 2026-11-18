@@ -524,6 +524,14 @@ MEME = {
     # fully-gated population. scripts/shadow_report.py compares the two groups.
     "pullback_shadow": True,
     "pullback_min_drop": 0.20,       # must be >=20% below the 20-bar high (measured)
+    # Breakout-retest entry (OFF, UNMEASURED): also buy when price broke a 20-bar resistance on a
+    # volume surge, came back to retest it, held, and is bouncing. It only ADDS a way in beside the
+    # dip rule ("dip OR retest") and needs pullback_entry on. scripts/breakout_lab.py measures it.
+    "retest_entry": False,
+    "retest_lookback": 20,           # bars that define the resistance
+    "retest_volume_mult": 1.5,       # breakout bar volume vs the average of those bars
+    "retest_zone_pct": 0.03,         # retest = back within 3% of the broken level, never a close below
+    "retest_max_age_bars": 12,       # the breakout must be <= 12 five-minute bars (1h) old
     # Which exit ladder the pullback package uses: fast | patient | slow | single.
     # scripts/ladder_replay.py measured all four on real candles with entries held
     # constant (LADDER-REPLAY.md): win rate is within 1pt across every ladder at

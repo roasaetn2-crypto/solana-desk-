@@ -325,6 +325,12 @@ _R += [
                  "overrides the per-profile TP rungs. OFF: entries no longer wait for a dip AND "
                  "the ladder stops overriding, so the Scalp/Swing TP1/TP2/trail rows take over. "
                  "Turn OFF only if you want the profile ladders to be the source of truth."),
+    Setting("meme.retest_entry", "Also buy breakout retests", "Entry", "bool",
+            lambda: bool(MEME.get("retest_entry", False)),
+            lambda v: MEME.__setitem__("retest_entry", bool(v)),
+            help="OFF (default, unmeasured). ON: besides the 20% dip, also buy when price broke a "
+                 "20-bar resistance on a volume surge, came back to retest it, held, and is bouncing. "
+                 "Only works while Pullback entry is ON (dip OR retest, same exit ladder)."),
     # ---------- take-profit mode (operator-selectable) ----------
     Setting("exits.tp_plan", "Take-profit plan", "Exits", "choice",
             lambda: str(EXITS.get("take_profit_mode") or "profile"),
@@ -465,6 +471,10 @@ _OWNER_R: list[Setting] = [
             lambda v: MEME.__setitem__("flash_pump_guard", bool(v)), owner_only=True),
     _own("meme.pullback_min_drop", "Pullback depth", "Owner \u00b7 Meme", "pct",
          _d(MEME, "pullback_min_drop"), 0.05, 0.80, "below high"),
+    _own("meme.retest_volume_mult", "Retest breakout volume", "Owner \u00b7 Meme", "float",
+         _d(MEME, "retest_volume_mult"), 1.0, 5.0, "x avg"),
+    _own("meme.retest_zone_pct", "Retest zone", "Owner \u00b7 Meme", "pct",
+         _d(MEME, "retest_zone_pct"), 0.005, 0.10, "of level"),
     # scanner breadth
     _own("scan.pages", "Scanner pages", "Owner \u00b7 Scanner", "int", _d(SCAN, "pages", int), 1, 5),
     # loop budgets
