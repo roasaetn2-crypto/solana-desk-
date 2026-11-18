@@ -187,3 +187,15 @@ def status() -> dict:
             "per_cycle": _cfg().get("per_cycle"),
             "resting": sorted(n for n, t in _cooldown_until.items() if t > time.time()),
             "last_error": dict(_last_error)}
+
+
+def brain_view(mode: str | None, base: dict) -> dict:
+    """What state.brain should show: the active PAPER AI analyst, else `base` (brain.health())."""
+    if base.get("provider") != "heuristic" or not enabled(mode):
+        return base
+    names = [n for n in _cfg().get("prefer", ()) if n in _PROVIDERS and _key(n)]
+    live = [n for n in names if n in providers()]
+    lead = (live or names)[0]
+    return {**base, "provider": lead, "label": describe(mode), "model": model_for(lead),
+            "free": lead != "xai", "needs_key": True, "key_present": True,
+            "fallback": "heuristic", "resting": [n for n in names if n not in providers()]}

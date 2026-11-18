@@ -1662,7 +1662,7 @@ class SolanaAgent:
                 "last_cycle_at": self.last_cycle_at,
                 "data_source": self.data_source,
                 "analyst": analyst.analyst_name(self.mode),
-                "brain": brain.health(),
+                "brain": analyst_ai.brain_view(self.mode, brain.health()),
                 "analyst_ai": analyst_ai.status(),
                 "advisor": ADVISOR.status(),
                 "rpc": {**helius.health(), "endpoint": chain.rpc_source()},

@@ -162,3 +162,29 @@ def test_default_config_is_paper_cheap():
     c = config.ANALYST_AI
     assert c["prefer"][0] == "xai" and "groq" in c["prefer"]
     assert 0 < c["per_cycle"] <= 3 and 0 < c["daily_cap"] <= 200 and c["timeout_s"] <= 10
+
+
+class TestBrainView:
+    def test_state_brain_shows_grok_in_paper(self, monkeypatch):
+        monkeypatch.setenv("XAI_API_KEY", "xai-test-key-1234567890")
+        monkeypatch.setenv("GROQ_API_KEY", "gsk_test_key_1234567890")
+        v = analyst_ai.brain_view("paper", brain.health())
+        assert v["provider"] == "xai" and v["model"] == config.XAI["model"]
+        assert "Grok" in v["label"] and v["free"] is False and v["key_present"] is True
+        assert "xai-test" not in str(v)
+
+    def test_groq_when_no_xai_and_resting_xai_falls_to_groq_label(self, monkeypatch):
+        monkeypatch.setenv("GROQ_API_KEY", "gsk_test_key_1234567890")
+        assert analyst_ai.brain_view("paper", brain.health())["provider"] == "groq"
+
+    def test_live_and_keyless_unchanged(self, monkeypatch):
+        base = brain.health()
+        assert analyst_ai.brain_view("paper", base) == base
+        monkeypatch.setenv("XAI_API_KEY", "xai-test-key-1234567890")
+        assert analyst_ai.brain_view("live", base) == base
+
+    def test_agent_status_brain_reflects_grok(self, monkeypatch):
+        monkeypatch.setenv("XAI_API_KEY", "xai-test-key-1234567890")
+        from desk import solana_agent
+        src = Path(solana_agent.__file__).read_text()
+        assert "analyst_ai.brain_view(self.mode, brain.health())" in src
