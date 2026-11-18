@@ -57,8 +57,9 @@ class _Book(unittest.TestCase):
 
 class CostAwareLadder(_Book):
     def test_tp1_then_fade_is_a_win_not_a_loss(self):
-        # Quote runs to +12%, TP1 fires, then the coin fades back to the entry quote.
-        reasons, pnl = self.trade([1.12, 1.12, 1.0])
+        # Quote runs to +25%, TP1 fires, then the coin fades back to the entry quote.
+        # (Flat $0.10/side on a $2.50 ticket is 8% round trip, so TP1 sits higher.)
+        reasons, pnl = self.trade([1.25, 1.25, 1.0])
         self.assertTrue(reasons[0].startswith("TP1"), reasons)
         self.assertEqual(reasons[-1], "breakeven stop")
         self.assertEqual(len(pnl), 1)
@@ -83,7 +84,7 @@ class CostAwareLadder(_Book):
         self.assertAlmostEqual(tp2 - tp1, 0.04, places=3)   # spacing kept
 
     def test_tp1_slice_nets_the_min_edge(self):
-        reasons, _ = self.trade([1.12])
+        reasons, _ = self.trade([1.25])
         self.assertIn("cost floor", reasons[0])
         pos = self.b.s["positions"]["M"]
         # TP1 proceeds for the slice beat its share of cost by about the edge.

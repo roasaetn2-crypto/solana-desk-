@@ -230,7 +230,7 @@ class Replay(unittest.TestCase):
         self.assertGreaterEqual(row["passed_gates"], 5)
         self.assertEqual(row["trades"], 0)
         self.assertEqual(row["open_end"], 4)
-        self.assertLessEqual(20 - row["end_equity"], 0.5)  # still about the $20 book, fees on 4 tickets
+        self.assertLessEqual(20 - row["end_equity"], 1.0)  # still about the $20 book; flat $0.10/side fees on 4 tickets
         # four ~$5 tickets plus fees should leave a little cash, never a 5th ticket
         self.assertGreater(row["end_equity"], 0)
 

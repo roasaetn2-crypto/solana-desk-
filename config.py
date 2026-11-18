@@ -410,6 +410,11 @@ PAPER = {
     # from what a live fill would actually cost. Set this False to fall back to
     # fee_pct below (e.g. to reproduce an old backtest).
     "use_live_fee_model": True,
+    # PAPER fee model (owner, 2026-11-19): a flat $0.10 per side, taken out of the
+    # ticket on the buy and out of the proceeds on the sell. It replaces the
+    # network, priority and ATA-rent fixed costs in the paper ledger. Spread and
+    # slippage are modelled separately and unchanged. Live is unaffected.
+    "fee_per_side_usd": 0.10,
     "fee_pct": 0.01,               # legacy flat fee, used only when use_live_fee_model is False
     "slippage_pct": 0.02,          # assume 2% worse than the quoted price
     # A position is never marked above max_mark_mult times what it cost, nor

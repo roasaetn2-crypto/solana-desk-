@@ -23,28 +23,24 @@ LEDGER = Path("paper_ledger.json")
 
 
 def paper_side_fee(ticket_usd: float, *, first_buy: bool = False) -> dict:
-    """The real Solana fee for one paper swap, itemised.
+    """The paper fee for one swap: a flat PAPER["fee_per_side_usd"] ($0.10).
 
-    Paper used to charge a flat 1% per side, a number nobody measured. Jupiter's
-    own fee is 0%, so the real bill is the base signature fee plus the capped
-    priority fee, priced off the live SOL spot.
-
-    The ATA rent (0.00203928 SOL per new mint) is deliberately NOT charged here.
-    It is a refundable deposit, not a fee, and it is fixed: charging it to the
-    desk's $1-$4 paper tickets would book a ~$0.31 loss the instant a position
-    opened and trip the daily stop after two trades. The live floor model still
-    prices it, because live capital genuinely locks it until the account closes.
+    Owner's rule: $0.10 per side, deducted from the ticket on the buy and from
+    the proceeds on the sell, so a round trip costs $0.20. It replaces the
+    network, priority and ATA-rent fixed costs. Rent is a refundable deposit
+    (returned when the account closes on a full exit), so it is never charged.
+    Spread and slippage are not part of this fee: the fill price already pays
+    PAPER["slippage_pct"]. Live keeps its own floor model in desk/risk.py.
     """
     if not PAPER.get("use_live_fee_model", True):
         return {"base_usd": 0.0, "priority_usd": 0.0, "rent_usd": 0.0,
                 "spread_usd": 0.0, "total_usd": round(ticket_usd * PAPER["fee_pct"], 6),
                 "sol_usd": round(fees.sol_price_usd(), 2), "legacy": True}
-    fm = fees.side_fee_usd(ticket_usd, first_buy=False, include_spread=False,
-                           include_rent=False)
-    # Never let a mis-set priority cap eat the whole ticket.
-    if fm["total_usd"] > ticket_usd * 0.5:
-        fm["total_usd"] = round(ticket_usd * 0.5, 6)
-    return fm
+    fee = fees.paper_fee_per_side_usd(ticket_usd)
+    return {"base_usd": 0.0, "priority_usd": 0.0, "rent_usd": 0.0,
+            "spread_usd": 0.0, "flat_usd": round(fee, 6),
+            "total_usd": round(fee, 6),
+            "sol_usd": round(fees.sol_price_usd(), 2)}
 
 
 class PaperBroker:
@@ -417,18 +413,32 @@ class PaperBroker:
             return round(sum(costs) / len(costs), 2)
         return float(PAPER.get("min_ticket_usd") or 1.0)
 
-    def fee_model(self) -> dict:
-        """The round-trip cost this broker would charge at its typical ticket."""
-        ticket = self._representative_ticket()
-        buy = paper_side_fee(ticket, first_buy=True)
-        sell = paper_side_fee(ticket, first_buy=False)
-        total = buy["total_usd"] + sell["total_usd"]
+    def fee_model(self, ticket: float | None = None) -> dict:
+        """The paper round trip at a ticket: buy fee, sell fee, spread, break-even.
+
+        `total_usd` and `break_even_pct` include the modelled spread; `fees_usd`
+        is the two flat fees alone. Full exit, so the ATA rent is refunded.
+        """
+        ticket = float(ticket) if ticket is not None else self._representative_ticket()
+        buy = paper_side_fee(ticket, first_buy=True)["total_usd"]
+        sell = paper_side_fee(ticket, first_buy=False)["total_usd"]
+        spread = fees.spread_usd(ticket)
+        fee_total = buy + sell
+        total = fee_total + spread
+        pct = round(total / ticket * 100, 2) if ticket > 0 else 0.0
         return {
             "ticket_usd": round(ticket, 2),
-            "buy_usd": round(buy["total_usd"], 4),
-            "sell_usd": round(sell["total_usd"], 4),
+            "buy_fee_usd": round(buy, 4),
+            "sell_fee_usd": round(sell, 4),
+            "buy_usd": round(buy, 4),
+            "sell_usd": round(sell, 4),
+            "spread_usd": round(spread, 4),
+            "fees_usd": round(fee_total, 4),
             "total_usd": round(total, 4),
-            "pct": round(total / ticket * 100, 2) if ticket > 0 else 0.0,
+            "break_even_pct": pct,
+            "pct": pct,
+            "fee_pct": round(fee_total / ticket * 100, 2) if ticket > 0 else 0.0,
+            "rent_usd": 0.0,
             "sol_usd": round(fees.sol_price_usd(), 2),
-            "mode": "live" if PAPER.get("use_live_fee_model", True) else "flat",
+            "mode": "flat_per_side" if PAPER.get("use_live_fee_model", True) else "flat_pct",
         }

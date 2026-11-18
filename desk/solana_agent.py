@@ -192,7 +192,10 @@ class SolanaAgent:
             # Jupiter charges 0%. This is what Solana actually costs per round
             # trip at the smallest ticket, so the dashboard can show the real
             # break-even instead of a decorative fee column.
-            "fees": live_fee_model(EXECUTION["live_min_ticket_usd"]),
+            # Paper shows the paper fee model (flat per side + spread); live shows
+            # the live floor model.
+            "fees": (self.paper.fee_model() if self.mode != "live"
+                     else live_fee_model(EXECUTION["live_min_ticket_usd"])),
             "paper_equity": self.paper.equity(),
             "live_pnl": self.live.equity(),
         }

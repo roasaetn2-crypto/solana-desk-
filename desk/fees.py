@@ -25,7 +25,7 @@ pessimistic fallback. Nothing here makes a network call on the hot path.
 """
 from __future__ import annotations
 
-from config import EXECUTION
+from config import EXECUTION, PAPER
 
 LAMPORTS_PER_SOL = 1_000_000_000
 
@@ -133,3 +133,12 @@ def round_trip_usd(ticket_usd: float, *, first_buy: bool = True,
         "pct": round(total / ticket_usd * 100, 2) if ticket_usd > 0 else 0.0,
         "sol_usd": round(sol_usd if sol_usd is not None else sol_price_usd(), 2),
     }
+
+
+def paper_fee_per_side_usd(notional_usd: float) -> float:
+    """The flat paper fee for one swap: PAPER["fee_per_side_usd"] ($0.10).
+
+    Never more than half the notional, so a tiny ticket cannot be eaten whole.
+    """
+    flat = max(0.0, float(PAPER.get("fee_per_side_usd") or 0.0))
+    return min(flat, max(0.0, float(notional_usd)) * 0.5)

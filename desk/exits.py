@@ -99,11 +99,11 @@ def _sell_fee_usd(notional: float) -> float:
     """The paper sell fee for one leg (same model and 50% cap as the broker)."""
     try:
         from desk import fees
-        f = fees.side_fee_usd(notional, first_buy=False, include_spread=False,
-                              include_rent=False)["total_usd"]
+        if not PAPER.get("use_live_fee_model", True):
+            return min(notional * float(PAPER.get("fee_pct") or 0.0), notional * 0.5)
+        return fees.paper_fee_per_side_usd(notional)
     except Exception:
         return 0.0
-    return min(f, notional * 0.5)
 
 
 def net_breakeven_mult(pos: dict, frac: float) -> float | None:
