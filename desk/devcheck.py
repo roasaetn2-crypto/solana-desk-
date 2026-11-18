@@ -100,6 +100,68 @@ def _pool_accounts(body: dict) -> set[str]:
     return out
 
 
+def lp_state(body: dict) -> dict:
+    """LP lock of the deepest market RugCheck lists: lp_locked_pct (0-1) or None.
+
+    A pump.fun bonding curve has no LP token; RugCheck reports the curve itself as
+    100% locked (the creator cannot pull it), so curve coins read as locked when
+    RugCheck answers. No markets / no number -> None (unknown, never "locked").
+    """
+    best, depth = None, -1.0
+    for m in body.get("markets") or []:
+        if not isinstance(m, dict) or not isinstance(m.get("lp"), dict):
+            continue
+        lp = m["lp"]
+        d = _f(lp.get("quoteUSD")) + _f(lp.get("baseUSD"))
+        if d <= 0:
+            d = _f(lp.get("lpLockedUSD"))
+        if d > depth:
+            best, depth = m, d
+    if best is None or best["lp"].get("lpLockedPct") is None:
+        return {"lp_locked_pct": None, "lp_locked": None, "lp_market": None}
+    pct = max(0.0, min(1.0, _f(best["lp"].get("lpLockedPct")) / 100.0))
+    return {"lp_locked_pct": round(pct, 4), "lp_locked": pct >= 0.9,
+            "lp_market": best.get("marketType")}
+
+
+_SNAP_CACHE: dict[str, tuple[float, dict]] = {}
+
+
+def holder_snapshot(mint: str, session=None, max_age_s: float = 120.0,
+                    now: float | None = None) -> dict:
+    """Creator share + top-10 real-wallet share from a fresh RugCheck report.
+
+    For the rulebook's dev / top-10 sell exit. Cached per mint for `max_age_s`
+    so an open position costs at most one RugCheck call per window. Never raises;
+    failure -> {"available": False}.
+    """
+    import time as _t
+    now = _t.time() if now is None else now
+    hit = _SNAP_CACHE.get(mint)
+    if hit and now - hit[0] < max_age_s:
+        return hit[1]
+    out = {"available": False}
+    if mint and not mint.startswith("DEMO"):
+        try:
+            body = (session or requests).get(f"{RUGCHECK}/{mint}/report", headers=HEADERS,
+                                             timeout=15).json()
+            if isinstance(body, dict) and "error" not in body:
+                creator = body.get("creator") or ""
+                top = body.get("topHolders") or []
+                row = next((h for h in top if creator and creator in (h.get("owner"), h.get("address"))),
+                           None)
+                conc = rugcheck_concentration(body) or {}
+                out = {"available": True,
+                       "creator_hold_pct": (_f(row.get("pct")) / 100.0) if row else (0.0 if creator else None),
+                       "top_10_pct": conc.get("top_10_pct")}
+        except Exception:
+            out = {"available": False}
+    if len(_SNAP_CACHE) > 500:
+        _SNAP_CACHE.clear()
+    _SNAP_CACHE[mint] = (now, out)
+    return out
+
+
 def rugcheck_concentration(body: dict) -> dict | None:
     """Top real wallet and top-10 share from RugCheck's topHolders, pools excluded.
 
@@ -161,8 +223,9 @@ def investigate(mint: str, chain_facts: dict | None = None,
             "holder_count": _real_holder_count(body),
             "holder_sample": len(top),
             "concentration": rugcheck_concentration(body),
-            "lp_locked": any("lp" in str(r.get("name", "")).lower() and r.get("value")
-                             for r in (body.get("risks") or [])),
+            # Main market's LP lock from RugCheck's markets[].lp. The old risk-name
+            # heuristic read "Large Amount of LP Unlocked" as locked; never guess.
+            **lp_state(body),
             "mint_renounced": token.get("mintAuthority") in (None, ""),
             "freeze_renounced": token.get("freezeAuthority") in (None, ""),
             "flags": [r.get("name") for r in (body.get("risks") or []) if r.get("name")],
@@ -185,6 +248,7 @@ def investigate(mint: str, chain_facts: dict | None = None,
         "insider_pct": None,
         "holder_count": cf.get("holder_count"),     # a real count or None; never the top-20 sample
         "lp_locked": None,
+        "lp_locked_pct": None,
         "mint_renounced": cf.get("mint_authority") is None,
         "freeze_renounced": cf.get("freeze_authority") is None,
         "flags": ["dev report unavailable: no creator graph, only holder concentration"],

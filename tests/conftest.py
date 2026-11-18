@@ -28,3 +28,25 @@ def pytest_configure(config):  # noqa: ARG001
     except Exception:      # never fail collection over this
         return
     ba._local_probe.update(at=0.0, up=False, host="")
+
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _rulebook_off_by_default():
+    """The rulebook gates (config.RULEBOOK) are ON in production and treat missing
+    data as a skip. The older end-to-end tests feed hand-made tokens with no 5m
+    txns, LP or volume history, so every one would be skipped. Switch the rules
+    off for each test; tests/test_rulebook.py switches them on explicitly."""
+    from config import RULEBOOK
+    from desk import rulebook
+    saved = dict(RULEBOOK)
+    for k, v in RULEBOOK.items():
+        if isinstance(v, bool):
+            RULEBOOK[k] = False
+    rulebook.reset()
+    yield
+    RULEBOOK.clear()
+    RULEBOOK.update(saved)
+    rulebook.reset()

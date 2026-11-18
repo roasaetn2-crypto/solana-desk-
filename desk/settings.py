@@ -36,7 +36,7 @@ from dataclasses import dataclass, replace
 from typing import Any, Callable
 
 import config
-from config import AGENT, CHAIN, ENTRY, EXECUTION, EXITS, MEME, PAPER, RISK, SCALP, SCAN, SIGNAL, SWING
+from config import AGENT, CHAIN, ENTRY, EXECUTION, EXITS, MEME, PAPER, RISK, RULEBOOK, SCALP, SCAN, SIGNAL, SWING
 from desk import meme_tactics
 from desk.ops import data_file
 
@@ -358,6 +358,52 @@ _R += [
          _d(EXITS.setdefault("single", {}), "tp_frac"), 0.10, 1.0),
     _num("exits.single.trail_pct", "Single trailing stop", "Exits", "pct",
          _d(EXITS.setdefault("single", {}), "trail_pct"), 0.05, 0.60),
+    # ---------- Romz's scalping rulebook (PAPER only; missing data = skip) ----------
+    Setting("rulebook.tx_ratio_gate", "Rulebook: 5m buy/sell ratio gate", "Rulebook", "bool",
+            lambda: bool(RULEBOOK.get("tx_ratio_gate", True)),
+            lambda v: RULEBOOK.__setitem__("tx_ratio_gate", bool(v)),
+            help="PAPER: buy only when 5m buys / sells is above the ratio below. No 5m data = skip."),
+    _num("rulebook.min_buy_sell_ratio", "Rulebook: min 5m buy/sell ratio", "Rulebook", "float",
+         _d(RULEBOOK, "min_buy_sell_ratio"), 1.0, 5.0, "x"),
+    Setting("rulebook.lp_gate", "Rulebook: LP burned or locked", "Rulebook", "bool",
+            lambda: bool(RULEBOOK.get("lp_gate", True)),
+            lambda v: RULEBOOK.__setitem__("lp_gate", bool(v)),
+            help="PAPER: buy only when RugCheck shows the main pool's LP burned/locked. "
+                 "Unknown = skip. pump.fun curve coins read as locked when RugCheck answers."),
+    _num("rulebook.min_lp_locked_pct", "Rulebook: min LP locked", "Rulebook", "pct",
+         _d(RULEBOOK, "min_lp_locked_pct"), 0.50, 1.0, "of LP"),
+    Setting("rulebook.impact_gate", "Rulebook: price impact gate", "Rulebook", "bool",
+            lambda: bool(RULEBOOK.get("impact_gate", True)),
+            lambda v: RULEBOOK.__setitem__("impact_gate", bool(v)),
+            help="PAPER: the Jupiter quote for the ticket must move price less than the cap below. "
+                 "No quote = skip."),
+    _num("rulebook.max_price_impact", "Rulebook: max price impact", "Rulebook", "pct",
+         _d(RULEBOOK, "max_price_impact"), 0.005, 0.10, "of price"),
+    Setting("rulebook.volume_rising_gate", "Rulebook: 5m volume rising", "Rulebook", "bool",
+            lambda: bool(RULEBOOK.get("volume_rising_gate", True)),
+            lambda v: RULEBOOK.__setitem__("volume_rising_gate", bool(v)),
+            help="PAPER: 5m volume must beat the previous 5m. No previous 5m = skip."),
+    Setting("rulebook.no_chase_gate", "Rulebook: no-chase", "Rulebook", "bool",
+            lambda: bool(RULEBOOK.get("no_chase_gate", True)),
+            lambda v: RULEBOOK.__setitem__("no_chase_gate", bool(v)),
+            help="PAPER: skip a coin whose current 5m candle is already up more than the cap below."),
+    _num("rulebook.max_candle_up", "Rulebook: max 5m candle gain", "Rulebook", "pct",
+         _d(RULEBOOK, "max_candle_up"), 0.10, 1.0, "in 5m"),
+    Setting("rulebook.exit_on_liq_drop", "Rulebook: sell on liquidity drop", "Rulebook", "bool",
+            lambda: bool(RULEBOOK.get("exit_on_liq_drop", True)),
+            lambda v: RULEBOOK.__setitem__("exit_on_liq_drop", bool(v)),
+            help="PAPER: sell the whole position when pool liquidity falls this much from entry."),
+    _num("rulebook.liq_drop_exit", "Rulebook: liquidity drop to sell", "Rulebook", "pct",
+         _d(RULEBOOK, "liq_drop_exit"), 0.05, 0.60, "from entry"),
+    Setting("rulebook.exit_on_holder_sell", "Rulebook: sell when dev/top-10 sell", "Rulebook", "bool",
+            lambda: bool(RULEBOOK.get("exit_on_holder_sell", True)),
+            lambda v: RULEBOOK.__setitem__("exit_on_holder_sell", bool(v)),
+            help="PAPER: sell when RugCheck shows the dev sold, or the top-10 wallets' share fell. "
+                 "Holder data missing = no forced exit."),
+    _num("rulebook.top10_drop_exit", "Rulebook: top-10 share drop to sell", "Rulebook", "pct",
+         _d(RULEBOOK, "top10_drop_exit"), 0.01, 0.30, "of supply"),
+    _num("rulebook.dev_sell_exit", "Rulebook: dev sold share to sell", "Rulebook", "pct",
+         _d(RULEBOOK, "dev_sell_exit"), 0.10, 1.0, "of dev bag"),
     # ---------- signal engine (buy/sell recommendation gate) ----------
     Setting("signal.enabled", "Signal gate on", "Signal", "bool",
             lambda: bool(SIGNAL.get("enabled", True)),

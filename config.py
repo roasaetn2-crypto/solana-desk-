@@ -351,6 +351,28 @@ ENTRY = {
     "require_confirm_quote": True, # no confirming quote -> no trade
 }
 
+# ---------- Romz's scalping rulebook (PAPER only) ----------
+# Extra entry gates and fast exits, enforced in PAPER mode only (live never reads
+# them). Entry gates treat missing / unknown data as SKIP, never as a pass.
+# Fast exits treat missing data as "no forced exit" (logged).
+RULEBOOK = {
+    "tx_ratio_gate": True,          # 5m buys / sells must be above min_buy_sell_ratio
+    "min_buy_sell_ratio": 1.2,
+    "lp_gate": True,                # LP burned or locked (RugCheck lpLockedPct of the main market)
+    "min_lp_locked_pct": 0.90,
+    "impact_gate": True,            # Jupiter buy-side price impact for the actual ticket
+    "max_price_impact": 0.02,
+    "volume_rising_gate": True,     # 5m volume above the previous 5m
+    "no_chase_gate": True,          # skip if the current 5m candle is already up this much
+    "max_candle_up": 0.40,
+    "exit_on_liq_drop": True,       # sell if pool liquidity fell this much from entry
+    "liq_drop_exit": 0.20,
+    "exit_on_holder_sell": True,    # sell if the dev or the top-10 wallets sell
+    "top10_drop_exit": 0.05,        # top-10 share fell by >= 5 points of supply since entry
+    "dev_sell_exit": 0.50,          # dev sold >= half of what he held at entry
+    "holder_check_s": 120,          # re-read holders (RugCheck) at most once per position per 2 min
+}
+
 # ---------- Trade signal engine (buy / sell recommendation) ----------
 # Turns the recorded fields into a clear, auditable call:
 #   action      BUY | SELL | HOLD | AVOID
@@ -512,7 +534,11 @@ BENCH_MINUTES = {
 }
 BENCH_MINUTES.update({"style": 30, "chase": 20, "price_gap": 10, "liq_unconfirmed": 15, "no_confirm_quote": 5,
                       "scalp_age": 10, "scalp_mcap": 15, "scalp_liquidity": 10,
-                      "scalp_candle": 3})   # re-check on the next 5m candle, not 30 min later
+                      "scalp_candle": 3})
+# rulebook gates: data-missing skips re-check soon; real "no" answers sit longer
+BENCH_MINUTES.update({"tx_ratio_low": 5, "tx_ratio_unknown": 3, "lp_unlocked": 60, "lp_unknown": 10,
+                      "impact_high": 10, "impact_unknown": 3, "vol_falling": 5, "vol_unknown": 3,
+                      "no_chase": 10, "chase_unknown": 3})   # re-check on the next 5m candle, not 30 min later
 DEFAULT_BENCH = 30
 
 # ---------- Meme coin value framework ----------

@@ -31,12 +31,13 @@ from datetime import date, datetime, timezone
 
 import requests
 
-from config import AGENT, ENTRY, EXECUTION, EXITS, FOMO, MEME, PAPER, RISK, SCALP
+from config import AGENT, ENTRY, EXECUTION, EXITS, FOMO, MEME, PAPER, RISK, RULEBOOK, SCALP
 from desk.brain_advisor import ADVISOR, should_advise, wants_entry, wants_exit
 from desk import (analyst, analyst_ai, brain, chain, dexscreener, devcheck, dialogue, exits, fomo, goplus, gmgn,
                   groq_postmortem, groq_sizer, guard, heartbeat, helius, meme, meme_tactics,
                   pumpportal, regime, risk, scanner, signal_engine, signals, social)
 from desk import chart as candle_chart
+from desk import rulebook
 from desk import links as fomo_links
 from desk.age import created_at_of
 from desk import equity_curve
@@ -127,7 +128,7 @@ class SolanaAgent:
         self.stats = {"cycles": 0, "seen": 0, "free_rejects": 0, "chain_rejects": 0,
                       "dev_rejects": 0, "meme_rejects": 0, "analyst_calls": 0,
                       "risk_rejects": 0, "sec_rejects": 0, "guard_rejects": 0, "floor_rejects": 0,
-                      "signal_rejects": 0, "shadow_blocks": 0,
+                      "signal_rejects": 0, "shadow_blocks": 0, "rulebook_rejects": 0,
                       "entries": 0, "exits": 0, "dialogues": 0,
                       "errors": 0}
         self.equity_curve: deque = deque(maxlen=equity_curve.MAX_POINTS)
@@ -609,6 +610,10 @@ class SolanaAgent:
             self.data_source = source
         ADVISOR.new_cycle()
         analyst_ai.new_cycle()
+        try:    # rulebook: remember each pool's rolling 5m volume (no HTTP)
+            rulebook.record_volume(tokens)
+        except Exception:
+            pass
 
         # rank by volume churn: the loudest pools first
         tokens.sort(key=lambda t: t["volume_h1"] / max(t["mcap_usd"], 1), reverse=True)
@@ -757,6 +762,25 @@ class SolanaAgent:
                                   stage="chain", reason=k, symbol=t["symbol"], mint=t["mint"])
                         journal("reject", stage="chain", mint=t["mint"], symbol=t["symbol"],
                                 reason=k, facts=f)
+                        continue
+
+                # Romz's rulebook, PAPER only: 5m buy/sell ratio and LP lock (no extra
+                # calls), then 5m volume rising and no-chase on 5m candles. Missing
+                # data is a skip, never a pass.
+                if self.mode != "live" and not t["mint"].startswith("DEMO"):
+                    k = rulebook.tx_ratio_gate(ds) or rulebook.lp_gate(dev)
+                    if not k and (RULEBOOK.get("volume_rising_gate", True)
+                                  or RULEBOOK.get("no_chase_gate", True)):
+                        try:
+                            rb5 = (candle_chart.series(t["mint"], "5m", session=self.session)
+                                   .get("candles") or [])
+                        except Exception:
+                            rb5 = []
+                        _now_s = time.time()
+                        k = (rulebook.volume_gate(t, rb5, _now_s)
+                             or rulebook.chase_gate(rb5, t, ds, _now_s))
+                    if k:
+                        self._rule_skip(t, k)
                         continue
 
                 # Memecoin tactics B (pullback), A (ATR stop) and D (volatility
@@ -1041,6 +1065,16 @@ class SolanaAgent:
                     except Exception:
                         pass
 
+                # Rulebook (PAPER): Jupiter price impact for the actual ticket. Reuses the
+                # caution layer's quote (taken for a ticket >= this one, so an upper bound);
+                # no quote / no route / rate-limited = skip.
+                if self.mode != "live":
+                    _g = sizes.get("guard") or {}
+                    k = rulebook.impact_gate(_g.get("jupiter"), _g.get("ticket_before"), ticket)
+                    if k:
+                        self._rule_skip(t, k)
+                        continue
+
                 # MERGE (old desk research.py): confirm price + liquidity on a second read before filling
                 buy_price = t["price_usd"]
                 if self.mode != "live":
@@ -1095,14 +1129,21 @@ class SolanaAgent:
                       f"red flags: {flags}\nhttps://dexscreener.com/solana/{t['mint']}")
                 try:
                     _sh = sig.get("tactic_shadow")
+                    _meta = ({"shadow_block": bool(_sh.get("would_block")),
+                              "shadow_why": _sh.get("why"),
+                              "shadow_drop": _sh.get("drop_pct")}
+                             if _sh else {})
+                    if self.mode != "live":
+                        # rulebook fast exits compare against these
+                        _meta.update({"entry_liq": (cq or {}).get("liquidity_usd") or t.get("liquidity_usd"),
+                                      # same basis (RugCheck) as the exit's re-read
+                                      "entry_top10": (dev.get("concentration") or {}).get("top_10_pct"),
+                                      "entry_dev_hold": dev.get("creator_hold_pct")})
                     fill = self.broker.buy(
                         t["mint"], t["symbol"], ticket, buy_price,
                         horizon=sizes.get("horizon", "swing"),
                         groq_mult=(sizes.get("guard", {}).get("groq") or {}).get("mult"),
-                        meta=({"shadow_block": bool(_sh.get("would_block")),
-                               "shadow_why": _sh.get("why"),
-                               "shadow_drop": _sh.get("drop_pct")}
-                              if _sh else None))
+                        meta=_meta or None)
                 except live_mod.LiveError as e:
                     self.stats["errors"] += 1
                     self.emit("error", f"{t['symbol']}: live order refused \u2014 {e}",
@@ -1285,7 +1326,8 @@ class SolanaAgent:
             breaker=brk, block_flags=sec["block"], quote_confirmed=None,
             paper_only=self.mode != "live", live_armed=live_armed)
         info = {"mult": mult, "cuts": names, "breaker": brk["state"], "ticket_before": ticket,
-                "jupiter_impact_pct": jup.get("impact_pct"), "checklist": checklist}
+                "jupiter_impact_pct": jup.get("impact_pct"), "checklist": checklist,
+                "jupiter": {k: jup.get(k) for k in ("available", "route", "impact")}}
         if groq_info:
             info["groq"] = {k: groq_info.get(k) for k in
                             ("mult", "source", "confidence", "reasons", "latency_ms")}
@@ -1344,6 +1386,45 @@ class SolanaAgent:
             return live + demo, (label + "+demo" if live else "demo")
         return live, scanner.source_label(live)
 
+    def _rule_skip(self, t: dict, reason: str) -> None:
+        """One concise line per rulebook skip; the bench keeps it from repeating."""
+        self.bench.sit(t["mint"], reason)
+        with self.lock:
+            self.stats["rulebook_rejects"] = self.stats.get("rulebook_rejects", 0) + 1
+        msg = f"gate: ${t.get('symbol')} skip {reason}"
+        self.emit("reject", msg, stage="rulebook", reason=reason, symbol=t.get("symbol"),
+                  mint=t["mint"])
+        journal("reject", stage="rulebook", mint=t["mint"], symbol=t.get("symbol"), reason=reason)
+        print(msg, flush=True)
+
+    def _rulebook_exit(self, mint: str, pos: dict, q: dict | None):
+        """PAPER fast exits: liquidity -20% from entry, or the dev / top-10 sold.
+        Missing data never forces a sell; it is logged once per position."""
+        sym = pos.get("symbol") or mint[:6]
+        notes = []
+        why, note = rulebook.liq_exit(pos, q)
+        if note:
+            notes.append(note)
+        if not why and RULEBOOK.get("exit_on_holder_sell", True):
+            if pos.get("entry_top10") is None and pos.get("entry_dev_hold") is None:
+                notes.append("no entry holder snapshot")
+            else:
+                snap = devcheck.holder_snapshot(mint, self.session,
+                                                max_age_s=float(RULEBOOK.get("holder_check_s", 120)))
+                why, note = rulebook.holder_exit(pos, snap)
+                if note:
+                    notes.append(note)
+        if why:
+            print(f"exit: ${sym} {why}", flush=True)
+            return (1.0, why)
+        if notes:
+            key = "; ".join(notes)
+            seen = self.__dict__.setdefault("_rb_notes", {})
+            if seen.get(mint) != key:
+                seen[mint] = key
+                print(f"exit: ${sym} rulebook no forced exit ({key})", flush=True)
+        return None
+
     def _manage_positions(self):
         # Bind the seat ONCE. `self.broker` is a property that returns self.live
         # when mode == "live" and self.paper otherwise. The operator can arm or
@@ -1378,6 +1459,8 @@ class SolanaAgent:
                         price_usd=q.get("price_usd"), volume_h6=q.get("volume_h6"),
                         volume_h24=q.get("volume_h24"), liquidity_usd=q.get("liquidity_usd"))
             sig = brk.exit_signal(mint, q)
+            if not sig and brk is self.paper and self.mode != "live" and not mint.startswith("DEMO"):
+                sig = self._rulebook_exit(mint, book.get(mint) or {}, q)
             # Signal-driven exit: a strong bearish flip cuts a held position even when
             # no rule-based exit (TP / stop / trail / timeout) has fired yet. Rule-based
             # exits always take priority; this is the extra safety net. Configurable
