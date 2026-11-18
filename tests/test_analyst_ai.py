@@ -20,7 +20,7 @@ GOOD = ('{"verdict":"valid_setup","score":8,"red_flags":[],"green_flags":["ok"],
 
 @pytest.fixture(autouse=True)
 def clean(tmp_path, monkeypatch):
-    for k in ("DESK_BRAIN", "DESK_BRAIN_AUTODETECT", "XAI_API_KEY", "GROK_API_KEY",
+    for k in ("DESK_BRAIN", "DESK_BRAIN_AUTODETECT", "XAI_API_KEY",
               "GROQ_API_KEY", "BRAIN_ANALYST_AI"):
         monkeypatch.delenv(k, raising=False)
     monkeypatch.setenv("BRAIN_ANALYST_AI_STATE", str(tmp_path / "s.json"))

@@ -19,11 +19,11 @@ import config
 
 # provider -> (label, base url, key env, model env, default model)
 _PROVIDERS = {
-    "xai": ("xAI Grok", "https://api.x.ai/v1", "XAI_API_KEY", "BRAIN_ANALYST_XAI_MODEL", "grok-4.7"),
+    "xai": ("xAI Grok", config.XAI["base_url"], "XAI_API_KEY", "BRAIN_XAI_MODEL",
+            config.XAI["model"]),
     "groq": ("Groq", "https://api.groq.com/openai/v1", "GROQ_API_KEY", "BRAIN_ANALYST_GROQ_MODEL",
              "openai/gpt-oss-20b"),
 }
-_KEY_ALIASES = {"xai": ("XAI_API_KEY", "GROK_API_KEY")}
 
 _lock = threading.Lock()
 _cycle_calls = 0
@@ -67,11 +67,8 @@ def _save(s: dict) -> None:
 
 
 def _key(name: str) -> str:
-    for env in _KEY_ALIASES.get(name, (_PROVIDERS[name][2],)):
-        v = (os.getenv(env, "") or "").strip().strip('"').strip("'")
-        if len(v) >= 8:
-            return v
-    return ""
+    v = (os.getenv(_PROVIDERS[name][2], "") or "").strip().strip('"').strip("'")
+    return v if len(v) >= 8 else ""
 
 
 def model_for(name: str) -> str:

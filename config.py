@@ -225,6 +225,17 @@ ANALYST_MAX_RED_FOR_VALID = 3        # red flags allowed on a valid setup
 # The model only fills the same TokenThesis; code re-checks valid_setup against
 # ANALYST_VALID_SCORE / ANALYST_MAX_RED_FOR_VALID, and any error, timeout, 429 or spent budget
 # falls straight back to the heuristic. Set enabled=False to put the heuristic back.
+# xAI Grok (OpenAI-compatible https://api.x.ai/v1). Key: env XAI_API_KEY only. Used by the PAPER
+# analyst (desk/analyst_ai.py) and the Desk AI chat (the Xai provider in the advisor module), FIRST
+# when the key exists. xAI's cheapest fast general chat model (docs.x.ai/developers/models,
+# Nov 2026): grok-4.20-0309-non-reasoning, $1.25 in / $2.50 out per 1M tokens, no reasoning
+# tokens billed. Override with BRAIN_XAI_MODEL.
+XAI = {
+    "base_url": "https://api.x.ai/v1",
+    "model": "grok-4.20-0309-non-reasoning",
+    "chat_daily_cap": 100,          # Desk AI chat/recommend calls per UTC day (falls back to the free providers)
+}
+
 ANALYST_AI = {
     "enabled": True,
     "prefer": ("xai", "groq"),      # first one with a key wins; the next is the fallback

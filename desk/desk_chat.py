@@ -46,7 +46,7 @@ _BT_KEY_ALIASES = {
     "min_score": None, "max_chase": None, "min_alive_6h": None,
 }
 
-NO_KEYS_MSG = ("AI keys not set. Add GEMINI_API_KEY, GROQ_API_KEY or OPENROUTER_API_KEY on "
+NO_KEYS_MSG = ("AI keys not set. Add XAI_API_KEY (Grok), GEMINI_API_KEY, GROQ_API_KEY or OPENROUTER_API_KEY on "
                "Render to switch me on. The desk itself keeps paper trading without me.")
 
 SYSTEM = """You are Desk AI, a friendly robot-cat assistant on a PAPER-trading Solana memecoin desk.
@@ -856,11 +856,11 @@ def _parse(text) -> dict | None:
 
 
 def _providers():
-    return [p for p in ADVISOR.providers() if p.available()]
+    return [p for p in ADVISOR.chat_providers() if p.available()]
 
 
 def has_keys() -> bool:
-    return any(p.key() for p in ADVISOR.providers())
+    return any(p.key() for p in ADVISOR.chat_providers())
 
 
 def _history(history) -> list[dict]:
@@ -945,7 +945,7 @@ def answer(question: str, state: dict, history=None, settings: list | None = Non
 def _error_classes() -> dict:
     """{provider: error class} for keyed providers, e.g. {"gemini": "rate_limited"}."""
     out = {}
-    for p in ADVISOR.providers():
+    for p in ADVISOR.chat_providers():
         if not p.key():
             continue
         h = p.health()
@@ -969,6 +969,16 @@ def health() -> dict:
     return {"chat_enabled": chat_enabled(), "keys_present": has_keys(), **ADVISOR.health()}
 
 
+def _grok_status() -> dict:
+    """xAI Grok: provider, model, key PRESENT or not (never the key), today's use and cap."""
+    x = ADVISOR.xai
+    snap = x.snapshot()
+    return {"provider": "xai", "model": x.model, "key_present": bool(x.key()),
+            "used_today": snap["used_today"], "daily_cap": snap["budget"],
+            "cooling_s": snap["cooldown_s"], "last_error": x.last_error,
+            "first_choice": bool(x.key())}
+
+
 def status() -> dict:
     keyed = has_keys()
     ready = chat_enabled()
@@ -976,7 +986,8 @@ def status() -> dict:
             "state": "online" if ready else ("busy" if keyed else "no_keys"),
             "errors": _error_classes(), "limits": LIMITER.snapshot(),
             "quota": ADVISOR.quota(),
-            "providers": [p.name for p in ADVISOR.providers() if p.key()]}
+            "providers": [p.name for p in ADVISOR.chat_providers() if p.key()],
+            "grok": _grok_status()}
 
 
 def performance(state: dict, backtest: dict | None) -> dict:
