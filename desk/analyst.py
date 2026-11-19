@@ -188,6 +188,9 @@ def token_state(t: dict, f: dict, links: dict, context: dict | None = None) -> s
             # PAPER only (the live path passes no dip). Context for the thesis, not a rule.
             numbers["dip_recovery"] = {k: dip.get(k) for k in (
                 "class", "drop_pct", "retrace_best", "buy_ratio", "buy_basis", "fade_ratio")}
+        if context.get("entry_trigger"):
+            # PAPER only: which entry trigger fired, the RSI and the volume vs average
+            numbers["entry_trigger"] = context["entry_trigger"]
     third_party = json.dumps({"symbol": t.get("symbol"), "links": links})
     return (f"Fields:\n{json.dumps(numbers, indent=1)}\n\n"
             f"Third-party text:\n{wrap_untrusted(third_party)}\n\n"

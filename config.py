@@ -397,6 +397,17 @@ RULEBOOK = {
     "dip_min_recover_pct": 0.50,    # share of the drop the bounce must win back
     "dip_min_buy_ratio": 1.3,       # buy / sell pressure during the bounce (5m txns, else green/red volume)
     "dip_lookback_min": 30,         # minutes of 1m candles read
+    # Entry-trigger gate (desk/entry_trigger.py), PAPER only, default ON (Romz): a coin must fire at
+    # least one trigger, on top of every other gate. A = RSI oversold (turning up) on short bars,
+    # B = close above the prior-N-minute high on >= breakout_vol_mult x average volume.
+    # Nothing fired -> no_trigger; neither computable -> trigger_unknown (missing data = skip).
+    "entry_trigger_gate": True,
+    "rsi_period": 14,
+    "rsi_oversold": 30,             # RSI below this is oversold
+    "rsi_require_turn": True,       # the latest bar must also close up (RSI turning up)
+    "rsi_timeframe": "15s",         # "15s" (from price ticks) or "1m"; the other is the fallback
+    "breakout_lookback": 20,        # minutes of 1m candles that set resistance and average volume
+    "breakout_vol_mult": 2.0,       # breakout candle volume vs the average of those minutes
 }
 
 # ---------- Confirmed scalp entry + momentum exit (PAPER only, desk/confirm.py) ----------
@@ -591,7 +602,7 @@ BENCH_MINUTES.update({"style": 30, "chase": 20, "price_gap": 10, "liq_unconfirme
 BENCH_MINUTES.update({"tx_ratio_low": 5, "tx_ratio_unknown": 3, "lp_unlocked": 60, "lp_unknown": 10,
                       "impact_high": 10, "impact_unknown": 3, "vol_falling": 5, "vol_unknown": 3,
                       "no_chase": 10, "chase_unknown": 3,
-                       "dip_dead": 10})   # re-check on the next 5m candle, not 30 min later
+                       "dip_dead": 10, "no_trigger": 2, "trigger_unknown": 2})   # re-check on the next 5m candle, not 30 min later
 DEFAULT_BENCH = 30
 
 # ---------- Meme coin value framework ----------

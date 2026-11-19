@@ -37,7 +37,7 @@ from desk import (analyst, analyst_ai, brain, chain, dexscreener, devcheck, dial
                   groq_postmortem, groq_sizer, guard, heartbeat, helius, meme, meme_tactics,
                   pumpportal, regime, risk, scanner, signal_engine, signals, social)
 from desk import chart as candle_chart
-from desk import dip_recovery, rulebook
+from desk import dip_recovery, entry_trigger, rulebook
 from desk import confirm as entry_confirm
 from desk import links as fomo_links
 from desk.age import created_at_of
@@ -134,6 +134,8 @@ class SolanaAgent:
                       "dev_rejects": 0, "meme_rejects": 0, "analyst_calls": 0,
                       "risk_rejects": 0, "sec_rejects": 0, "guard_rejects": 0, "floor_rejects": 0,
                       "signal_rejects": 0, "shadow_blocks": 0, "rulebook_rejects": 0,
+                      "trigger_pass": 0, "trigger_none": 0, "trigger_unknown": 0,
+                      "breakout_blocked_no_chase": 0,
                       "entries": 0, "exits": 0, "dialogues": 0,
                       "errors": 0}
         self.equity_curve: deque = deque(maxlen=equity_curve.MAX_POINTS)
@@ -801,6 +803,8 @@ class SolanaAgent:
                         _now_s = time.time()
                         k = (rulebook.volume_gate(t, rb5, _now_s)
                              or rulebook.chase_gate(rb5, t, ds, _now_s))
+                    if k == "no_chase":
+                        self._count_breakout_vs_no_chase(t)
                     if k:
                         self._rule_skip(t, k)
                         continue
@@ -818,6 +822,26 @@ class SolanaAgent:
                                   dip_class=dip["class"])
                         print(msg, flush=True)
                     if (k := dip_recovery.gate(dip)):
+                        self._rule_skip(t, k)
+                        continue
+
+                # Entry trigger, PAPER only (Romz): RSI oversold turning up on short bars, or a
+                # breakout above resistance on 2x average volume. Cache-first reads, no flood.
+                # Computed before the analyst so Grok sees the RSI and the volume multiple.
+                trig = None
+                if self.mode != "live" and not t["mint"].startswith("DEMO"):
+                    trig = entry_trigger.evaluate(t["mint"], session=self.session)
+                    k = entry_trigger.gate(trig)
+                    stat = ("trigger_pass" if trig["fired"] else
+                            "trigger_none" if trig["reason"] == entry_trigger.SKIP_NONE else "trigger_unknown")
+                    with self.lock:
+                        self.stats[stat] = self.stats.get(stat, 0) + 1
+                    msg = f"trigger: ${t.get('symbol')} {entry_trigger.describe(trig)}"
+                    print(msg, flush=True)
+                    if trig["fired"]:
+                        self.emit("info", msg, stage="trigger", symbol=t.get("symbol"), mint=t["mint"],
+                                  **entry_trigger.tag(trig))
+                    if k:
                         self._rule_skip(t, k)
                         continue
 
@@ -936,7 +960,8 @@ class SolanaAgent:
                                            context={"scorecard": sc, "dev": dev, "ds": ds,
                                                     "security": {"flags": [c["t"] for c in sec["chips"]],
                                                                  "regime": self.regime.get("tag")},
-                                                    "dip": dip})
+                                                    "dip": dip,
+                                                    "entry_trigger": entry_trigger.facts(trig)})
                 analyst_left -= 1
                 self.stats["analyst_calls"] += 1
 
@@ -1022,6 +1047,11 @@ class SolanaAgent:
                     chips = list(chips) + [signals.chip(
                         "dip_recovered" if dip["class"] == dip_recovery.RECOVERED else "dip_dead",
                         "info", "dip")]
+                if trig and trig.get("fired"):
+                    sizes["entry_trigger"] = {**entry_trigger.tag(trig), "detail": entry_trigger.describe(trig)}
+                    chips = list(chips) + [signals.chip(
+                        "trigger_rsi" if trig["fired"] == entry_trigger.RSI_OVERSOLD else "trigger_breakout",
+                        "info", "trigger")]
                 # the seats talk to each other before anything is filled
                 convo = dialogue.debate(t, f, ds, dev, sc, th.model_dump(), ok, ticket,
                                         reason, sizes)
@@ -1043,6 +1073,7 @@ class SolanaAgent:
                     "checklist": sizes.get("guard", {}).get("checklist"),
                     "signal": sig,
                     "dip_recovery": dip,
+                    "entry_trigger": entry_trigger.tag(trig) if trig else None,
                 }
                 self._advise(t, f, dev, sc, sec, links, decision, th)   # advisory only, never blocks
                 with self.lock:
@@ -1194,6 +1225,10 @@ class SolanaAgent:
                                       "entry_dev_hold": dev.get("creator_hold_pct")})
                         if f.get("entry_candle_low"):
                             _meta["entry_candle_low"] = f["entry_candle_low"]
+                        if trig and trig.get("fired"):
+                            _meta.update({"entry_trigger": trig["fired"], "entry_rsi": trig.get("rsi_value"),
+                                          "entry_rsi_tf": trig.get("rsi_tf"),
+                                          "entry_vol_mult": trig.get("vol_mult")})
                     fill = self.broker.buy(
                         t["mint"], t["symbol"], ticket, buy_price,
                         horizon=sizes.get("horizon", "swing"),
@@ -1206,7 +1241,8 @@ class SolanaAgent:
                     journal("reject", stage="live", mint=t["mint"], symbol=t["symbol"],
                             reason=str(e))
                     continue
-                journal("entry", **fill)
+                _tg = entry_trigger.tag(trig) if (trig and trig.get("fired")) else {}
+                journal("entry", **fill, **{k: v for k, v in _tg.items() if k not in fill})
                 pos_row = self.broker.s["positions"].get(t["mint"])
                 if pos_row is not None and self.mode != "live":
                     # entry context for the ticket chips and the exit review (paper ledger only)
@@ -1219,7 +1255,7 @@ class SolanaAgent:
                 self.emit("entry", f"{tag} ${t['symbol']} \u2014 ticket ${ticket} "
                                    f"(score {th.score}/10)",
                           **{k: fill[k] for k in ("mint", "symbol", "qty", "fill", "ticket_usd")},
-                          score=th.score, live=self.mode == "live", tx=fill.get("tx"))
+                          score=th.score, live=self.mode == "live", tx=fill.get("tx"), **_tg)
                 self._mark_trade("buy", fill, usd=ticket, mcap_usd=t.get("mcap_usd"))
             except Exception as e:  # one bad token must not kill the cycle
                 with self.lock:
@@ -1468,6 +1504,21 @@ class SolanaAgent:
                   mint=t["mint"])
         journal("reject", stage="rulebook", mint=t["mint"], symbol=t.get("symbol"), reason=reason)
         print(msg, flush=True)
+
+    def _count_breakout_vs_no_chase(self, t: dict) -> None:
+        """no_chase is about to skip this coin. If a breakout trigger would have fired on it, count
+        that collision (cache-only read, no request) so Romz can see what no_chase costs."""
+        try:
+            b = entry_trigger.read_breakout(t["mint"], time.time(), self.session, fetch=False)
+        except Exception:
+            return
+        if b.get("state") != entry_trigger.FIRE:
+            return
+        with self.lock:
+            self.stats["breakout_blocked_no_chase"] = self.stats.get("breakout_blocked_no_chase", 0) + 1
+        print(f"trigger: ${t.get('symbol')} breakout ({b.get('vol_mult')}x vol) blocked by no_chase", flush=True)
+        self.emit("info", f"trigger: ${t.get('symbol')} breakout blocked by no_chase", stage="trigger",
+                  symbol=t.get("symbol"), mint=t["mint"], reason="breakout_blocked_no_chase")
 
     def _confirm_skip(self, t: dict, ds: dict | None, f: dict) -> bool:
         """Run the confirmed-entry checklist; True = skip this coin (logged + funnel)."""

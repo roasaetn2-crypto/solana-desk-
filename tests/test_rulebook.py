@@ -50,11 +50,13 @@ class Defaults(unittest.TestCase):
     def test_settings_rows_have_bounds_and_only_change_via_confirm(self):
         on()
         keys = [k for k in settings.REGISTRY if k.startswith("rulebook.")]
-        self.assertEqual(len(keys), 19)
+        self.assertEqual(len(keys), 26)
         for k in keys:
             s = settings.REGISTRY[k]
             self.assertFalse(settings._EXCLUDED_RE.search(k), k)
-            if s.kind != "bool":
+            if s.kind == "choice":
+                self.assertTrue(s.choices)
+            elif s.kind != "bool":
                 self.assertIsNotNone(s.lo)
                 self.assertIsNotNone(s.hi)
         # a proposal never applies by itself; Confirm applies it (clamped to bounds)
