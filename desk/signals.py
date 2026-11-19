@@ -24,6 +24,7 @@ LABEL = {
     "serial_launcher": "serial launcher", "paid_promo": "paid promo",
     "regime_risk_off": "risk-off market", "breaker_reduce": "breaker: half size",
     "jup_impact_high": "high price impact", "jup_no_route": "no Jupiter route",
+    "dip_recovered": "recovered a dip", "dip_dead": "died after a dip",
 }
 
 

@@ -109,6 +109,11 @@ def token_state(t: dict, f: dict, links: dict, context: dict | None = None) -> s
         }
         if context.get("security"):
             numbers["security"] = context["security"]
+        dip = context.get("dip")
+        if dip and dip.get("class") in ("recovered_dip", "dead_after_dip"):
+            # PAPER only (the live path passes no dip). Context for the thesis, not a rule.
+            numbers["dip_recovery"] = {k: dip.get(k) for k in (
+                "class", "drop_pct", "retrace_best", "buy_ratio", "buy_basis", "fade_ratio")}
     third_party = json.dumps({"symbol": t.get("symbol"), "links": links})
     return (f"Fields:\n{json.dumps(numbers, indent=1)}\n\n"
             f"Third-party text:\n{wrap_untrusted(third_party)}\n\n"

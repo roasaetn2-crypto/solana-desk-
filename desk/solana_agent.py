@@ -37,7 +37,7 @@ from desk import (analyst, analyst_ai, brain, chain, dexscreener, devcheck, dial
                   groq_postmortem, groq_sizer, guard, heartbeat, helius, meme, meme_tactics,
                   pumpportal, regime, risk, scanner, signal_engine, signals, social)
 from desk import chart as candle_chart
-from desk import rulebook
+from desk import dip_recovery, rulebook
 from desk import confirm as entry_confirm
 from desk import links as fomo_links
 from desk.age import created_at_of
@@ -805,6 +805,22 @@ class SolanaAgent:
                         self._rule_skip(t, k)
                         continue
 
+                # Dip-recovery chart reader, PAPER only. Classifies the last ~30 one-minute
+                # candles (cache-first, rate-limited, no flood). Informational for the log,
+                # analyst and chips; it only blocks a dead_after_dip coin, and only when
+                # rulebook.dip_recovery_gate is ON (default OFF). Unknown never blocks.
+                dip = None
+                if self.mode != "live" and not t["mint"].startswith("DEMO"):
+                    dip = dip_recovery.read(t, ds, self.session)
+                    if dip["class"] in (dip_recovery.RECOVERED, dip_recovery.DEAD):
+                        msg = f"dip: ${t.get('symbol')} {dip_recovery.describe(dip)}"
+                        self.emit("info", msg, stage="dip", symbol=t.get("symbol"), mint=t["mint"],
+                                  dip_class=dip["class"])
+                        print(msg, flush=True)
+                    if (k := dip_recovery.gate(dip)):
+                        self._rule_skip(t, k)
+                        continue
+
                 # Memecoin tactics B (pullback), A (ATR stop) and D (volatility
                 # ceiling) all need one thing the other seats do not produce:
                 # recent candles. Fetched only when the operator switched one of
@@ -919,7 +935,8 @@ class SolanaAgent:
                 th = analyst.analyze_token(t, f, links, mode=self.mode,
                                            context={"scorecard": sc, "dev": dev, "ds": ds,
                                                     "security": {"flags": [c["t"] for c in sec["chips"]],
-                                                                 "regime": self.regime.get("tag")}})
+                                                                 "regime": self.regime.get("tag")},
+                                                    "dip": dip})
                 analyst_left -= 1
                 self.stats["analyst_calls"] += 1
 
@@ -1000,6 +1017,11 @@ class SolanaAgent:
                             reason = budget_reason
                             self.emit("info", f"risk budget: skip ${t['symbol']} \u2014 {reason}",
                                       stage="risk")
+                if dip and dip["class"] in (dip_recovery.RECOVERED, dip_recovery.DEAD):
+                    sizes["dip_recovery"] = dip      # information only: never changes the ticket
+                    chips = list(chips) + [signals.chip(
+                        "dip_recovered" if dip["class"] == dip_recovery.RECOVERED else "dip_dead",
+                        "info", "dip")]
                 # the seats talk to each other before anything is filled
                 convo = dialogue.debate(t, f, ds, dev, sc, th.model_dump(), ok, ticket,
                                         reason, sizes)
@@ -1020,6 +1042,7 @@ class SolanaAgent:
                     "flags": chips, "regime": self.regime.get("tag"),
                     "checklist": sizes.get("guard", {}).get("checklist"),
                     "signal": sig,
+                    "dip_recovery": dip,
                 }
                 self._advise(t, f, dev, sc, sec, links, decision, th)   # advisory only, never blocks
                 with self.lock:

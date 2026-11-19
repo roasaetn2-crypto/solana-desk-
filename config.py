@@ -389,6 +389,14 @@ RULEBOOK = {
     "top10_drop_exit": 0.05,        # top-10 share fell by >= 5 points of supply since entry
     "dev_sell_exit": 0.50,          # dev sold >= half of what he held at entry
     "holder_check_s": 120,          # re-read holders (RugCheck) at most once per position per 2 min
+    # Dip-recovery chart reader (desk/dip_recovery.py). Default OFF: only Romz's own Confirm turns the
+    # gate on. ON skips dead_after_dip coins (reason dip_dead); unknown / no_dip / recovered never block.
+    "dip_recovery_gate": False,
+    "dip_min_drop_pct": 0.20,       # a drawdown this deep from the local high counts as a dip
+    "dip_recover_window_min": 5,    # minutes after the low in which the bounce must show
+    "dip_min_recover_pct": 0.50,    # share of the drop the bounce must win back
+    "dip_min_buy_ratio": 1.3,       # buy / sell pressure during the bounce (5m txns, else green/red volume)
+    "dip_lookback_min": 30,         # minutes of 1m candles read
 }
 
 # ---------- Confirmed scalp entry + momentum exit (PAPER only, desk/confirm.py) ----------
@@ -582,7 +590,8 @@ BENCH_MINUTES.update({"style": 30, "chase": 20, "price_gap": 10, "liq_unconfirme
 # rulebook gates: data-missing skips re-check soon; real "no" answers sit longer
 BENCH_MINUTES.update({"tx_ratio_low": 5, "tx_ratio_unknown": 3, "lp_unlocked": 60, "lp_unknown": 10,
                       "impact_high": 10, "impact_unknown": 3, "vol_falling": 5, "vol_unknown": 3,
-                      "no_chase": 10, "chase_unknown": 3})   # re-check on the next 5m candle, not 30 min later
+                      "no_chase": 10, "chase_unknown": 3,
+                       "dip_dead": 10})   # re-check on the next 5m candle, not 30 min later
 DEFAULT_BENCH = 30
 
 # ---------- Meme coin value framework ----------
