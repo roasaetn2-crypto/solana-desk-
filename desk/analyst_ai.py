@@ -130,26 +130,48 @@ def _http():
     return _session
 
 
+def _scrub(text: str, name: str) -> str:
+    """An error body trimmed for logs: never the key, never a long token-looking string."""
+    import re
+    k = _key(name)
+    text = (text or "").replace(k, "***") if k else (text or "")
+    text = re.sub(r"(?:gsk_|xai-|sk-)[A-Za-z0-9_\-]{8,}", "***", text)
+    return " ".join(text.split())[:160]
+
+
+def _body(name: str, system: str, user: str) -> dict:
+    body = {"model": model_for(name), "temperature": 0.2,
+            "response_format": {"type": "json_object"},
+            "messages": [{"role": "system", "content": system},
+                         {"role": "user", "content": user}]}
+    mt = int(_cfg().get("max_tokens", 1500))
+    if name == "groq":
+        # gpt-oss is a reasoning model on Groq: its thinking counts against the cap, so keep the
+        # effort low and use max_completion_tokens (JSON object mode itself is supported on it).
+        body["max_completion_tokens"] = max(mt, 800)
+        body["reasoning_effort"] = "low"
+    else:
+        body["max_tokens"] = mt
+    return body
+
+
 def _call(name: str, system: str, user: str) -> str:
     label, base, _env, _menv, _dm = _PROVIDERS[name]
     r = _http().post(
         f"{base}/chat/completions",
         headers={"Authorization": f"Bearer {_key(name)}", "Content-Type": "application/json"},
-        json={"model": model_for(name), "temperature": 0.2,
-              "max_tokens": int(_cfg().get("max_tokens", 1500)),
-              "response_format": {"type": "json_object"},
-              "messages": [{"role": "system", "content": system},
-                           {"role": "user", "content": user}]},
+        json=_body(name, system, user),
         timeout=float(_cfg().get("timeout_s", 8)),
     )
     if r.status_code >= 400:
-        raise RuntimeError(f"HTTP {r.status_code}")
+        raise RuntimeError(f"HTTP {r.status_code}: {_scrub(getattr(r, 'text', ''), name)}")
     return r.json()["choices"][0]["message"]["content"]
 
 
 def _rest(name: str, why: str) -> None:
     _cooldown_until[name] = time.time() + float(_cfg().get("cooldown_s", 300))
-    _last_error[name] = why[:80]
+    _last_error[name] = why[:200]
+    print(f"[desk] analyst_ai: {name} failed, resting: {why[:200]}", flush=True)
 
 
 def thesis(system: str, user: str, schema):
