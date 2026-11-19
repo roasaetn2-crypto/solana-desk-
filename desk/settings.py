@@ -1399,9 +1399,29 @@ def confirm(pid: str, who: str) -> dict:
             applied.append({"setting": s.key, "label": s.label, "from": old, "to": s.get()})
         _persist_values({a["setting"]: a["to"] for a in applied})
         p["status"], p["decided_at"], p["decided_by"], p["applied"] = "confirmed", _iso(now), _clean(who, 40), applied
+        p["decided"] = now
         _save_proposals()
     _log("confirm", p, who, applied)
     return {"ok": True, "proposal": public(p), "applied": applied}
+
+
+def change_times() -> list[float]:
+    """Epoch times of confirmed settings changes (from the persisted proposals), oldest
+    first. Trades that close within guard.ARTIFACT_WINDOW_S after one are artifacts of
+    the change and are left out of the breaker's loss streak."""
+    out: list[float] = []
+    with _lock:
+        for p in _load_proposals():
+            if p.get("status") != "confirmed":
+                continue
+            t = p.get("decided")
+            if not isinstance(t, (int, float)):
+                try:     # proposals confirmed before `decided` existed: local ISO time
+                    t = time.mktime(time.strptime(str(p.get("decided_at")), "%Y-%m-%dT%H:%M:%S"))
+                except (ValueError, TypeError, OverflowError):
+                    continue
+            out.append(float(t))
+    return sorted(out)
 
 
 def reject(pid: str, who: str) -> dict:

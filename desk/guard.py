@@ -28,13 +28,37 @@ BREAKER = {
 MIN_SIZE_MULT = 0.25                 # stacked cuts never go below a quarter
 
 
-def loss_streak(closed: list[dict]) -> tuple[int, float | None]:
+# A trade that closes this soon after a settings Confirm / preset / saved change was
+# decided by the change (new stops and exits hitting an open position), not by the
+# market, so it must not count toward the loss streak.
+ARTIFACT_WINDOW_S = 60.0
+
+
+def is_settings_artifact(c: dict, change_times: list[float] | None,
+                         window_s: float = ARTIFACT_WINDOW_S) -> bool:
+    """True when this closed trade was flagged, or closed within `window_s` after a
+    settings change (a time in `change_times`, epoch seconds)."""
+    if c.get("settings_artifact"):
+        return True
+    t = c.get("closed")
+    if not change_times or not isinstance(t, (int, float)):
+        return False
+    return any(0 <= t - ct <= window_s for ct in change_times)
+
+
+def loss_streak(closed: list[dict], change_times: list[float] | None = None) -> tuple[int, float | None]:
     """(consecutive losses at the end of the closed list, time of the last one).
-    `closed` is oldest-first, as stored in the paper ledger."""
+    `closed` is oldest-first, as stored in the paper ledger.
+
+    Trades that closed within ARTIFACT_WINDOW_S after a settings change are
+    skipped: they neither add to the streak nor break it. The ledger is not
+    edited, so this is recomputed from the persisted trades on every boot."""
     n, last = 0, None
     for c in reversed(closed or []):
         pnl = c.get("pnl_usd")
         if pnl is None:
+            continue
+        if is_settings_artifact(c, change_times):
             continue
         if pnl < 0:
             n += 1
@@ -45,15 +69,17 @@ def loss_streak(closed: list[dict]) -> tuple[int, float | None]:
 
 
 def circuit_breaker(closed: list[dict], day_pnl: float, day_start: float,
-                    now: float | None = None, pause_enabled: bool | None = None) -> dict:
+                    now: float | None = None, pause_enabled: bool | None = None,
+                    change_times: list[float] | None = None) -> dict:
     """{"state": ok|reduce|cooldown, "mult": 1|0.5|0, "reason": str}. Tighten-only.
 
     pause_enabled=None follows BREAKER["cooldown_enabled"]. False skips ONLY the
-    streak pause; the half-size cuts (loss streak, day loss) still apply."""
+    streak pause; the half-size cuts (loss streak, day loss) still apply.
+    change_times (PAPER only) are settings-change times; see loss_streak."""
     now = time.time() if now is None else now
     if pause_enabled is None:
         pause_enabled = bool(BREAKER.get("cooldown_enabled", True))
-    streak, last = loss_streak(closed)
+    streak, last = loss_streak(closed, change_times)
     if pause_enabled and streak >= BREAKER["streak_pause"] and last is not None \
             and now - last < BREAKER["cooldown_s"]:
         left = int((BREAKER["cooldown_s"] - (now - last)) // 60) + 1

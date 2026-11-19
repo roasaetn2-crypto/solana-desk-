@@ -658,9 +658,19 @@ class SolanaAgent:
                       stage="guard")
             self.regime = {"tag": "UNKNOWN", "halve": False}
         # The pause switch is a PAPER setting. Real money always keeps the pause.
+        # PAPER only: losses that closed within ~60 s of a settings change are artifacts
+        # of the change and are left out of the loss streak. Real money counts every loss.
+        times = None
+        if self.mode != "live":
+            try:
+                from desk import settings as desk_settings
+                times = desk_settings.change_times()
+            except Exception:
+                times = None
         brk = guard.circuit_breaker(self.broker.s["closed"], self.broker.day_pnl(),
                                     self.broker.s["day_start"],
-                                    pause_enabled=True if self.mode == "live" else None)
+                                    pause_enabled=True if self.mode == "live" else None,
+                                    change_times=times)
         if brk["state"] != self.breaker.get("state"):
             self.emit("info" if brk["state"] == "ok" else "warn",
                       f"breaker: {brk['state']} ({brk['reason']})", stage="guard")
@@ -1679,6 +1689,17 @@ class SolanaAgent:
             return hit[1]
         with self.lock:
             broker = self.broker.snapshot()
+            if self.mode != "live":
+                # Tag trades that closed right after a settings change so tuning and
+                # reviews can leave them out (the breaker already does).
+                try:
+                    from desk import settings as desk_settings
+                    ct = desk_settings.change_times()
+                    broker["closed"] = [dict(c, settings_artifact=True)
+                                        if guard.is_settings_artifact(c, ct) else c
+                                        for c in broker.get("closed") or []]
+                except Exception:
+                    pass
             seen = self.tokens_seen
             positions = []
             for p in broker.get("positions") or []:
