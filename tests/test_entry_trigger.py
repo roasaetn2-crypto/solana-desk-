@@ -88,7 +88,7 @@ class Base(unittest.TestCase):
     def setUp(self):
         chart.reset()
         self.addCleanup(chart.reset)
-        p = mock.patch.dict(RULEBOOK, {"entry_trigger_gate": True, "rsi_require_turn": True,
+        p = mock.patch.dict(RULEBOOK, {"rsi_trigger": True, "breakout_trigger": True, "entry_trigger_gate": True, "rsi_require_turn": True,
                                        "rsi_timeframe": "15s"})
         p.start()
         self.addCleanup(p.stop)
@@ -273,7 +273,7 @@ class Settings(unittest.TestCase):
 
     def test_proposal_then_confirm_only(self):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {"DESK_DATA_DIR": tmp}), \
-                mock.patch.dict(RULEBOOK, {"entry_trigger_gate": True, "rsi_period": 14, "rsi_oversold": 30,
+                mock.patch.dict(RULEBOOK, {"rsi_trigger": True, "breakout_trigger": True, "entry_trigger_gate": True, "rsi_period": 14, "rsi_oversold": 30,
                                            "rsi_timeframe": "15s", "breakout_vol_mult": 2.0,
                                            "breakout_lookback": 20, "rsi_require_turn": True}):
             settings.reset_runtime()
@@ -337,7 +337,7 @@ class AgentWiring(unittest.TestCase):
                    mock.patch("desk.solana_agent.signals.security", return_value=CLEAN),
                    mock.patch("desk.solana_agent.signals.entry_impact", return_value=JUP),
                    mock.patch.object(dr, "load_candles", load),
-                   mock.patch.dict(RULEBOOK, {"entry_trigger_gate": gate, "rsi_timeframe": "1m",
+                   mock.patch.dict(RULEBOOK, {"rsi_trigger": True, "breakout_trigger": True, "entry_trigger_gate": gate, "rsi_timeframe": "1m",
                                               **(extra or {})})]
         if cache:                          # the cache-only read the no_chase counter uses
             chart._OHLCV[chart._ohlcv_key("POOLNC", "1m")] = {"at": now, "candles": cs}

@@ -449,6 +449,35 @@ _R += [
          _d(RULEBOOK, "breakout_lookback", int), 5, 60, "min"),
     _num("rulebook.breakout_vol_mult", "Rulebook: breakout volume multiple", "Rulebook", "float",
          _d(RULEBOOK, "breakout_vol_mult"), 1.2, 10.0, "x avg"),
+    Setting("rulebook.rsi_trigger", "Rulebook: RSI oversold trigger", "Rulebook", "bool",
+            lambda: bool(RULEBOOK.get("rsi_trigger", True)),
+            lambda v: RULEBOOK.__setitem__("rsi_trigger", bool(v)),
+            help="PAPER, default ON: the RSI oversold entry trigger counts toward the entry-trigger gate."),
+    Setting("rulebook.breakout_trigger", "Rulebook: breakout trigger", "Rulebook", "bool",
+            lambda: bool(RULEBOOK.get("breakout_trigger", True)),
+            lambda v: RULEBOOK.__setitem__("breakout_trigger", bool(v)),
+            help="PAPER, default ON: the breakout-on-volume entry trigger counts toward the gate."),
+    Setting("rulebook.vwap_trigger", "Rulebook: VWAP reclaim trigger", "Rulebook", "bool",
+            lambda: bool(RULEBOOK.get("vwap_trigger", True)),
+            lambda v: RULEBOOK.__setitem__("vwap_trigger", bool(v)),
+            help="PAPER, default ON: price closed below the session VWAP and is back above it on an up "
+                 "candle. Without per-bar volume it is a plain price average and is labelled price_avg."),
+    _num("rulebook.vwap_lookback_min", "Rulebook: VWAP lookback", "Rulebook", "int",
+         _d(RULEBOOK, "vwap_lookback_min", int), 10, 240, "min"),
+    Setting("rulebook.ema_trigger", "Rulebook: EMA cross trigger", "Rulebook", "bool",
+            lambda: bool(RULEBOOK.get("ema_trigger", True)),
+            lambda v: RULEBOOK.__setitem__("ema_trigger", bool(v)),
+            help="PAPER, default ON: the fast EMA crossed above the slow EMA within the last 2 bars and "
+                 "price is above both."),
+    _num("rulebook.ema_fast", "Rulebook: EMA fast period", "Rulebook", "int",
+         _d(RULEBOOK, "ema_fast", int), 3, 50, "bars"),
+    _num("rulebook.ema_slow", "Rulebook: EMA slow period", "Rulebook", "int",
+         _d(RULEBOOK, "ema_slow", int), 5, 100, "bars"),
+    Setting("rulebook.ema_timeframe", "Rulebook: EMA timeframe", "Rulebook", "choice",
+            lambda: str(RULEBOOK.get("ema_timeframe") or "1m"),
+            lambda v: RULEBOOK.__setitem__("ema_timeframe", str(v)),
+            choices=("1m", "15s"),
+            help="Bars for the EMA cross. 15s comes from price ticks (same sources as the RSI timeframe)."),
     # ---------- signal engine (buy/sell recommendation gate) ----------
     Setting("signal.enabled", "Signal gate on", "Signal", "bool",
             lambda: bool(SIGNAL.get("enabled", True)),
@@ -1179,6 +1208,8 @@ def _cross_check(vals: dict[str, Any]) -> list[str]:
     if (vals["risk.max_daily_loss_pct"] > 0
             and vals["breaker.reduce_day_loss_pct"] > vals["risk.max_daily_loss_pct"]):
         bad.append("breaker half-size loss can't be above the daily loss stop")
+    if vals.get("rulebook.ema_fast", 9) >= vals.get("rulebook.ema_slow", 21):
+        bad.append("EMA fast period must be below the EMA slow period")
     if vals["breaker.streak_reduce"] >= vals["breaker.streak_pause"]:
         bad.append("breaker half-size streak must be shorter than the pause streak")
     if vals["risk.max_risk_per_trade"] > vals["risk.max_position_pct"]:

@@ -310,7 +310,7 @@ def tape_fill(mint, spec, now=NOW):
 class TapeTriggers(Base):
     def setUp(self):
         super().setUp()
-        p = mock.patch.dict(RULEBOOK, {"entry_trigger_gate": True, "rsi_require_turn": True,
+        p = mock.patch.dict(RULEBOOK, {"rsi_trigger": True, "breakout_trigger": True, "entry_trigger_gate": True, "rsi_require_turn": True,
                                        "rsi_timeframe": "1m", "rsi_period": 14, "breakout_lookback": 20,
                                        "breakout_vol_mult": 2.0, "rsi_oversold": 30})
         p.start()

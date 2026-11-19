@@ -408,6 +408,15 @@ RULEBOOK = {
     "rsi_timeframe": "15s",         # "15s" (from price ticks) or "1m"; the other is the fallback
     "breakout_lookback": 20,        # minutes of 1m candles that set resistance and average volume
     "breakout_vol_mult": 2.0,       # breakout candle volume vs the average of those minutes
+    # Per-trigger switches (all ON): the gate passes when ANY enabled trigger fires.
+    "rsi_trigger": True,
+    "breakout_trigger": True,
+    "vwap_trigger": True,           # C: VWAP reclaim (price_avg when there is no volume, labelled)
+    "vwap_lookback_min": 60,        # minutes of 1m bars, capped by the pool's age
+    "ema_trigger": True,            # D: EMA fast crossed above slow within 2 bars, price above both
+    "ema_fast": 9,
+    "ema_slow": 21,                 # fast must stay below slow (Confirm refuses a proposal that breaks it)
+    "ema_timeframe": "1m",          # "1m" or "15s"
 }
 
 # ---------- Confirmed scalp entry + momentum exit (PAPER only, desk/confirm.py) ----------

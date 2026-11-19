@@ -136,6 +136,8 @@ class SolanaAgent:
                       "signal_rejects": 0, "shadow_blocks": 0, "rulebook_rejects": 0,
                       "trigger_pass": 0, "trigger_none": 0, "trigger_unknown": 0,
                       "breakout_blocked_no_chase": 0,
+                      "trigger_pass_rsi": 0, "trigger_pass_breakout": 0,
+                      "trigger_pass_vwap": 0, "trigger_pass_ema": 0,
                       "entries": 0, "exits": 0, "dialogues": 0,
                       "errors": 0}
         self.equity_curve: deque = deque(maxlen=equity_curve.MAX_POINTS)
@@ -836,15 +838,27 @@ class SolanaAgent:
                 # Computed before the analyst so Grok sees the RSI and the volume multiple.
                 trig = None
                 if self.mode != "live" and not t["mint"].startswith("DEMO"):
-                    trig = entry_trigger.evaluate(t["mint"], session=self.session)
+                    trig = entry_trigger.evaluate(t["mint"], session=self.session,
+                                                  age_min=t.get("age_minutes"))
                     k = entry_trigger.gate(trig)
-                    stat = ("trigger_pass" if trig["fired"] else
-                            "trigger_none" if trig["reason"] == entry_trigger.SKIP_NONE else "trigger_unknown")
+                    stats_up = []
+                    if trig["fired"]:
+                        stats_up = ["trigger_pass"] + [
+                            "trigger_pass_" + entry_trigger.SHORT[n] for n in trig["fired_all"]]
+                    elif trig["reason"] == entry_trigger.SKIP_NONE:
+                        stats_up = ["trigger_none"]
+                    elif trig["reason"]:
+                        stats_up = ["trigger_unknown"]
                     with self.lock:
-                        self.stats[stat] = self.stats.get(stat, 0) + 1
+                        for stat in stats_up:
+                            self.stats[stat] = self.stats.get(stat, 0) + 1
                     for _k in ("rsi_source", "vol_source"):
                         if trig.get(_k):
                             self._count_source(f"{_k[:3]}_{trig[_k]}")
+                    if trig["vwap"].get("source"):
+                        self._count_source(f"vwap_{trig['vwap']['source']}_{trig['vwap'].get('vwap_kind')}")
+                    if trig["ema"].get("source"):
+                        self._count_source(f"ema_{trig['ema']['source']}")
                     msg = f"trigger: ${t.get('symbol')} {entry_trigger.describe(trig)}"
                     print(msg, flush=True)
                     if trig["fired"]:
@@ -1059,8 +1073,9 @@ class SolanaAgent:
                 if trig and trig.get("fired"):
                     sizes["entry_trigger"] = {**entry_trigger.tag(trig), "detail": entry_trigger.describe(trig)}
                     chips = list(chips) + [signals.chip(
-                        "trigger_rsi" if trig["fired"] == entry_trigger.RSI_OVERSOLD else "trigger_breakout",
-                        "info", "trigger")]
+                        entry_trigger.CHIP[trig["fired"]], "info", "trigger")]
+                    chips += [signals.chip(entry_trigger.CHIP[n], "info", "trigger")
+                              for n in trig["fired_all"][1:]]
                 # the seats talk to each other before anything is filled
                 convo = dialogue.debate(t, f, ds, dev, sc, th.model_dump(), ok, ticket,
                                         reason, sizes)
@@ -1237,7 +1252,12 @@ class SolanaAgent:
                         if trig and trig.get("fired"):
                             _meta.update({"entry_trigger": trig["fired"], "entry_rsi": trig.get("rsi_value"),
                                           "entry_rsi_tf": trig.get("rsi_tf"),
-                                          "entry_vol_mult": trig.get("vol_mult")})
+                                          "entry_vol_mult": trig.get("vol_mult"),
+                                          "entry_triggers": list(trig.get("fired_all") or []),
+                                          "entry_vwap": trig.get("vwap_value"),
+                                          "entry_vwap_kind": trig.get("vwap_kind"),
+                                          "entry_ema_fast": trig.get("ema_fast_value"),
+                                          "entry_ema_slow": trig.get("ema_slow_value")})
                     fill = self.broker.buy(
                         t["mint"], t["symbol"], ticket, buy_price,
                         horizon=sizes.get("horizon", "swing"),
