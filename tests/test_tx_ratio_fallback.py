@@ -77,6 +77,9 @@ class AgentFallback(unittest.TestCase):
 
     def test_gate_off_never_asks(self):
         tr.RULEBOOK["tx_ratio_gate"] = False
+        p = mock.patch.dict(tr.config.CONFIRM, {"enabled": False})   # the confirm checklist asks on its own
+        p.start()
+        self.addCleanup(p.stop)
         a, m = self._run(DS_MISSING, fb(1, 100))
         m.assert_not_called()
         self.assertEqual(self.skips(a), [])

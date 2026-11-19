@@ -217,6 +217,12 @@ MIN_SCORE = 6                        # 0-10, the analyst's score must clear this
 # for the original, stricter desk.
 ANALYST_VALID_SCORE = 6              # 0-10 (owner set 6 on 2026-11-12; was 5)
 ANALYST_MAX_RED_FOR_VALID = 3        # red flags allowed on a valid setup
+# PAPER only, default OFF, Confirm-only (settings key analyst.code_decides_verdict). When ON, the code
+# (desk/analyst.py code_decides) sets the paper verdict from the score and the serious red-flag count
+# against the two numbers above, instead of the model's verdict. Soft flags (a missing Telegram, social-only)
+# and "data unavailable" flags from our own feed gaps are not counted; hard flags (honeypot, mint/freeze
+# authority, rug / dev sell, LP unlocked) are always a skip. LIVE never reads this.
+ANALYST_CODE_DECIDES = False
 
 # PAPER analyst on a real AI model (owner, 2026-11-19: "add it"). Before this the analyst seat
 # was the deterministic heuristic unless DESK_BRAIN was set on Render. With enabled=True the

@@ -17,7 +17,7 @@ os.environ.setdefault("DESK_OFFLINE", "1")
 
 import config  # noqa: E402
 from config import RULEBOOK  # noqa: E402
-from desk import analyst, chart, dip_recovery as dr, scanner, settings  # noqa: E402
+from desk import analyst, chart, dip_recovery as dr, marketdata, scanner, settings  # noqa: E402
 from desk.solana_agent import SolanaAgent  # noqa: E402
 from legacy_book import legacy_book  # noqa: E402
 
@@ -212,6 +212,7 @@ class AgentWiring(unittest.TestCase):
                    mock.patch("desk.solana_agent.signals.security", return_value=CLEAN),
                    mock.patch("desk.solana_agent.signals.entry_impact", return_value=JUP),
                    mock.patch.object(dr, "load_candles", load),
+                   mock.patch.object(marketdata, "finalist_bars", return_value={"1m": [], "5m": [], "source": "none", "cause": "no_data", "tape_ticks_5m": 0}),
                    mock.patch.dict(RULEBOOK, {"dip_recovery_gate": gate})]
         for p in patches:
             p.start()

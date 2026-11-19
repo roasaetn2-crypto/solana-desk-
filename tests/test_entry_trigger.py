@@ -18,7 +18,7 @@ os.environ.setdefault("DESK_OFFLINE", "1")
 
 import config  # noqa: E402
 from config import RULEBOOK  # noqa: E402
-from desk import analyst, chart, dip_recovery as dr, entry_trigger as et, indicators, scanner, settings  # noqa: E402
+from desk import analyst, chart, dip_recovery as dr, entry_trigger as et, indicators, marketdata, scanner, settings  # noqa: E402
 from desk.solana_agent import SolanaAgent  # noqa: E402
 from legacy_book import legacy_book  # noqa: E402
 from test_dip_recovery import CLEAN, DEV, DS, JUP, TOK, candles, flat  # noqa: E402
@@ -310,7 +310,7 @@ class Settings(unittest.TestCase):
 
 @legacy_book
 class AgentWiring(unittest.TestCase):
-    def run_agent(self, spec, gate=True, mode=None, ticks=None, extra=None, ds=None, cache=False):
+    def run_agent(self, spec, gate=True, mode=None, ticks=None, extra=None, ds=None, cache=False, fin=None):
         chart.reset()
         self.addCleanup(chart.reset)
         d = Path(tempfile.mkdtemp())
@@ -337,6 +337,7 @@ class AgentWiring(unittest.TestCase):
                    mock.patch("desk.solana_agent.signals.security", return_value=CLEAN),
                    mock.patch("desk.solana_agent.signals.entry_impact", return_value=JUP),
                    mock.patch.object(dr, "load_candles", load),
+                   mock.patch.object(marketdata, "finalist_bars", return_value=fin or {"1m": [], "5m": [], "source": "none", "cause": "no_data", "tape_ticks_5m": 0}),
                    mock.patch.dict(RULEBOOK, {"rsi_trigger": True, "breakout_trigger": True, "entry_trigger_gate": gate, "rsi_timeframe": "1m",
                                               **(extra or {})})]
         if cache:                          # the cache-only read the no_chase counter uses

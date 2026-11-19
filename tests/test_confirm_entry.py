@@ -179,7 +179,7 @@ class AgentWiring(unittest.TestCase):
         a = self.agent()
         now = time.time()
 
-        def series(mint, tf, session=None):
+        def series(mint, tf, session=None, **kw):
             return {"candles": bars(DOWN, 60 if tf == "1m" else 300, end=now)}
         with mock.patch("desk.solana_agent.candle_chart.series", side_effect=series):
             f = {}
@@ -195,7 +195,7 @@ class AgentWiring(unittest.TestCase):
         a = self.agent()
         now = time.time()
 
-        def series(mint, tf, session=None):
+        def series(mint, tf, session=None, **kw):
             return {"candles": bars(UP, 60 if tf == "1m" else 300, end=now)}
         with mock.patch("desk.solana_agent.candle_chart.series", side_effect=series):
             f = {}

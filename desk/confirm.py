@@ -126,14 +126,18 @@ def extended_state(t: dict, ds: dict | None, candles_1m, now: float | None = Non
     return {"ok": True, "why": "not overextended"}
 
 
-def buy_state(ds: dict | None, t: dict | None = None) -> dict:
-    for src in (ds or {}, t or {}):
+def buy_state(ds: dict | None, t: dict | None = None, tx: dict | None = None) -> dict:
+    """5m buys / sells vs confirm.min_buy_sell. Sources, first with counts wins: DexScreener (ds),
+    the scan row (t), then `tx`, the counts the tx-ratio gate used from Jupiter / GeckoTerminal when
+    DexScreener had none. One set of counts for both checks."""
+    for name, src in (("dexscreener", ds or {}), ("scan", t or {}), ((tx or {}).get("source") or "tx", tx or {})):
         b, s = _num(src.get("buys_m5")), _num(src.get("sells_m5"))
         if b is not None and s is not None and b + s > 0:
             r = b / s if s else float("inf")
             need = float(CONFIRM.get("min_buy_sell", 1.2))
-            return {"ok": r >= need, "ratio": round(r, 2) if s else None,
-                    "why": f"buy/sell {('%.2f' % r) if s else 'all buys'} vs {need:g}"}
+            return {"ok": r >= need, "ratio": round(r, 2) if s else None, "source": name,
+                    "why": f"buy/sell {('%.2f' % r) if s else 'all buys'} vs {need:g}"
+                           + (f" ({name})" if src is tx else "")}
     return {"ok": None, "why": "no 5m buy/sell counts"}
 
 
@@ -153,7 +157,8 @@ def turnover_state(t: dict | None, ds: dict | None = None) -> dict:
     return {"ok": None, "why": "no 1h volume or liquidity"}
 
 
-def checklist(t: dict, ds: dict | None, candles_1m, candles_5m, now: float | None = None) -> dict:
+def checklist(t: dict, ds: dict | None, candles_1m, candles_5m, now: float | None = None,
+              tx: dict | None = None) -> dict:
     """{'ok', 'fail', 'checks': {name: {'ok', 'why'}}, 'passed', 'known'}.
     ok is False when any enabled, known check fails; n/a checks never block."""
     tr1 = trend_state(candles_1m, now, 60)
@@ -168,7 +173,7 @@ def checklist(t: dict, ds: dict | None, candles_1m, candles_5m, now: float | Non
             f"{tf} {s['why']}" for tf, s in (("1m", tr1), ("5m", tr5)) if s["ok"])}
     checks = {
         "trend": trend,
-        "buy": buy_state(ds, t),
+        "buy": buy_state(ds, t, tx),
         "turnover": turnover_state(t, ds),
         "knife": knife_state(candles_1m, now),
         "extended": extended_state(t, ds, candles_1m, now),

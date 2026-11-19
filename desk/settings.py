@@ -146,6 +146,10 @@ def _set_score(v):
     config.ANALYST_VALID_SCORE = config.MIN_SCORE = int(v)
 
 
+def _set_code_decides(v):
+    config.ANALYST_CODE_DECIDES = bool(v)
+
+
 def _set_max_red(v):
     config.ANALYST_MAX_RED_FOR_VALID = int(v)
     try:
@@ -300,6 +304,12 @@ _R += [
          (lambda: config.ANALYST_VALID_SCORE, _set_score), 3, 9, "/10"),
     _num("analyst.max_red_flags", "Analyst max red flags", "Analyst", "int",
          (lambda: config.ANALYST_MAX_RED_FOR_VALID, _set_max_red), 0, 5),
+    Setting("analyst.code_decides_verdict", "Code sets the paper verdict", "Analyst", "bool",
+            lambda: bool(getattr(config, "ANALYST_CODE_DECIDES", False)), _set_code_decides,
+            help="PAPER only, default OFF. When ON the code sets the verdict: valid_setup when the score "
+                 "meets the analyst min score and the serious red flags are within the max. Soft flags "
+                 "(missing Telegram) and data-unavailable flags don't count; hard flags (honeypot, "
+                 "authority, rug / dev sell, LP unlocked) are always a skip. Live is untouched."),
     _num("meme.min_holders", "Min holders", "Analyst", "int", _d(MEME, "min_holders", int), 20, 5_000),
     _num("meme.min_community_score", "Min community score", "Analyst", "int", _d(MEME, "min_community_score", int), 0, 90, "/100"),
     # loop

@@ -797,9 +797,12 @@ class SolanaAgent:
                         if alt.get("available"):
                             k = rulebook.tx_ratio_gate(alt)
                             self._count_source("tx_" + alt["source"])
+                            # the confirm checklist and the analyst read these same counts
+                            f["tx_m5"] = {k2: alt.get(k2) for k2 in ("buys_m5", "sells_m5", "source")}
                         else:
                             k = f"tx_ratio_unknown:{alt['cause']}"
                             self._count_source("tx_missing")
+                            f["tx_m5_cause"] = alt["cause"]
                     k = k or rulebook.lp_gate(dev)
                     if not k and (RULEBOOK.get("volume_rising_gate", True)
                                   or RULEBOOK.get("no_chase_gate", True)):
@@ -909,14 +912,28 @@ class SolanaAgent:
                         and not t["mint"].startswith("DEMO")
                         and exits.horizon_for(t.get("age_minutes")) == "scalp"):
                     try:
-                        cs5 = candle_chart.series(t["mint"], "5m", session=self.session)
-                        ce = meme_tactics.scalp_entry_state(
-                            cs5.get("candles") or [], SCALP.get("entry_mode"),
-                            SCALP.get("moving_candle_bars"), SCALP.get("moving_candle_min_body_pct"),
-                            now=time.time())
+                        c5, cinfo = self._entry_candles(t["mint"], "5m")
+                        if cinfo.get("sparse"):
+                            # price-only tape with under 2 ticks in the forming bar: a flat bar
+                            # would read as a red candle. Unknown, never a veto.
+                            ce = {"ok": None, "why": "no candles", "mode": SCALP.get("entry_mode")}
+                        else:
+                            ce = meme_tactics.scalp_entry_state(
+                                c5, SCALP.get("entry_mode"),
+                                SCALP.get("moving_candle_bars"), SCALP.get("moving_candle_min_body_pct"),
+                                now=time.time())
+                        ce["source"] = cinfo.get("source")
+                        if ce.get("ok") is None and cinfo.get("cause"):
+                            ce["cause"] = cinfo["cause"]
+                            ce["why"] = f"{ce['why']} ({cinfo['cause']})"
+                        elif ce.get("ok") is None and cinfo.get("sparse"):
+                            ce["cause"] = "sparse_tape"
+                            ce["why"] = "no candles (sparse_tape)"
                     except Exception:
                         ce = {"ok": None, "why": "candle fetch failed"}
                     f["scalp_entry"] = ce
+                    if ce.get("ok") is None and ce.get("cause"):
+                        f.setdefault("data_gaps", {})["scalp_candles"] = ce["cause"]
                     if ce.get("ok") is False:
                         self.bench.sit(t["mint"], "scalp_candle")
                         self.emit("reject", f"{t['symbol']}: scalp entry ({ce.get('mode')}): {ce['why']}",
@@ -979,7 +996,8 @@ class SolanaAgent:
                     continue
 
                 # seat 3: analyst
-                th = analyst.analyze_token(t, f, links, mode=self.mode,
+                verdict_notes: list = []
+                th = analyst.analyze_token(t, f, links, mode=self.mode, notes=verdict_notes,
                                            context={"scorecard": sc, "dev": dev, "ds": ds,
                                                     "security": {"flags": [c["t"] for c in sec["chips"]],
                                                                  "regime": self.regime.get("tag")},
@@ -987,6 +1005,11 @@ class SolanaAgent:
                                                     "entry_trigger": entry_trigger.facts(trig)})
                 analyst_left -= 1
                 self.stats["analyst_calls"] += 1
+                for n in verdict_notes:
+                    self.stats["analyst_code_overrides"] = self.stats.get("analyst_code_overrides", 0) + 1
+                    self.emit("info", f"analyst: code set ${t.get('symbol')} verdict {n['before']} -> {n['after']} "
+                                      f"(score {n['score']}, serious flags {n['serious']})",
+                              stage="analyst", symbol=t.get("symbol"), mint=t["mint"], **n)
 
                 # seat 3b: the signal engine turns every seat's read into ONE
                 # deterministic BUY / SELL / HOLD / AVOID recommendation, with a
@@ -1554,20 +1577,71 @@ class SolanaAgent:
         self.emit("info", f"trigger: ${t.get('symbol')} breakout blocked by no_chase", stage="trigger",
                   symbol=t.get("symbol"), mint=t["mint"], reason="breakout_blocked_no_chase")
 
+    def _entry_candles(self, mint: str, tf: str):
+        """1m / 5m candles for the scalp-entry rule and the confirm checklist (PAPER finalists).
+
+        The chart's series first (GeckoTerminal cache / one call on the finalist lane, else the
+        desk's own ticks). If that is empty or stale, GeckoTerminal 1m candles aggregated to the
+        timeframe, else the Jupiter / quote price tape as price-only bars. Returns
+        (candles, {"source", "cause", "sparse"}); a miss names the cause (gt_cooling, stale_ticks ...)."""
+        now = time.time()
+        cands, source = [], "none"
+        try:
+            cs = candle_chart.series(mint, tf, session=self.session, priority=True)
+            cands, source = cs.get("candles") or [], cs.get("source") or "none"
+        except Exception:
+            pass
+        if marketdata.fresh(cands, tf, now):
+            self._count_source(f"candles_{tf}_{source}")
+            return cands, {"source": source, "cause": None}
+        memo = self.__dict__.get("_fb_memo")
+        if memo and memo[0] == mint and now - memo[1] < 30:
+            fb = memo[2]
+        else:
+            fb = marketdata.finalist_bars(mint, self.session, now)
+            self._fb_memo = (mint, now, fb)
+        if fb.get(tf):
+            self._count_source(f"candles_{tf}_{fb['source']}")
+            return fb[tf], {"source": fb["source"], "cause": None,
+                            "sparse": fb["source"] == "price_tape" and fb.get("tape_ticks_5m", 0) < 2
+                            and tf == "5m"}
+        self._count_source(f"candles_{tf}_missing")
+        return cands, {"source": source if cands else "none", "cause": fb.get("cause") or "no_data"}
+
     def _confirm_skip(self, t: dict, ds: dict | None, f: dict) -> bool:
         """Run the confirmed-entry checklist; True = skip this coin (logged + funnel)."""
         now = time.time()
-        c5, c1 = [], []
+        c5, c1, i5, i1 = [], [], {}, {}
         try:
-            c5 = candle_chart.series(t["mint"], "5m", session=self.session).get("candles") or []
+            c5, i5 = self._entry_candles(t["mint"], "5m")
         except Exception:
             c5 = []
         try:
-            c1 = candle_chart.series(t["mint"], "1m", session=self.session).get("candles") or []
+            c1, i1 = self._entry_candles(t["mint"], "1m")
         except Exception:
             c1 = []
-        cc = entry_confirm.checklist(t, ds, c1, c5, now)
+        # buy/sell: the same 5m counts the tx-ratio gate used (DexScreener, else Jupiter / GeckoTerminal)
+        tx = f.get("tx_m5")
+        if tx is None and entry_confirm.buy_state(ds, t)["ok"] is None and f.get("tx_m5_cause") is None:
+            try:
+                alt = marketdata.tx_m5(t, ds, self.session)
+            except Exception:
+                alt = {"available": False, "cause": "error"}
+            if alt.get("available"):
+                tx = f["tx_m5"] = {k2: alt.get(k2) for k2 in ("buys_m5", "sells_m5", "source")}
+            else:
+                f["tx_m5_cause"] = alt.get("cause")
+        cc = entry_confirm.checklist(t, ds, c1, c5, now, tx)
         f["confirm"] = cc
+        gaps = f.setdefault("data_gaps", {})
+        chk = cc["checks"]
+        if chk["trend"]["ok"] is None and not c1 and not c5:
+            gaps["trend"] = i5.get("cause") or i1.get("cause") or "no_candles"
+        if chk["buy"]["ok"] is None:
+            gaps["buy_sell_5m"] = f.get("tx_m5_cause") or "no_5m_txns"
+        if chk["knife"]["ok"] is None and not c1:
+            gaps["candles_1m"] = i1.get("cause") or "no_candles"
+        cc["candles"] = {"1m": i1.get("source"), "5m": i5.get("source")}
         low = entry_confirm.entry_candle_low(c1, c5, now)
         if low:
             f["entry_candle_low"] = low

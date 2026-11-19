@@ -13,6 +13,7 @@ All return the same typed TokenThesis, so the rest of the desk cannot tell them 
 from __future__ import annotations
 
 import json
+import re
 import secrets
 from typing import Literal
 
@@ -119,9 +120,20 @@ How to read the fields:
 - shape: "crowd" = buyers and buys growing with volume spread across windows;
   "one_buyer" = price rising faster than the number of buyers; "fading" = recent
   volume a small fraction of the hour; "too_early" = not enough data to tell.
-- A null field is missing data, not good news. Say so in red_flags.
+- A null field is missing data, not good news. But tell the two kinds apart:
+  * "feed_unknown" names fields that are null because OUR OWN data feed returned nothing (rate
+    limits, cooldowns, no candles yet), and "data_gaps" gives the cause. That is UNKNOWN, not a
+    red flag: never list it in red_flags, do not lower the score for it, and do not treat it as
+    good news either. Say in your reasoning that it is unknown.
+  * A red flag needs a bad value you can see (thin liquidity, sellers dominating, a heavy top
+    wallet, an authority still set). A null you cannot explain beyond the feed is not one.
+- "entry_checks" is the desk's own entry checklist: pass / FAIL are real readings; "unknown" is a
+  check our feed could not run (feed_gap shows why). "txns_m5" are the 5m buy / sell counts we
+  could get from any source.
 - program_held_pct is the bonding curve / pool. It is not a whale.
-- No X or Telegram link is a red flag: launches without socials graduate far less.
+- Socials: flag it ONLY when there is no X link AND no Telegram link (has_x false and
+  has_telegram false). A missing Telegram when has_x is true, or the reverse, is not a red flag,
+  and neither is a missing website.
 
 Desk discipline (from the desk playbook, docs/playbook.md):
 - Run the checklist in your head before "valid_setup": a written reason, a visible
@@ -146,6 +158,43 @@ Standards:
 def wrap_untrusted(text: str) -> str:
     tag = secrets.token_hex(2)
     return f'<pasted_content id="{tag}">\n{text}\n</pasted_content id="{tag}">'
+
+
+_CHECK_GAP = {"trend": "trend", "buy": "buy_sell_5m", "knife": "candles_1m", "scalp_5m_candle": "scalp_candles"}
+
+
+def entry_checks(f: dict) -> dict:
+    """The desk's own entry checks as the analyst should read them: pass / FAIL are readings, an n/a is
+    "unknown" (with the feed gap that caused it when we know it)."""
+    out: dict[str, dict] = {}
+    gaps = f.get("data_gaps") or {}
+    se = f.get("scalp_entry")
+    rows = []
+    if isinstance(se, dict):
+        rows.append(("scalp_5m_candle", se.get("ok"), se.get("why")))
+    cc = f.get("confirm")
+    if isinstance(cc, dict):
+        for name, c in (cc.get("checks") or {}).items():
+            rows.append((name, c.get("ok"), c.get("why")))
+    for name, ok, why in rows:
+        row = {"result": "pass" if ok is True else "FAIL" if ok is False else "unknown", "why": why}
+        if ok is None and gaps.get(_CHECK_GAP.get(name, name)):
+            row["feed_gap"] = gaps[_CHECK_GAP.get(name, name)]
+        out[name] = row
+    return out
+
+
+def feed_unknown(numbers: dict) -> list[str]:
+    """Names of the numeric fields that are null in the prompt: our own feed did not supply them."""
+    out = []
+    for k, v in numbers.items():
+        if k in ("meme_scorecard", "entry_checks", "data_gaps", "feed_unknown"):
+            continue
+        if v is None:
+            out.append(k)
+        elif isinstance(v, dict) and k in ("dexscreener", "dev_investigation", "txns_m5"):
+            out += [f"{k}.{k2}" for k2, v2 in v.items() if v2 is None]
+    return out
 
 
 def token_state(t: dict, f: dict, links: dict, context: dict | None = None) -> str:
@@ -191,6 +240,24 @@ def token_state(t: dict, f: dict, links: dict, context: dict | None = None) -> s
         if context.get("entry_trigger"):
             # PAPER only: which entry trigger fired, the RSI and the volume vs average
             numbers["entry_trigger"] = context["entry_trigger"]
+    if f.get("tx_m5"):
+        tx = f["tx_m5"]
+        numbers["txns_m5"] = {"buys": tx.get("buys_m5"), "sells": tx.get("sells_m5"), "source": tx.get("source")}
+        ds5 = numbers.get("dexscreener")
+        if isinstance(ds5, dict):
+            if ds5.get("buys_m5") is None:
+                ds5["buys_m5"] = tx.get("buys_m5")
+            if ds5.get("sells_m5") is None:
+                ds5["sells_m5"] = tx.get("sells_m5")
+    checks = entry_checks(f)
+    if checks:
+        numbers["entry_checks"] = checks
+    gaps = {k: v for k, v in (f.get("data_gaps") or {}).items() if v}
+    unknown = feed_unknown(numbers)
+    if unknown:
+        numbers["feed_unknown"] = unknown
+    if gaps:
+        numbers["data_gaps"] = gaps
     third_party = json.dumps({"symbol": t.get("symbol"), "links": links})
     return (f"Fields:\n{json.dumps(numbers, indent=1)}\n\n"
             f"Third-party text:\n{wrap_untrusted(third_party)}\n\n"
@@ -313,8 +380,8 @@ def _guard_ai_thesis(th: TokenThesis) -> TokenThesis:
     return th
 
 
-def analyze_token(t: dict, f: dict, links: dict, client=None,
-                  context: dict | None = None, mode: str | None = None) -> TokenThesis:
+def _analyze(t: dict, f: dict, links: dict, client=None,
+             context: dict | None = None, mode: str | None = None) -> TokenThesis:
     """Ask the configured brain for a thesis. Falls back to the heuristic.
 
     `client` is accepted for backwards compatibility with the old Claude-only
@@ -340,6 +407,99 @@ def analyze_token(t: dict, f: dict, links: dict, client=None,
         # a model outage must never stall the desk
         return heuristic_thesis(t, f, links)
     th.score = max(0, min(10, int(th.score)))
+    return th
+
+
+# ---------- PAPER-only post-processing: social flags and the code verdict ----------
+_SOCIAL_RE = re.compile(r"telegram|\bsocials?\b|\bx link\b|twitter|website", re.I)
+_HARD_RE = re.compile(
+    r"honeypot|\bauthority\b|\brug|dev(eloper)?\s+(sold|sell|dump)|creator\s+(sold|sell|dump)"
+    r"|(lp|liquidity)\s+(is\s+|was\s+)?(not\s+locked|unlocked)|unlocked\s+(lp|liquidity)", re.I)
+_DATA_RE = re.compile(
+    r"\b(missing|unavailable|not available|no data|no candles?|no trend|no 5m|no buy/sell|no txns?|"
+    r"stale|unknown|n/a|null|not provided|no transactions?)\b|data gap|feed", re.I)
+_HARD_SEC = {"honeypot", "gmgn_honeypot", "mint_authority", "freeze_authority"}
+
+
+def drop_soft_social_flags(th: TokenThesis, links: dict) -> list[str]:
+    """PAPER: remove red flags about a missing social when one of X / Telegram exists (the heuristic
+    flags only when there is neither). Returns what was dropped."""
+    if not (links.get("x") or links.get("telegram")):
+        return []
+    dropped = [r for r in th.red_flags if _SOCIAL_RE.search(r)]
+    if dropped:
+        th.red_flags = [r for r in th.red_flags if r not in dropped]
+    return dropped
+
+
+def _is_data_flag(flag: str, gaps) -> bool:
+    low = flag.lower()
+    return bool(_DATA_RE.search(flag)) or any(str(k).replace("_", " ") in low for k in (gaps or {}))
+
+
+def hard_flags(th: TokenThesis, f: dict, context: dict | None) -> list[str]:
+    hard = [r for r in th.red_flags if _HARD_RE.search(r)]
+    if f.get("mint_authority"):
+        hard.append("mint authority set (chain)")
+    if f.get("freeze_authority"):
+        hard.append("freeze authority set (chain)")
+    for c in ((context or {}).get("security") or {}).get("flags") or []:
+        if c in _HARD_SEC:
+            hard.append(f"security flag {c}")
+    return hard
+
+
+def code_decides(th: TokenThesis, f: dict, links: dict, context: dict | None = None,
+                 notes: list | None = None) -> TokenThesis:
+    """PAPER, analyst.code_decides_verdict ON: the code sets the verdict.
+
+    hard flag                       -> skip (never upgraded)
+    score >= analyst.valid_score and serious red flags <= analyst.max_red_flags -> valid_setup
+        (the same bar _guard_ai_thesis applies; soft social flags and data-unavailable flags are
+         not "serious")
+    else score >= 5 -> watch, else skip (as the heuristic does).
+    A change from the model's verdict is logged with before and after."""
+    before = th.verdict
+    th.score = max(0, min(10, int(th.score)))
+    gaps = f.get("data_gaps") or {}
+    hard = hard_flags(th, f, context)
+    soft = [r for r in th.red_flags if r not in hard and _SOCIAL_RE.search(r)
+            and (links.get("x") or links.get("telegram"))]
+    soft += [r for r in th.red_flags if r not in hard and r not in soft and _SOCIAL_RE.search(r)
+             and re.search(r"telegram|website", r, re.I) and not re.search(r"\bx\b|twitter|social", r, re.I)]
+    data = [r for r in th.red_flags if r not in hard and r not in soft and _is_data_flag(r, gaps)]
+    serious = [r for r in th.red_flags if r not in hard and r not in soft and r not in data]
+    if hard:
+        after = "skip"
+    elif th.score >= config.ANALYST_VALID_SCORE and len(serious) <= ANALYST_MAX_RED_FOR_VALID:
+        after = "valid_setup"
+    elif th.score >= 5:
+        after = "watch"
+    else:
+        after = "skip"
+    th.verdict = after
+    if after != before:
+        note = {"before": before, "after": after, "score": th.score, "serious": len(serious),
+                "hard": hard[:3], "ignored_soft": len(soft), "ignored_data": len(data)}
+        if notes is not None:
+            notes.append(note)
+        print(f"analyst: code verdict {before} -> {after} (score {th.score}, serious flags "
+              f"{len(serious)}/{ANALYST_MAX_RED_FOR_VALID}, hard {hard[:3] or 'none'}, ignored "
+              f"{len(soft)} soft + {len(data)} data)", flush=True)
+    return th
+
+
+def analyze_token(t: dict, f: dict, links: dict, client=None,
+                  context: dict | None = None, mode: str | None = None,
+                  notes: list | None = None) -> TokenThesis:
+    """_analyze, then the PAPER-only passes (live gets exactly the thesis _analyze returns): drop a
+    "no Telegram / social" flag when X or Telegram exists, and, when analyst.code_decides_verdict is
+    ON, let the code set the verdict. `notes` collects any verdict the code changed."""
+    th = _analyze(t, f, links, client=client, context=context, mode=mode)
+    if mode == "paper":
+        drop_soft_social_flags(th, links)
+        if getattr(config, "ANALYST_CODE_DECIDES", False):
+            th = code_decides(th, f, links, context, notes)
     return th
 
 

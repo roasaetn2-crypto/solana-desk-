@@ -310,7 +310,7 @@ def _fetch_and_store(pool: str, tf: str, session, now: float, priority: bool = F
     return candles
 
 
-def _network_ohlcv(mint: str, tf: str, session=None) -> list[dict]:
+def _network_ohlcv(mint: str, tf: str, session=None, priority: bool = False) -> list[dict]:
     """Candles for the dashboard, served from the last-good cache. Never sleeps.
 
     A fresh entry is returned as is. A stale one is returned too (up to
@@ -336,7 +336,7 @@ def _network_ohlcv(mint: str, tf: str, session=None) -> list[dict]:
         return row["candles"]
     if now - _ATTEMPT.get(key, 0.0) < MISS_RETRY_S:
         return []
-    return _fetch_and_store(pool, tf, session, now)
+    return _fetch_and_store(pool, tf, session, now, priority=priority)
 
 
 def prefetch(session, positions, now: float | None = None):
@@ -383,8 +383,11 @@ def prefetch(session, positions, now: float | None = None):
 
 def series(mint: str, tf: str | None = None, *,
            horizon: str | None = None, age_hours: float | None = None,
-           entry: float | None = None, session=None) -> dict:
-    """Candles + tab list for one mint. Safe to call on every dashboard refresh."""
+           entry: float | None = None, session=None, priority: bool = False) -> dict:
+    """Candles + tab list for one mint. Safe to call on every dashboard refresh.
+
+    priority=True is for gate finalists: the OHLCV call uses the finalist lane of the shared
+    GeckoTerminal bucket (same lane the dip reader and the open-position prefetch use)."""
     tabs = tabs_for(horizon=horizon, age_hours=age_hours)
     want = tf if tf in _TF else tabs[0]
     fallback = False
@@ -393,7 +396,7 @@ def series(mint: str, tf: str | None = None, *,
     candles = bucket_ticks(ticks(mint), bucket) if not gt else []
 
     if gt:
-        net = _network_ohlcv(mint, want, session)
+        net = _network_ohlcv(mint, want, session, priority)
         if net:
             candles = net
             source = "geckoterminal"
@@ -403,7 +406,7 @@ def series(mint: str, tf: str | None = None, *,
             source = "ticks" if candles else "none"
     elif len(candles) < MIN_TICK_BARS:
         # 15s/30s without enough local samples: fall back to 1m OHLCV
-        net = _network_ohlcv(mint, "1m", session)
+        net = _network_ohlcv(mint, "1m", session, priority)
         if net:
             candles = net
             want = "1m"
