@@ -196,7 +196,7 @@ class AgentWiring(unittest.TestCase):
         now = time.time()
 
         def series(mint, tf, session=None, **kw):
-            return {"candles": bars(UP, 60 if tf == "1m" else 300, end=now)}
+            return {"candles": bars(UP, 60 if tf == "1m" else 300, end=now), "source": "geckoterminal"}
         with mock.patch("desk.solana_agent.candle_chart.series", side_effect=series):
             f = {}
             self.assertFalse(a._confirm_skip(dict(GOOD_T, mint="MINTUP"), GOOD_DS, f))

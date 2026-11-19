@@ -70,6 +70,7 @@ SCALP = {
     # breakout      = only a fresh high of the last `moving_candle_bars`.
     "entry_mode": "moving_candle",
     "entry_gate": True,              # enforce entry_mode on scalp buys (it was never read before 2026-11-19)
+    "require_candles": True,         # PAPER: a scalp entry with no usable candles (unknown) is rejected (scalp_no_candles), not passed
     "moving_candle_bars": 1,         # bars of upward confirmation
     "moving_candle_min_body_pct": 0.003,  # body must be >=0.3% of price (not a doji)
     # ---- freshness / size / depth gates ----
@@ -633,7 +634,7 @@ BENCH_MINUTES = {
 }
 BENCH_MINUTES.update({"style": 30, "chase": 20, "price_gap": 10, "liq_unconfirmed": 15, "no_confirm_quote": 5,
                       "scalp_age": 10, "scalp_mcap": 15, "scalp_liquidity": 10,
-                      "scalp_candle": 3})
+                      "scalp_candle": 3, "scalp_no_candles": 3})
 # rulebook gates: data-missing skips re-check soon; real "no" answers sit longer
 BENCH_MINUTES.update({"tx_ratio_low": 5, "tx_ratio_unknown": 3, "lp_unlocked": 60, "lp_unknown": 10,
                       "impact_high": 10, "impact_unknown": 3, "vol_falling": 5, "vol_unknown": 3,

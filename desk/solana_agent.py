@@ -951,6 +951,17 @@ class SolanaAgent:
                     f["scalp_entry"] = ce
                     if ce.get("ok") is None and ce.get("cause"):
                         f.setdefault("data_gaps", {})["scalp_candles"] = ce["cause"]
+                    if ce.get("ok") is None and SCALP.get("require_candles", True):
+                        # P3 (2026-11-19): unknown (no candles / sparse tape / stale) no longer passes.
+                        # 0/7 clean paper scalps won, and the two with no candles had their exit armed from
+                        # a snapshot. No candles = no confirmed entry.
+                        self.stats["scalp_no_candles"] = self.stats.get("scalp_no_candles", 0) + 1
+                        self.bench.sit(t["mint"], "scalp_no_candles")
+                        self.emit("reject", f"{t['symbol']}: scalp entry unknown, no candles ({ce.get('why')})",
+                                  stage="entry", reason="scalp_no_candles", symbol=t["symbol"], mint=t["mint"])
+                        journal("reject", stage="entry", mint=t["mint"], symbol=t["symbol"],
+                                reason="scalp_no_candles", detail=ce)
+                        continue
                     if ce.get("ok") is False:
                         self.bench.sit(t["mint"], "scalp_candle")
                         self.emit("reject", f"{t['symbol']}: scalp entry ({ce.get('mode')}): {ce['why']}",
@@ -1325,7 +1336,7 @@ class SolanaAgent:
                                       "entry_top10": (dev.get("concentration") or {}).get("top_10_pct"),
                                       "entry_dev_hold": dev.get("creator_hold_pct")})
                         if f.get("entry_candle_low"):
-                            _meta["entry_candle_low"] = f["entry_candle_low"]
+                            _meta["entry_candle_low"] = min(f["entry_candle_low"], buy_price)
                         if trig and trig.get("fired"):
                             _meta.update({"entry_trigger": trig["fired"], "entry_rsi": trig.get("rsi_value"),
                                           "entry_rsi_tf": trig.get("rsi_tf"),
@@ -1647,7 +1658,7 @@ class SolanaAgent:
             pass
         if marketdata.fresh(cands, tf, now):
             self._count_source(f"candles_{tf}_{source}")
-            return cands, {"source": source, "cause": None}
+            return cands, {"source": source, "cause": None, "real": source == "geckoterminal"}
         memo = self.__dict__.get("_fb_memo")
         if memo and memo[0] == mint and now - memo[1] < 30:
             fb = memo[2]
@@ -1657,10 +1668,12 @@ class SolanaAgent:
         if fb.get(tf):
             self._count_source(f"candles_{tf}_{fb['source']}")
             return fb[tf], {"source": fb["source"], "cause": None,
+                            "real": (fb.get("via", fb["source"]) == "geckoterminal"),
                             "sparse": fb.get("via", fb["source"]) == "price_tape" and fb.get("tape_ticks_5m", 0) < 2
                             and tf == "5m", "age_s": fb.get("age_s")}
         self._count_source(f"candles_{tf}_missing")
-        return cands, {"source": source if cands else "none", "cause": fb.get("cause") or "no_data"}
+        return cands, {"source": source if cands else "none", "cause": fb.get("cause") or "no_data",
+                       "real": False}
 
     def _confirm_skip(self, t: dict, ds: dict | None, f: dict) -> bool:
         """Run the confirmed-entry checklist; True = skip this coin (logged + funnel)."""
@@ -1697,9 +1710,19 @@ class SolanaAgent:
         if chk["knife"]["ok"] is None and not c1:
             gaps["candles_1m"] = i1.get("cause") or "no_candles"
         cc["candles"] = {"1m": i1.get("source"), "5m": i5.get("source")}
-        low = entry_confirm.entry_candle_low(c1, c5, now)
+        # The momentum exit's anchor comes from REAL exchange candles only (never price-tape snapshot bars or
+        # tick buckets: GAYTA's anchor sat 9.6% above its fill and the exit fired on a green trade).
+        low = entry_confirm.entry_candle_low(c1 if i1.get("real") else [], c5 if i5.get("real") else [], now)
         if low:
             f["entry_candle_low"] = low
+        if not c1 and not c5 and SCALP.get("require_candles", True):
+            self.stats["scalp_no_candles"] = self.stats.get("scalp_no_candles", 0) + 1
+            self.bench.sit(t["mint"], "scalp_no_candles")
+            self.emit("reject", f"{t.get('symbol')}: confirm has no candles ({gaps.get('trend')})",
+                      stage="confirm_entry", reason="scalp_no_candles", symbol=t.get("symbol"), mint=t["mint"])
+            journal("reject", stage="confirm_entry", mint=t["mint"], symbol=t.get("symbol"),
+                    reason="scalp_no_candles", detail={"trend": gaps.get("trend")})
+            return True
         with self.lock:
             self.confirm_stats["checked"] += 1
             self.confirm_stats["passed" if cc["ok"] else "failed"] += 1
@@ -1727,7 +1750,9 @@ class SolanaAgent:
         sym = pos.get("symbol") or mint[:6]
         if pos.get("horizon") == "scalp" and CONFIRM.get("momentum_exit", True):
             try:
-                c1 = candle_chart.series(mint, "1m", session=self.session).get("candles") or []
+                cs1 = candle_chart.series(mint, "1m", session=self.session)
+                # arm only from real exchange 1m candles; tick buckets / tape bars are not candles
+                c1 = (cs1.get("candles") or []) if cs1.get("source") == "geckoterminal" else []
                 why = entry_confirm.momentum_exit(pos, c1, time.time())
             except Exception:
                 why = None

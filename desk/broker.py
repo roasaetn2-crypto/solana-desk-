@@ -254,6 +254,10 @@ class PaperBroker:
             # Measurement tags (e.g. the pullback shadow verdict). Kept on the
             # position so the close path can journal realised P&L against them.
             self.s["positions"][mint].update(meta)
+            low = self.s["positions"][mint].get("entry_candle_low")
+            if low and low > fill:
+                # the momentum-break anchor can never sit above the price we actually paid
+                self.s["positions"][mint]["entry_candle_low"] = fill
         exits.init_state(self.s["positions"][mint], horizon)
         self._save()
         return {"side": "buy", "mint": mint, "symbol": symbol, "qty": qty, "fill": fill,

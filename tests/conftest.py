@@ -51,3 +51,18 @@ def _rulebook_off_by_default():
     RULEBOOK.clear()
     RULEBOOK.update(saved)
     rulebook.reset()
+
+
+@pytest.fixture(autouse=True)
+def _scalp_require_candles_off_by_default():
+    """SCALP['require_candles'] is ON in production (a scalp entry with no usable candles is rejected as
+    scalp_no_candles). The older end-to-end tests feed tokens with no candle feed and expect an entry, so
+    switch it off per test; tests/test_scalp_no_candles.py switches it on explicitly."""
+    from config import SCALP
+    saved = SCALP.get("require_candles")
+    SCALP["require_candles"] = False
+    yield
+    if saved is None:
+        SCALP.pop("require_candles", None)
+    else:
+        SCALP["require_candles"] = saved
