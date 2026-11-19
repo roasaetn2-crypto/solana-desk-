@@ -43,6 +43,7 @@ from desk import links as fomo_links
 from desk.age import created_at_of
 from desk import equity_curve
 from desk import live as live_mod
+from desk import tower
 from desk.broker import PaperBroker
 from desk.netutil import offline
 from desk.ops import Bench, alert, data_file, journal, killed
@@ -268,6 +269,9 @@ class SolanaAgent:
         ev = {"time": _now(), "kind": kind, "message": message, **data}
         with self.lock:
             self.events.appendleft(ev)
+        # Visualization only. observe() swallows its own errors, and it never
+        # feeds back into sizing or fills.
+        tower.observe(ev)
         return ev
 
 
@@ -562,7 +566,10 @@ class SolanaAgent:
         if not daily_loss_hit(acct) or not self.paper.s["positions"]:
             return
         before, day_pnl = acct.equity, acct.day_pnl
-        self._liquidate(f"daily loss stop {RISK['max_daily_loss_pct'] * 100:.0f}% hit")
+        # Risk already owns this flatten. The checkout only logs that it went first.
+        with tower.holding("risk",
+                           f"daily stop {RISK['max_daily_loss_pct'] * 100:.0f}% · flatten"):
+            self._liquidate(f"daily loss stop {RISK['max_daily_loss_pct'] * 100:.0f}% hit")
         self.paper.s["daily_stop_flatten_date"] = today
         self.paper._save()
         after = self.paper.equity()
@@ -600,7 +607,21 @@ class SolanaAgent:
             cycle = self.cycle_no
 
         try:
-            self._manage_positions()
+            # Risk already runs before new entries. Checking the cursor out for
+            # that patrol records the priority; it does not change the patrol.
+            from contextlib import nullcontext
+            ctx = nullcontext()
+            try:
+                n_open = len(self.broker.s["positions"])
+                if n_open:
+                    ctx = tower.holding(
+                        "risk",
+                        f"guards {n_open} stop" + ("s" if n_open != 1 else ""),
+                    )
+            except Exception:
+                ctx = nullcontext()
+            with ctx:
+                self._manage_positions()
         except Exception as e:  # an exit that fails must not block new entries
             with self.lock:
                 self.stats["errors"] += 1
@@ -1127,6 +1148,22 @@ class SolanaAgent:
                         entry_trigger.CHIP[trig["fired"]], "info", "trigger")]
                     chips += [signals.chip(entry_trigger.CHIP[n], "info", "trigger")
                               for n in trig["fired_all"][1:]]
+                # Brain's only job on the tower: the size the code already chose.
+                # Recording it cannot change `ticket`.
+                try:
+                    tower.click(
+                        "brain",
+                        f"size ${ticket:.2f}" if ok else f"no size · {reason}",
+                        symbol=t.get("symbol"), mint=t.get("mint"),
+                        usd=ticket if ok else None, ok=bool(ok),
+                        mcap=t.get("mcap_usd"),
+                        top_wallet=(f or {}).get("top_wallet_pct"),
+                        top_10=(f or {}).get("top_10_pct"),
+                        holders=(f or {}).get("holder_count"),
+                        price=t.get("price_usd"),
+                    )
+                except Exception:
+                    pass
                 # the seats talk to each other before anything is filled
                 convo = dialogue.debate(t, f, ds, dev, sc, th.model_dump(), ok, ticket,
                                         reason, sizes)
@@ -2178,4 +2215,33 @@ class SolanaAgent:
             equity_curve.save(self.equity_curve, self.curve_marks)
         self._snapshot_equity()
         self.emit("info", f"Desk reset: {self.mode} book back to start, bench cleared.")
+        try:
+            tower.reset()
+        except Exception:
+            pass
         return {"ok": True}
+
+    def tower_view(self) -> dict:
+        """Control Tower snapshot. Paper book only; no network, no rule changes."""
+        with self.lock:
+            brk = self.broker
+            snap = brk.snapshot()
+            start = brk.s.get("start_equity") or PAPER["starting_equity_usd"]
+            positions = []
+            for p in snap.get("positions") or []:
+                row = dict(p)
+                tok = self.tokens_seen.get(row.get("mint") or "") or {}
+                if tok.get("mcap_usd") is not None:
+                    row["mcap_usd"] = tok.get("mcap_usd")
+                positions.append(row)
+            equity = snap.get("equity") or 0
+            day_pnl = snap.get("day_pnl") or 0
+            running = self.running
+            started = self.started_at
+            mode = self.mode
+            cycle = self.cycle_no
+        return tower.snapshot(
+            equity=equity, day_pnl=day_pnl, start_equity=start,
+            positions=positions, running=running, started_at=started,
+            mode=mode, cycle=cycle,
+        )

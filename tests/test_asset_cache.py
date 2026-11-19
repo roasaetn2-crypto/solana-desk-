@@ -32,13 +32,16 @@ def test_asset_version_is_derived_from_the_files(client):
     assert v and len(v) == 10
     assert f"app.js?v={v}" in r.text
     assert f"styles.css?v={v}" in r.text
+    assert f"tower.js?v={v}" in r.text
+    assert f"tower.css?v={v}" in r.text
 
 
 def test_hand_edited_versions_are_overwritten(client):
     """A stale literal in index.html must not survive to the browser."""
     r = client.get("/")
     v = r.headers["x-desk-assets"]
-    found = re.findall(r"/static/(?:app\.js|styles\.css)\?v=([^\"']*)", r.text)
+    found = re.findall(
+        r"/static/(?:app\.js|styles\.css|tower\.js|tower\.css)\?v=([^\"']*)", r.text)
     assert found, "no versioned asset tags in the shell"
     assert set(found) == {v}, f"stale version leaked: {found}"
 

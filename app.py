@@ -23,6 +23,8 @@ Endpoints
     GET  /devices              list paired devices, revoke them
     GET  /api/state            full agent + broker + event snapshot
     GET  /api/chart            OHLC for one ticket (query: mint, tf)
+    GET  /api/tower            control-tower snapshot (paper visualization only)
+    POST /api/tower/demo       toggle the labeled sample-night replay (book untouched)
     GET  /api/backtest         read-only gate replay over the journal (never changes settings)
     (boot)                    restores journal/ledger/intent from Turso when configured;
                               auto-starts the PAPER loop unless the operator paused it
@@ -120,7 +122,7 @@ def _asset_version() -> str:
     changes, and the browser is forced to fetch it.
     """
     h = hashlib.sha256()
-    for name in ("app.js", "styles.css"):
+    for name in ("app.js", "styles.css", "tower.js", "tower.css"):
         f = WEB / name
         try:
             st = f.stat()
@@ -312,7 +314,9 @@ def index():
         return HTMLResponse("<h1>web/index.html missing</h1>", status_code=500)
     v = _asset_version()
     # Rewrite whatever version the file happens to carry with the real one.
-    html = re.sub(r'(/static/(?:app\.js|styles\.css))\?v=[^"\']*', rf"\1?v={v}", html)
+    html = re.sub(
+        r'(/static/(?:app\.js|styles\.css|tower\.js|tower\.css))\?v=[^"\']*',
+        rf"\1?v={v}", html)
     return HTMLResponse(
         html,
         headers={
@@ -343,6 +347,23 @@ def state(request: Request):
 @app.get("/api/chart")
 def chart(mint: str = "", tf: str = ""):
     return agent.chart(mint, tf or None)
+
+
+@app.get("/api/tower")
+def tower_state():
+    """Control Tower. Paper visualization only — never a fill, never a signature."""
+    return JSONResponse(agent.tower_view(), headers={"Cache-Control": "no-store, max-age=0"})
+
+
+@app.post("/api/tower/demo")
+def tower_demo(payload: dict = Body(...)):
+    """Toggle the labeled sample-night replay. Does not touch the paper book."""
+    from desk import tower
+    if payload.get("replay"):
+        on = tower.replay_demo()
+        return {"ok": True, "demo": on, "replayed": on}
+    on = tower.set_demo(bool(payload.get("enabled")))
+    return {"ok": True, "demo": on}
 
 
 _BACKTEST_CACHE: dict = {"t": 0.0, "data": None}
