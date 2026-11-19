@@ -156,8 +156,9 @@ class JupiterFallback(unittest.TestCase):
         launch(ACTIVE_MINT, self.clock.t - 1800)
         rows = [jup_row(), jup_row(QUIET_MINT, buys=1, sells=0, vol=50)]
         s = self._session(search_rows=rows)
-        self._cycles(1, s, step=61)
-        self._cycles(1, s, step=61)
+        gap = SCAN_FETCH["jup_rehydrate_s"] + 1            # a hot mint is re-priced once per rehydrate window
+        self._cycles(1, s, step=gap)
+        self._cycles(1, s, step=gap)
         searches = [p["query"].split(",") for u, p in self.urls if "jup.ag" in u and u.endswith("/search")]
         self.assertEqual(len(searches), 2)
         self.assertEqual(set(searches[0]), {ACTIVE_MINT, QUIET_MINT})
@@ -181,7 +182,7 @@ class JupiterFallback(unittest.TestCase):
     def test_jitter_never_undercuts_retry_after(self):
         for _ in range(200):
             self.assertGreaterEqual(scanner._jitter(100.0), 100.0)
-            self.assertLessEqual(scanner._jitter(100.0), 115.0 + 1e-9)
+            self.assertLessEqual(scanner._jitter(100.0), 100.0 * (1 + SCAN_FETCH["cooldown_jitter"]) + 1e-9)
 
     def test_offline_disables_jupiter(self):
         self.p.stop()

@@ -67,6 +67,7 @@ LAST: dict = {name: {"pools": 0, "calls": 0, "errors": []} for name in SOURCES}
 
 # Cumulative HTTP counters (not reset each cycle) for simulations and tests.
 CALLS: dict = {"geckoterminal": 0, "dexscreener": 0, "jupiter": 0, "429": 0}
+CALLS_429: dict = {}                 # 429s per provider since boot (diagnostics)
 
 # ---------- rate limit / cache / cooldown state ----------
 
@@ -133,6 +134,7 @@ _QUOTE_CACHE: dict[str, dict] = {}
 _JUP_ROWS: dict[str, dict] = {}
 # mint -> ts of the last Jupiter hydrate (PumpPortal mints), so we rotate through them
 _JUP_HYDRATED: dict[str, float] = {}
+_HYDRATE_AT = [0.0]       # when the last PumpPortal hydrate went out
 # pool address -> {"exp": ts, "c": (buys, sells) | None}  (5m tx-count fallback, bounded)
 _TX_CACHE: "OrderedDict[str, dict]" = OrderedDict()
 GT_TX_TTL_S = 60            # a pool's 5m counts are reused this long
@@ -238,6 +240,7 @@ def reset_runtime() -> None:
     _jup_base[0] = 0
     _JUP_ROWS.clear()
     _JUP_HYDRATED.clear()
+    _HYDRATE_AT[0] = 0.0
     _COOL.clear()
     _HOST_COOL.clear()
     _EP_CACHE.clear()
@@ -256,9 +259,11 @@ def reset_runtime() -> None:
     CALLS["dexscreener"] = 0
     CALLS["jupiter"] = 0
     CALLS["429"] = 0
+    CALLS_429.clear()
     _reset_last()
-    from desk import chart
+    from desk import chart, marketdata
     chart.reset()
+    marketdata.reset()
 
 
 def _f(x) -> float:
@@ -360,6 +365,19 @@ def cooling_until(endpoint_id: str, now: float | None = None) -> float:
 
 def is_cooling(endpoint_id: str, now: float | None = None) -> bool:
     return cooling_until(endpoint_id, now) > 0
+
+
+def _probe_blocked(source: str, now: float) -> bool:
+    """After a 429 cooldown ends the host is still "struck" until a call succeeds. Let ONE probe
+    through (then hold the rest for probe_gap_s) instead of releasing every queued call at once into
+    a limit that may still be active. True = hold this call."""
+    rec = _HOST_COOL.get(source)
+    if not rec or not rec.get("strikes") or float(rec.get("until") or 0) > now:
+        return False
+    if float(rec.get("probing") or 0) > now:
+        return True
+    rec["probing"] = now + float(SCAN_FETCH.get("probe_gap_s", 10))
+    return False
 
 
 # ---------- parsers (unchanged shapes) ----------
@@ -515,10 +533,13 @@ def _cool(endpoint_id: str, source: str, wait: float, label: str, status: int, r
             return                      # one log line per cooldown start
         rec = _HOST_COOL.get(source) or {"until": 0.0, "strikes": 0}
         rec["strikes"] = int(rec.get("strikes") or 0) + 1
-        exp = _jitter(min(cap, max(wait, SCAN_FETCH["cooldown_floor_s"]) * (2 ** (rec["strikes"] - 1))))
+        base = max(wait, SCAN_FETCH["cooldown_floor_s"]) * (2 ** (rec["strikes"] - 1))
+        exp = _jitter(max(min(cap, base), wait))         # a Retry-After beyond the cap is honoured in full
         rec["until"] = now + exp
+        rec["probing"] = 0.0
         _HOST_COOL[source] = rec
         CALLS["429"] += 1
+        CALLS_429[source] = CALLS_429.get(source, 0) + 1
         _note(source, f"{label} -> 429 {reason}, cooling {source} for {exp:.0f}s")
         return
     floor = min(10.0, wait)
@@ -600,6 +621,8 @@ def _fetch_endpoint(s: requests.Session, ep: dict, now: float, priority: bool = 
         return cached, True
     if is_cooling(endpoint_id, now):
         return cached, False
+    if _probe_blocked(source, now):
+        return cached, False
     if not _budget_ok(source, now, priority):
         return cached, False
     r = _get_once(s, ep["url"], ep.get("params"), source, label, endpoint_id)
@@ -627,7 +650,7 @@ def _fetch_live(s: requests.Session, ep: dict, now: float, positions: bool = Fal
         until = float((_COOL.get(ep["id"]) or {}).get("until") or 0)
         if until > now or not _BUCKETS["dexscreener_pos"].allow(1, now=now):
             return None
-    elif is_cooling(ep["id"], now) or not _budget_ok(source, now, priority):
+    elif is_cooling(ep["id"], now) or _probe_blocked(source, now) or not _budget_ok(source, now, priority):
         return None
     r = _get_once(s, ep["url"], ep.get("params"), source, ep["label"], ep["id"])
     if r is None:
@@ -958,11 +981,21 @@ def _hydrate_order(mints: list[str], now: float) -> list[str]:
 def _hydrate_pumpportal(s: requests.Session, now: float) -> int:
     """One Jupiter search call for up to 100 mints PumpPortal saw launch."""
     from desk import pumpportal
+    gap = float(SCAN_FETCH.get("jup_hydrate_gap_s", 0))
+    if gap and now - _HYDRATE_AT[0] < gap:
+        return 0                                   # one hydrate per gap: not one per cycle
+    if host_cooling("jupiter", now):
+        return 0                                   # no request possible: keep the slot for later
     mints = pumpportal.recent_mints(now, min_age_s=SCAN["min_age_minutes"] * 60,
                                     max_age_s=SCAN_FETCH["pp_max_age_s"], limit=3000)
-    pick = _hydrate_order(mints, now)[:int(SCAN_FETCH["jup_batch"])]
+    rehydrate = float(SCAN_FETCH["jup_rehydrate_s"])
+    # dedupe: a mint Jupiter already priced inside the rehydrate window (a discovery list, a finalist
+    # search or the last hydrate) is not asked for again
+    pick = [m for m in _hydrate_order(mints, now)
+            if not ((_JUP_ROWS.get(m) or {}).get("at", 0.0) > now - rehydrate)][:int(SCAN_FETCH["jup_batch"])]
     if not pick:
         return 0
+    _HYDRATE_AT[0] = now
     body = _fetch_live(s, _jup_search_ep(pick, "jup:pumpportal", "jupiter search (pumpportal mints)"), now)
     if not isinstance(body, list):
         return 0
@@ -1123,26 +1156,32 @@ def _schedule(cycle: int) -> list[dict]:
     moves on only after a slot was actually served), and exactly one DexScreener slot."""
     planned: list[dict] = []
     gt = _gt_endpoints()
-    planned.append(gt[0])                    # new_pools page 1 every cycle (freshest launches)
+    planned.append(gt[0])                    # new_pools page 1 every cycle (freshest launches; cached)
     rot_gt = gt[1:]
-    for i in range(max(0, int(SCAN.get("pages", 1)))):
-        if rot_gt:
-            ep = dict(rot_gt[(_gt_cursor[0] + i) % len(rot_gt)])
-            ep["rot"] = True
-            planned.append(ep)
-    if cycle % 2 and len(planned) > 1:
-        # GT is often cooling and grants one call at a time: on odd cycles the rotated slot
-        # goes first, so page 1 cannot take every call and starve the rest of the feed.
+    every = max(1, int(SCAN_FETCH.get("gt_rot_every", 1)))
+    if cycle % every == 0:
+        for i in range(max(0, int(SCAN.get("pages", 1)))):
+            if rot_gt:
+                ep = dict(rot_gt[(_gt_cursor[0] + i) % len(rot_gt)])
+                ep["rot"] = True
+                planned.append(ep)
+    if (cycle // every) % 2 and len(planned) > 1:
+        # GT is often cooling and grants one call at a time: on alternate rotation turns the rotated
+        # slot goes first, so page 1 cannot take every call and starve the rest of the feed.
         planned = planned[1:] + planned[:1]
+    ds_every = max(1, int(SCAN_FETCH.get("ds_every", 1)))
+    if cycle % ds_every:
+        return planned                       # a quiet DexScreener cycle: no discovery slot
     rot = _ds_rotation()
+    turn = cycle // ds_every
     # If the rotated slot is cooling, try the next ones rather than skip DS entirely.
     for i in range(len(rot)):
-        slot = rot[(cycle + i) % len(rot)]
+        slot = rot[(turn + i) % len(rot)]
         if not is_cooling(slot["id"]):
             planned.append(slot)
             break
     else:
-        planned.append(rot[cycle % len(rot)])  # all cooling: still try (will use cache)
+        planned.append(rot[turn % len(rot)])  # all cooling: still try (will use cache)
     return planned
 
 
@@ -1163,9 +1202,9 @@ def new_tokens(session: requests.Session | None = None) -> list[dict]:
     _cycle += 1
 
     planned = _schedule(cycle)
-    if _jup_enabled():
+    if _jup_enabled() and cycle % max(1, int(SCAN_FETCH.get("jup_list_every", 1))) == 0:
         jup = _jup_endpoints()
-        planned.append(jup[cycle % len(jup)])       # one cached Jupiter discovery list per cycle
+        planned.append(jup[(cycle // max(1, int(SCAN_FETCH.get("jup_list_every", 1)))) % len(jup)])
     for ep in planned:
         body, _fresh = _fetch_endpoint(s, ep, now)
         if body is None:
@@ -1223,6 +1262,10 @@ def age_cut_minutes() -> float:
     cut = SCAN["max_age_hours"] * 60
     if ESTABLISHED.get("enabled", False):
         cut = max(cut, ESTABLISHED["max_age_hours"] * 60)
+    if SCALP.get("enabled"):
+        # the fast lane's own age window (scalp.max_age_minutes, up to 7 days) must be reachable too,
+        # or a coin the lane would take is dropped before free_kill ever sees it
+        cut = max(cut, float(SCALP.get("max_age_minutes") or 0))
     return cut
 
 

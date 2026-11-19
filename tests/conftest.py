@@ -40,12 +40,13 @@ def _rulebook_off_by_default():
     txns, LP or volume history, so every one would be skipped. Switch the rules
     off for each test; tests/test_rulebook.py switches them on explicitly."""
     from config import RULEBOOK
-    from desk import rulebook
+    from desk import marketdata, rulebook
     saved = dict(RULEBOOK)
     for k, v in RULEBOOK.items():
         if isinstance(v, bool):
             RULEBOOK[k] = False
     rulebook.reset()
+    marketdata.reset()          # the finalists' last-good caches must not leak between tests
     yield
     RULEBOOK.clear()
     RULEBOOK.update(saved)

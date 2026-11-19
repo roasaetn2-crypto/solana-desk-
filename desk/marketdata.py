@@ -22,9 +22,55 @@ from __future__ import annotations
 import logging
 import time
 
+from collections import OrderedDict
+
+from config import LAST_GOOD
 from desk import chart, dip_recovery, pricetape, scanner
 
 log = logging.getLogger("desk.marketdata")
+
+
+# ---------- last-good reuse for finalists ----------
+# While every source is cooling (429s every cycle), a finalist's last good 5m counts and last good bars
+# are reused for LAST_GOOD[...] seconds. They are marked source "cache" with their age so nothing reads
+# them as a fresh sample. Bounded, in memory, paper only (the agent never calls this in live mode).
+_LAST_TX: "OrderedDict[str, dict]" = OrderedDict()
+_LAST_BARS: "OrderedDict[str, dict]" = OrderedDict()
+_LAST_MAX = 600
+
+
+def reset() -> None:
+    _LAST_TX.clear()
+    _LAST_BARS.clear()
+
+
+def _keep_last(store: OrderedDict, mint: str, row: dict) -> None:
+    store[mint] = row
+    store.move_to_end(mint)
+    while len(store) > _LAST_MAX:
+        store.popitem(last=False)
+
+
+def remember_tx(mint: str, buys, sells, source: str, now: float | None = None) -> None:
+    """Record 5m counts that came from a real read (DexScreener, Jupiter, GeckoTerminal)."""
+    try:
+        b, s_ = int(buys), int(sells)
+    except (TypeError, ValueError):
+        return
+    if mint and b + s_ > 0 and source != "cache":
+        _keep_last(_LAST_TX, mint, {"at": time.time() if now is None else now, "buys_m5": b,
+                                    "sells_m5": s_, "source": source})
+
+
+def last_tx(mint: str, now: float | None = None) -> dict | None:
+    """The last good 5m counts for `mint` if younger than LAST_GOOD["tx_m5_max_age_s"], tagged cache."""
+    now = time.time() if now is None else now
+    row = _LAST_TX.get(mint)
+    age = None if row is None else now - row["at"]
+    if row is None or age < 0 or age > float(LAST_GOOD.get("tx_m5_max_age_s", 0)):
+        return None
+    return {"available": True, "source": "cache", "via": row["source"], "age_s": round(age, 1),
+            "buys_m5": row["buys_m5"], "sells_m5": row["sells_m5"]}
 
 
 def ensure_jup(mint: str, session=None, now: float | None = None, fetch: bool = True) -> str | None:
@@ -63,6 +109,7 @@ def tx_m5(t: dict, ds: dict | None, session=None, now: float | None = None, fetc
     if jc is None:
         got, jc = scanner.jup_tx_m5(mint, now)
         if got and (got["buys_m5"] + got["sells_m5"]) > 0:
+            remember_tx(mint, got["buys_m5"], got["sells_m5"], "jupiter", now)
             return {**got, "chain": chain + ["jup:ok"]}
         jc = jc or "jup_zero_txns"
     chain.append(f"jup:{jc}")
@@ -70,10 +117,14 @@ def tx_m5(t: dict, ds: dict | None, session=None, now: float | None = None, fetc
 
     gt = scanner.gt_tx_m5(t, session, now) if fetch else None
     if gt and (gt["buys_m5"] + gt["sells_m5"]) > 0:
+        remember_tx(mint, gt["buys_m5"], gt["sells_m5"], "geckoterminal", now)
         return {**gt, "chain": chain + ["gt:ok"]}
     gc = "gt_zero_txns" if gt else scanner.gt_tx_cause(t, now)
     chain.append(f"gt:{gc}")
     causes.append(gc)
+    old = last_tx(mint, now)                       # every source missed: the last good counts, if recent
+    if old:
+        return {**old, "chain": chain + [f"cache:age_{old['age_s']:.0f}s"]}
     if all(c.endswith("zero_txns") for c in causes):
         cause = "no_5m_txns"
     else:
@@ -162,6 +213,7 @@ def finalist_bars(mint: str, session=None, now: float | None = None, fetch: bool
             cs, at = (row["candles"], row["at"]) if row else ([], None)
         if cs and at is not None and now - at <= GT_MAX_AGE_S:
             out.update({"1m": cs, "5m": aggregate(cs, 300), "source": "geckoterminal"})
+            _keep_last(_LAST_BARS, mint, {"at": at, **{k: out[k] for k in ("1m", "5m", "source", "tape_ticks_5m")}})
             return out
         gt_cause = "stale_candles" if cs else dip_recovery.candle_cause(mint, now)
     except Exception as e:                                   # never stall the cycle
@@ -170,6 +222,12 @@ def finalist_bars(mint: str, session=None, now: float | None = None, fetch: bool
     bars, _n, ticks, tape_cause = _tape_1m(mint, now)
     if bars is not None:
         out.update({"1m": bars, "5m": aggregate(bars, 300), "source": "price_tape", "tape_ticks_5m": ticks})
+        _keep_last(_LAST_BARS, mint, {"at": now, **{k: out[k] for k in ("1m", "5m", "source", "tape_ticks_5m")}})
+        return out
+    row = _LAST_BARS.get(mint)                     # both sources missed: the last good bars, if recent
+    if row and 0 <= now - row["at"] <= float(LAST_GOOD.get("bars_max_age_s", 0)):
+        out.update({"1m": row["1m"], "5m": row["5m"], "source": "cache", "via": row["source"],
+                    "age_s": round(now - row["at"], 1), "tape_ticks_5m": row["tape_ticks_5m"]})
         return out
     out["cause"] = "+".join(dict.fromkeys(c for c in (gt_cause, tape_cause) if c)) or "no_data"
     return out

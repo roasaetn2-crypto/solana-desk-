@@ -49,7 +49,7 @@ MAX_CHANGES = 64
 
 # Names an AI might use for things it must never touch. Matched against the proposed key.
 _EXCLUDED_RE = re.compile(
-    r"(^|[._])(mode|live|execution|private|secret|token|password|pass|api_?key|key|wallet|"
+    r"(^|[._])(mode|live|execution|private|secret|token|password|(?<!unknown_)pass|api_?key|key|wallet|"
     r"mint_authority|freeze_authority|top_wallet|top_10|max_dev_hold|dev_hold|sniper|prev_rugs|"
     r"creator|rug|kill|scam|require_confirm_quote|starting_equity|bankroll|confirm_phrase)($|[._])",
     re.I)
@@ -383,6 +383,13 @@ _R += [
             help="PAPER: buy only when 5m buys / sells is above the ratio below. No 5m data = skip."),
     _num("rulebook.min_buy_sell_ratio", "Rulebook: min 5m buy/sell ratio", "Rulebook", "float",
          _d(RULEBOOK, "min_buy_sell_ratio"), 1.0, 5.0, "x"),
+    Setting("rulebook.tx_ratio_unknown_pass", "Rulebook: unknown 5m buy/sell passes", "Rulebook", "bool",
+            lambda: bool(RULEBOOK.get("tx_ratio_unknown_pass", False)),
+            lambda v: RULEBOOK.__setitem__("tx_ratio_unknown_pass", bool(v)),
+            help="PAPER only, default OFF. When ON, a coin whose 5m buy/sell counts are UNKNOWN (no data "
+                 "from any source, even the last-good reuse) passes the buy/sell ratio gate instead of being "
+                 "skipped. A KNOWN ratio below the minimum still fails; every other gate still applies. "
+                 "Live is untouched."),
     Setting("rulebook.lp_gate", "Rulebook: LP burned or locked", "Rulebook", "bool",
             lambda: bool(RULEBOOK.get("lp_gate", True)),
             lambda v: RULEBOOK.__setitem__("lp_gate", bool(v)),
@@ -656,7 +663,7 @@ _R += [
     _num("scalp.min_age_minutes", "Scalp min age", "Scalp", "float",
          _d(SCALP, "min_age_minutes"), 0, 120, "min"),
     _num("scalp.max_age_minutes", "Scalp max age (fresh)", "Scalp", "float",
-         _d(SCALP, "max_age_minutes"), 30, 1440, "min"),
+         _d(SCALP, "max_age_minutes"), 30, 10080, "min"),
     _num("scalp.min_mcap_usd", "Scalp min mcap", "Scalp", "int",
          _d(SCALP, "min_mcap_usd", int), 5_000, 5_000_000, "USD"),
     _num("scalp.max_mcap_usd", "Scalp max mcap (cap)", "Scalp", "int",

@@ -787,6 +787,9 @@ class SolanaAgent:
                 # calls), then 5m volume rising and no-chase on 5m candles. Missing
                 # data is a skip, never a pass.
                 if self.mode != "live" and not t["mint"].startswith("DEMO"):
+                    if (ds or {}).get("available"):
+                        marketdata.remember_tx(t["mint"], (ds or {}).get("buys_m5"), (ds or {}).get("sells_m5"),
+                                               "dexscreener")
                     k = rulebook.tx_ratio_gate(ds)
                     if k == "tx_ratio_unknown":
                         # DexScreener has no 5m counts (cooling / not listed): Jupiter's 5m stats
@@ -798,11 +801,25 @@ class SolanaAgent:
                             k = rulebook.tx_ratio_gate(alt)
                             self._count_source("tx_" + alt["source"])
                             # the confirm checklist and the analyst read these same counts
-                            f["tx_m5"] = {k2: alt.get(k2) for k2 in ("buys_m5", "sells_m5", "source")}
+                            f["tx_m5"] = {k2: alt.get(k2) for k2 in ("buys_m5", "sells_m5", "source", "via", "age_s")
+                                          if alt.get(k2) is not None}
                         else:
                             k = f"tx_ratio_unknown:{alt['cause']}"
                             self._count_source("tx_missing")
                             f["tx_m5_cause"] = alt["cause"]
+                    if (k and k.split(":")[0] == "tx_ratio_unknown"
+                            and RULEBOOK.get("tx_ratio_unknown_pass", False)):
+                        # Romz: unknown 5m counts (no source, no recent last-good) pass this one gate.
+                        # Every other gate below still applies.
+                        why = k.partition(":")[2] or "no_data"
+                        print(f"gate: ${t.get('symbol')} tx_ratio_unknown_pass ({why})", flush=True)
+                        self.stats["tx_ratio_unknown_pass"] = self.stats.get("tx_ratio_unknown_pass", 0) + 1
+                        self.emit("info", f"gate: ${t.get('symbol')} tx_ratio_unknown_pass ({why})",
+                                  stage="tx_ratio", reason="tx_ratio_unknown_pass", symbol=t.get("symbol"),
+                                  mint=t["mint"])
+                        f["tx_ratio_unknown_pass"] = True
+                        f.setdefault("data_gaps", {})["buy_sell_5m"] = why
+                        k = None
                     k = k or rulebook.lp_gate(dev)
                     if not k and (RULEBOOK.get("volume_rising_gate", True)
                                   or RULEBOOK.get("no_chase_gate", True)):
@@ -1603,8 +1620,8 @@ class SolanaAgent:
         if fb.get(tf):
             self._count_source(f"candles_{tf}_{fb['source']}")
             return fb[tf], {"source": fb["source"], "cause": None,
-                            "sparse": fb["source"] == "price_tape" and fb.get("tape_ticks_5m", 0) < 2
-                            and tf == "5m"}
+                            "sparse": fb.get("via", fb["source"]) == "price_tape" and fb.get("tape_ticks_5m", 0) < 2
+                            and tf == "5m", "age_s": fb.get("age_s")}
         self._count_source(f"candles_{tf}_missing")
         return cands, {"source": source if cands else "none", "cause": fb.get("cause") or "no_data"}
 
@@ -1628,7 +1645,8 @@ class SolanaAgent:
             except Exception:
                 alt = {"available": False, "cause": "error"}
             if alt.get("available"):
-                tx = f["tx_m5"] = {k2: alt.get(k2) for k2 in ("buys_m5", "sells_m5", "source")}
+                tx = f["tx_m5"] = {k2: alt.get(k2) for k2 in ("buys_m5", "sells_m5", "source", "via", "age_s")
+                                   if alt.get(k2) is not None}
             else:
                 f["tx_m5_cause"] = alt.get("cause")
         cc = entry_confirm.checklist(t, ds, c1, c5, now, tx)

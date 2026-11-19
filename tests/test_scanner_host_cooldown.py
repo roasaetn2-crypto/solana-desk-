@@ -98,7 +98,9 @@ class HostCooldown(unittest.TestCase):
     def test_gt_schedule_is_page_one_plus_one_rotated_slot(self):
         for c in range(8):
             gt = [e["id"] for e in scanner._schedule(c) if e["source"] == "geckoterminal"]
-            self.assertEqual(len(gt), 1 + config.SCAN["pages"])
+            # the rotated slot runs every gt_rot_every cycles (call-pressure cut); page 1 every cycle
+            rot = c % config.SCAN_FETCH["gt_rot_every"] == 0
+            self.assertEqual(len(gt), 1 + (config.SCAN["pages"] if rot else 0))
             self.assertIn("gt:new_pools:1", gt)
 
     def test_direct_callers_respect_and_feed_the_host_cooldown(self):

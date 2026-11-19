@@ -200,7 +200,7 @@ class GtRotation(unittest.TestCase):
     def test_rotation_walks_every_feed_and_page(self):
         ids = [e["id"] for e in scanner._gt_rotation()]
         for feed in ("new_pools", "trending_5m", "trending_1h"):
-            for page in (1, 2, 3):
+            for page in range(1, config.SCAN_FETCH["gt_max_page"] + 1):
                 if (feed, page) != ("new_pools", 1):
                     self.assertIn(f"gt:{feed}:{page}", ids)
         self.assertEqual(len(ids), len(set(ids)))

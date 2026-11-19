@@ -199,8 +199,9 @@ class ScalpEntry(_AW):
 
     def test_tape_candle_replaces_no_candles(self):
         now = time.time()
-        pr = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.02, 1.04]
-        bars = marketdata.aggregate([{"t": int(now // 60) * 60 - 60 * (len(pr) - 1 - i), "o": p, "h": p, "l": p,
+        pr = [1.0, 1.0, 1.0, 1.0, 1.0, 1.01, 1.02, 1.04]
+        end = int(now // 300) * 300 - 60            # the last minute of the previous 5m bucket: a full, clock-phase-proof bar
+        bars = marketdata.aggregate([{"t": end - 60 * (len(pr) - 1 - i), "o": p, "h": p, "l": p,
                                       "c": p, "v": 0.0} for i, p in enumerate(pr)], 300)
         fin = {"1m": [], "5m": bars, "source": "price_tape", "cause": None, "tape_ticks_5m": 4}
         a = self.run_scalp(fin=fin)

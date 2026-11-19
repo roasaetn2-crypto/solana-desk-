@@ -170,23 +170,38 @@ SCAN_FETCH = {
     "ds_burst": 4,
     "cache_ttl_s": 240,            # reuse an endpoint body this long (was 90). A
                                    # cached body is real data, a 429 is no data.
-    "gt_max_page": 3,              # GT rotation walks pages 1..3 of new_pools / trending 5m / trending 1h
+    "gt_max_page": 2,              # GT rotation walks pages 1..2 of new_pools / trending 5m / trending 1h
+                                   # (was 3; every extra page was one more call into a shared, throttled IP)
+    "gt_rot_every": 2,             # the rotated GT slot every 2nd cycle (new_pools page 1 stays every cycle, cached)
+    "ds_every": 2,                 # one DexScreener discovery slot every 2nd cycle (was every cycle)
+    "jup_list_every": 2,           # one Jupiter discovery list every 2nd cycle (was every cycle)
     "pool_ttl_s": 600,             # rolling candidate pool, keyed by mint (~10 min)
     "quote_ttl_s": 15,             # short cache for open-position price refreshes
     "pos_per_min": 12,             # own DexScreener budget for open-position prices (never shared with scanning)
-    "cooldown_floor_s": 45,        # even if Retry-After is 1s, back off at least this (was 30)
-    "cooldown_cap_s": 180,         # exponential 429 cooldown cap; never sleep the cycle (was 120)
-    "cooldown_jitter": 0.15,       # up to +15% on every cooldown so probes never sync up
+    "cooldown_floor_s": 60,        # even if Retry-After is 1s, back off at least this (was 45)
+    "cooldown_cap_s": 300,         # exponential 429 cooldown cap; never sleep the cycle (was 180).
+                                   # A Retry-After longer than the cap is still honoured in full.
+    "cooldown_jitter": 0.25,       # up to +25% on every cooldown so probes never sync up (was 15%)
+    "probe_gap_s": 10,             # after a cooldown ends, ONE probe call goes out; the rest wait for it
     # Jupiter tokens v2 (free, keyless): 1 cached discovery list + 1 PumpPortal hydrate per cycle
     "jup_enabled": True,
     "jup_per_min": 6,
     "jup_burst": 3,
-    "jup_batch": 100,              # mints per search call (Jupiter's max)
-    "jup_rehydrate_s": 60,         # re-price a PumpPortal mint at most this often
+    "jup_batch": 50,               # mints per hydrate search (was 100, Jupiter's max: big queries drew 429s)
+    "jup_hydrate_gap_s": 90,       # at most one PumpPortal hydrate per this many seconds (was every cycle)
+    "jup_rehydrate_s": 120,        # re-price a PumpPortal mint at most this often (was 60)
     "pp_max_age_s": 6 * 3600,      # hydrate PumpPortal launches up to this old
     "pp_hot_trades": 15,           # a launch with this many 1h trades (or the volume below) is "hot"
     "pp_hot_volume_usd": 1_500,
     "pp_cold_recheck_s": 300,      # re-check a quiet launch this often (late movers)
+}
+
+# Last-good reuse for gate finalists (config only, not a setting): while GeckoTerminal / DexScreener / Jupiter
+# cool, the last 5m buy/sell counts and the last good candles of a finalist mint are reused up to this old.
+# They are tagged (source "cache", age_s) so nothing mistakes them for a fresh read.
+LAST_GOOD = {
+    "tx_m5_max_age_s": 300,
+    "bars_max_age_s": 300,
 }
 
 # ---- env overrides for the fetch budgets: from Termux, SCANFETCH_DS_PER_MIN=30 ----
@@ -381,6 +396,7 @@ ENTRY = {
 # Fast exits treat missing data as "no forced exit" (logged).
 RULEBOOK = {
     "tx_ratio_gate": True,          # 5m buys / sells must be above min_buy_sell_ratio
+    "tx_ratio_unknown_pass": False, # PAPER, Confirm-only: an UNKNOWN tx ratio (no data) passes this gate; every other gate still applies
     "min_buy_sell_ratio": 1.2,
     "lp_gate": True,                # LP burned or locked (RugCheck lpLockedPct of the main market)
     "min_lp_locked_pct": 0.90,
