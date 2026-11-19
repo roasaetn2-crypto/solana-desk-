@@ -462,6 +462,14 @@ _R += [
             choices=("15s", "1m"),
             help="15s bars come from the desk's price ticks; 1m from GeckoTerminal. "
                  "The other one is the fallback when this one has too few bars."),
+    Setting("rulebook.momentum_exit_timeframe", "Rulebook: momentum exit timeframe", "Rulebook", "choice",
+            lambda: str(RULEBOOK.get("momentum_exit_timeframe") or "1m"),
+            lambda v: RULEBOOK.__setitem__("momentum_exit_timeframe", str(v)),
+            choices=("1m", "5m"),
+            help="PAPER: which candles the momentum exit's 'closed under the entry candle low' check reads. "
+                 "1m (default) = a closed 1m bar under the 1m entry candle's low. 5m = the last CLOSED 5m bar "
+                 "under the low of the 5m candle the entry was in (the forming bar is never used). "
+                 "Missing 5m data skips the check; it never forces an exit."),
     _num("rulebook.breakout_lookback", "Rulebook: breakout lookback", "Rulebook", "int",
          _d(RULEBOOK, "breakout_lookback", int), 5, 60, "min"),
     _num("rulebook.breakout_vol_mult", "Rulebook: breakout volume multiple", "Rulebook", "float",

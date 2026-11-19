@@ -1337,6 +1337,8 @@ class SolanaAgent:
                                       "entry_dev_hold": dev.get("creator_hold_pct")})
                         if f.get("entry_candle_low"):
                             _meta["entry_candle_low"] = min(f["entry_candle_low"], buy_price)
+                        if f.get("entry_candle_low_5m"):
+                            _meta["entry_candle_low_5m"] = min(f["entry_candle_low_5m"], buy_price)
                         if trig and trig.get("fired"):
                             _meta.update({"entry_trigger": trig["fired"], "entry_rsi": trig.get("rsi_value"),
                                           "entry_rsi_tf": trig.get("rsi_tf"),
@@ -1715,6 +1717,9 @@ class SolanaAgent:
         low = entry_confirm.entry_candle_low(c1 if i1.get("real") else [], c5 if i5.get("real") else [], now)
         if low:
             f["entry_candle_low"] = low
+        low5 = entry_confirm.entry_candle_low_5m(c5 if i5.get("real") else [], now)
+        if low5:
+            f["entry_candle_low_5m"] = low5            # the 5m momentum exit's anchor (setting may be switched later)
         if not c1 and not c5 and SCALP.get("require_candles", True):
             self.stats["scalp_no_candles"] = self.stats.get("scalp_no_candles", 0) + 1
             self.bench.sit(t["mint"], "scalp_no_candles")
@@ -1744,6 +1749,25 @@ class SolanaAgent:
         print(f"confirm: ${t.get('symbol')} skip {cc['reason']} ({why})", flush=True)
         return True
 
+    def _exit_bars_5m(self, mint: str, c1_real: list, now: float) -> list:
+        """5m bars for the momentum exit with no new request: the real 1m candles already fetched this tick,
+        aggregated; else the finalist bars from cache only (GeckoTerminal cache, the LAST_GOOD bars, or a
+        price tape with enough ticks). Never the network, so the 429 budgets are untouched."""
+        if c1_real:
+            agg = marketdata.aggregate(c1_real, 300)
+            if agg:
+                return agg
+        try:
+            fb = marketdata.finalist_bars(mint, self.session, now, fetch=False)
+        except Exception:
+            return []
+        if not fb.get("5m"):
+            return []
+        via = fb.get("via", fb.get("source"))
+        if via == "geckoterminal" or (via == "price_tape" and int(fb.get("tape_ticks_5m") or 0) >= 3):
+            return fb["5m"]
+        return []
+
     def _rulebook_exit(self, mint: str, pos: dict, q: dict | None):
         """PAPER fast exits: momentum broke before TP1, liquidity -20% from entry,
         or the dev / top-10 sold. Missing data never forces a sell; it is logged once per position."""
@@ -1753,7 +1777,14 @@ class SolanaAgent:
                 cs1 = candle_chart.series(mint, "1m", session=self.session)
                 # arm only from real exchange 1m candles; tick buckets / tape bars are not candles
                 c1 = (cs1.get("candles") or []) if cs1.get("source") == "geckoterminal" else []
-                why = entry_confirm.momentum_exit(pos, c1, time.time())
+                if RULEBOOK.get("momentum_exit_timeframe", "1m") == "5m":
+                    now_t = time.time()
+                    c5 = self._exit_bars_5m(mint, c1, now_t)
+                    if not c5:
+                        self.stats["momentum5_no_bars"] = self.stats.get("momentum5_no_bars", 0) + 1
+                    why = entry_confirm.momentum_exit(pos, c1, now_t, c5, "5m")
+                else:
+                    why = entry_confirm.momentum_exit(pos, c1, time.time())
             except Exception:
                 why = None
             if why:

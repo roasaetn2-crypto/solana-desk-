@@ -201,7 +201,43 @@ def entry_candle_low(candles_1m, candles_5m, now: float | None = None) -> float 
     return None
 
 
-def momentum_exit(pos: dict, candles_1m, now: float) -> str | None:
+def entry_candle_low_5m(candles_5m, now: float | None = None) -> float | None:
+    """Low of the 5m candle the entry is in (the newest bar, if fresh), for the 5m momentum exit."""
+    bs = _bars(candles_5m)
+    if bs and _fresh(bs, now, 600):
+        return bs[-1][3]
+    return None
+
+
+def momentum_exit_5m(pos: dict, candles_5m, now: float) -> str | None:
+    """5m flavour of the entry-candle-low check: the last CLOSED 5m bar (never the forming one) ended under
+    the low of the 5m candle we bought into. The anchor is pos["entry_candle_low_5m"], else computed from the
+    5m bar that contains the entry; no anchor, no closed fresh bar, or no data = no exit (never forced)."""
+    if not CONFIRM.get("momentum_exit", True) or not pos:
+        return None
+    if int(pos.get("stage") or 0) >= 1:
+        return None
+    opened = _num(pos.get("opened"))
+    if opened is None or now - opened < float(CONFIRM.get("min_hold_s", 90)):
+        return None
+    allb = _bars(candles_5m, now, 300, closed_only=True)
+    if not allb or now - allb[-1][0] > 600 or allb[-1][0] + 300 <= opened:
+        return None                       # nothing closed yet that is fresh and at/after the entry bar
+    low = _num(pos.get("entry_candle_low_5m"))
+    if not low:
+        for t0, _o, _h, lo, _c in reversed(_bars(candles_5m)):
+            if t0 is not None and t0 <= opened < t0 + 300:
+                low = lo
+                entry = _num(pos.get("entry"))
+                if low and entry and low > entry:
+                    low = entry
+                break
+    if low and allb[-1][4] < low:
+        return "momentum: 5m closed under the entry candle low"
+    return None
+
+
+def momentum_exit(pos: dict, candles_1m, now: float, candles_5m=None, timeframe: str = "1m") -> str | None:
     """Before TP1 only: sell when the move that got us in has clearly broken.
 
       * a CLOSED 1m bar ends under the entry candle's low, or
@@ -210,6 +246,11 @@ def momentum_exit(pos: dict, candles_1m, now: float) -> str | None:
     Missing candles = no forced exit; the normal stop still protects."""
     if not CONFIRM.get("momentum_exit", True) or not pos:
         return None
+    if timeframe == "5m":
+        # the entry-low clause reads 5m bars; the 1m 9-EMA clause below is unchanged
+        why = momentum_exit_5m(pos, candles_5m, now)
+        if why:
+            return why
     if int(pos.get("stage") or 0) >= 1:
         return None                         # after TP1 the cost-aware breakeven + trail own it
     opened = _num(pos.get("opened"))
@@ -221,7 +262,7 @@ def momentum_exit(pos: dict, candles_1m, now: float) -> str | None:
         return None
     last_close = allb[-1][4]
     low = _num(pos.get("entry_candle_low"))
-    if low and last_close < low:
+    if low and last_close < low and timeframe != "5m":
         return "momentum: 1m closed under the entry candle low"
     entry = _num(pos.get("entry"))
     if len(allb) >= 9 and entry and last_close < entry:

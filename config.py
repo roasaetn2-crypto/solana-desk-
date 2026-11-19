@@ -434,6 +434,9 @@ RULEBOOK = {
     "rsi_oversold": 30,             # RSI below this is oversold
     "rsi_require_turn": True,       # the latest bar must also close up (RSI turning up)
     "rsi_timeframe": "15s",         # "15s" (from price ticks) or "1m"; the other is the fallback
+    # Momentum exit (desk/confirm.py), PAPER: which candles the "closed under the entry candle low" check reads.
+    # "1m" = today's behaviour; "5m" = the last CLOSED 5m bar against the low of the 5m candle we bought into.
+    "momentum_exit_timeframe": "1m",
     "breakout_lookback": 20,        # minutes of 1m candles that set resistance and average volume
     "breakout_vol_mult": 2.0,       # breakout candle volume vs the average of those minutes
     # Per-trigger switches (all ON): the gate passes when ANY enabled trigger fires.

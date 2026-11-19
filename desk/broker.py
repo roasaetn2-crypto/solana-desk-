@@ -258,6 +258,9 @@ class PaperBroker:
             if low and low > fill:
                 # the momentum-break anchor can never sit above the price we actually paid
                 self.s["positions"][mint]["entry_candle_low"] = fill
+            low5 = self.s["positions"][mint].get("entry_candle_low_5m")
+            if low5 and low5 > fill:
+                self.s["positions"][mint]["entry_candle_low_5m"] = fill
         exits.init_state(self.s["positions"][mint], horizon)
         self._save()
         return {"side": "buy", "mint": mint, "symbol": symbol, "qty": qty, "fill": fill,
