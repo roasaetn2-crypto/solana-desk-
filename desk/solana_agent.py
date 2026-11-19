@@ -1283,7 +1283,18 @@ class SolanaAgent:
                              if _sh else {})
                     if self.mode != "live":
                         # rulebook fast exits compare against these
-                        _meta.update({"entry_liq": (cq or {}).get("liquidity_usd") or t.get("liquidity_usd"),
+                        # entry liquidity with its source: the exit only compares like for like
+                        _liqs = {}
+                        _cq_l = (cq or {}).get("liquidity_usd")
+                        if _cq_l and (cq or {}).get("liq_source"):
+                            _liqs[cq["liq_source"]] = _cq_l
+                        _t_b = scanner.liq_basis(t.get("source"))
+                        if t.get("liquidity_usd") and _t_b != "unknown":
+                            _liqs.setdefault(_t_b, t["liquidity_usd"])
+                        _meta.update({"entry_liqs": _liqs,
+                                      "entry_liq_src": ((cq or {}).get("liq_source") if _cq_l else
+                                                        (_t_b if _t_b != "unknown" else None)),
+                                      "entry_liq": (cq or {}).get("liquidity_usd") or t.get("liquidity_usd"),
                                       # same basis (RugCheck) as the exit's re-read
                                       "entry_top10": (dev.get("concentration") or {}).get("top_10_pct"),
                                       "entry_dev_hold": dev.get("creator_hold_pct")})
@@ -1698,7 +1709,21 @@ class SolanaAgent:
                 print(f"exit: ${sym} {why}", flush=True)
                 return (1.0, why)
         notes = []
-        why, note = rulebook.liq_exit(pos, q)
+        lc = rulebook.liq_check(pos, q)
+        why, note = lc["reason"], (lc["note"] if lc["status"] in ("missing", "mismatch") else None)
+        if lc["status"] in ("exit", "breach", "mismatch"):
+            # both values and both sources, so a liquidity exit can be audited (and a skipped one explained)
+            line = (f"liq: ${sym} {lc['status']} entry {lc.get('entry') or 0:,.0f} [{lc.get('entry_src')}] "
+                    f"now {lc.get('now') or 0:,.0f} [{lc.get('now_src')}]"
+                    + (f" drop {lc['drop']:.0%} reads {lc.get('reads')}" if lc.get("drop") is not None else ""))
+            seen = self.__dict__.setdefault("_liq_log", {})
+            key = (lc["status"], lc.get("reads"), lc.get("entry_src"), lc.get("now_src"))
+            if seen.get(mint) != key:
+                seen[mint] = key
+                print(line, flush=True)
+                self.emit("info", line, stage="liq_exit", reason=f"liq_{lc['status']}", symbol=pos.get("symbol"),
+                          mint=mint)
+                self.stats[f"liq_{lc['status']}"] = self.stats.get(f"liq_{lc['status']}", 0) + 1
         if note:
             notes.append(note)
         if not why and RULEBOOK.get("exit_on_holder_sell", True):

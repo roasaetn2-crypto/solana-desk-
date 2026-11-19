@@ -190,20 +190,71 @@ def chase_gate(candles, t: dict | None = None, ds: dict | None = None,
 
 
 # ---------- 6. fast exits ----------
+def entry_liq_for(pos: dict, basis: str):
+    """The entry liquidity read on `basis` (dexscreener / jupiter / ...), or None. Positions opened before
+    the sources were recorded have none: their entry number can't be compared with anything."""
+    pos = pos or {}
+    by = pos.get("entry_liqs")
+    if isinstance(by, dict) and by.get(basis) is not None:
+        return _num(by.get(basis))
+    if pos.get("entry_liq_src") == basis:
+        return _num(pos.get("entry_liq"))
+    return None
+
+
+def liq_check(pos: dict, quote: dict | None) -> dict:
+    """One tick of the liquidity-drop exit, like for like.
+
+    status: "off" | "missing" | "mismatch" | "ok" | "breach" (under the threshold, not yet confirmed)
+    | "exit". Only an entry read and an exit read from the SAME source are compared: DexScreener's
+    liquidity.usd and Jupiter's `liquidity` are different numbers (Jupiter's is about half on pump pools),
+    so a cross-source "drop" is an artefact. A breach needs LIQ_EXIT["confirm_reads"] distinct reads in a
+    row; a drop of LIQ_EXIT["instant_drop"] or more on the same source exits on one. Never exits on missing data."""
+    from config import LIQ_EXIT
+    out = {"status": "off", "reason": None, "note": None}
+    if not RULEBOOK.get("exit_on_liq_drop", True):
+        return out
+    pos = pos if pos is not None else {}
+    q = quote or {}
+    now = _num(q.get("liquidity_usd"))
+    now_src = q.get("liq_source") or "unknown"
+    entry_any = _num(pos.get("entry_liq"))
+    out.update({"now": now, "now_src": now_src, "entry_src": pos.get("entry_liq_src") or "unknown"})
+    if not entry_any or entry_any <= 0:
+        out.update({"status": "missing", "note": "no entry liquidity recorded"})
+        return out
+    if now is None:
+        out.update({"status": "missing", "note": "no current liquidity"})
+        return out
+    entry = entry_liq_for(pos, now_src) if now_src != "unknown" else None
+    if not entry or entry <= 0:
+        out.update({"status": "mismatch", "entry": entry_any,
+                    "note": (f"liquidity sources differ (entry {entry_any:,.0f} [{out['entry_src']}] vs now "
+                             f"{now:,.0f} [{now_src}]): drop check skipped")})
+        return out
+    drop = round(1.0 - now / entry, 6)
+    out.update({"entry": entry, "entry_src": now_src, "drop": drop})
+    if drop < float(RULEBOOK["liq_drop_exit"]):
+        pos.pop("liq_breach", None)
+        out["status"] = "ok"
+        return out
+    st = pos.get("liq_breach") if isinstance(pos.get("liq_breach"), dict) else {"n": 0, "at": None}
+    at = _num(q.get("at"))
+    if at is None or st.get("at") is None or at > float(st["at"]):      # a new read, not the cached one again
+        st = {"n": int(st.get("n") or 0) + 1, "at": at if at is not None else time.time()}
+    pos["liq_breach"] = st
+    out["reads"] = st["n"]
+    if drop >= float(LIQ_EXIT["instant_drop"]) or st["n"] >= int(LIQ_EXIT["confirm_reads"]):
+        out.update({"status": "exit", "reason": f"rulebook: liquidity -{drop:.0%} since entry"})
+    else:
+        out["status"] = "breach"
+    return out
+
+
 def liq_exit(pos: dict, quote: dict | None) -> tuple[str | None, str | None]:
     """(sell reason, missing-data note). Never forces an exit on missing data."""
-    if not RULEBOOK.get("exit_on_liq_drop", True):
-        return None, None
-    entry = _num((pos or {}).get("entry_liq"))
-    now = _num((quote or {}).get("liquidity_usd"))
-    if not entry or entry <= 0:
-        return None, "no entry liquidity recorded"
-    if now is None:
-        return None, "no current liquidity"
-    drop = round(1.0 - now / entry, 6)
-    if drop >= float(RULEBOOK["liq_drop_exit"]):
-        return f"rulebook: liquidity -{drop:.0%} since entry", None
-    return None, None
+    r = liq_check(pos, quote)
+    return r["reason"], (r["note"] if r["status"] in ("missing", "mismatch") else None)
 
 
 def holder_exit(pos: dict, snap: dict | None) -> tuple[str | None, str | None]:

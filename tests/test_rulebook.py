@@ -169,9 +169,11 @@ class FastExits(unittest.TestCase):
         on()
 
     def test_liquidity_drop(self):
-        pos = {"entry_liq": 40_000}
-        self.assertEqual(rulebook.liq_exit(pos, {"liquidity_usd": 35_000}), (None, None))
-        why, _ = rulebook.liq_exit(pos, {"liquidity_usd": 32_000})
+        pos = {"entry_liq": 40_000, "entry_liq_src": "dexscreener"}
+        q = lambda liq, at: {"liquidity_usd": liq, "liq_source": "dexscreener", "at": at}   # noqa: E731
+        self.assertEqual(rulebook.liq_exit(pos, q(35_000, 1)), (None, None))
+        self.assertEqual(rulebook.liq_exit(pos, q(32_000, 2)), (None, None))      # first breaching read: wait
+        why, _ = rulebook.liq_exit(pos, q(32_000, 3))                             # second distinct read: exit
         self.assertIn("liquidity -20%", why)
         self.assertEqual(rulebook.liq_exit(pos, None)[0], None)
         self.assertEqual(rulebook.liq_exit({}, {"liquidity_usd": 1})[0], None)
@@ -275,11 +277,13 @@ class AgentWiring(unittest.TestCase):
         d = Path(tempfile.mkdtemp())
         a = SolanaAgent(ledger=d / "p.json", bench_path=d / "b.db", live_ledger=d / "l.json")
         a.paper.buy(TOK["mint"], "RULE", 5.0, 0.001, horizon="scalp",
-                    meta={"entry_liq": 40_000, "entry_top10": 0.30, "entry_dev_hold": 0.04, **meta})
+                    meta={"entry_liq": 40_000, "entry_liq_src": "dexscreener",
+                          "entry_liqs": {"dexscreener": 40_000}, "entry_top10": 0.30, "entry_dev_hold": 0.04, **meta})
         return a
 
-    def _manage(self, a, liq, snap):
-        q = {TOK["mint"]: {"price_usd": 0.001, "liquidity_usd": liq, "volume_h6": 1, "volume_h24": 1}}
+    def _manage(self, a, liq, snap, at=None, src="dexscreener"):
+        q = {TOK["mint"]: {"price_usd": 0.001, "liquidity_usd": liq, "volume_h6": 1, "volume_h24": 1,
+                           "liq_source": src, "at": at if at is not None else time.time()}}
         with mock.patch.object(scanner, "quote_many", return_value=q), \
                 mock.patch("desk.solana_agent.candle_chart.prefetch"), \
                 mock.patch("desk.devcheck.holder_snapshot", return_value=snap), \
@@ -288,7 +292,10 @@ class AgentWiring(unittest.TestCase):
 
     def test_liquidity_drop_sells_everything(self):
         a = self._held()
-        self._manage(a, 30_000, {"available": True, "creator_hold_pct": 0.04, "top_10_pct": 0.30})
+        snap = {"available": True, "creator_hold_pct": 0.04, "top_10_pct": 0.30}
+        self._manage(a, 30_000, snap, at=1.0)
+        self.assertIn(TOK["mint"], a.paper.s["positions"])             # one breaching read is not enough
+        self._manage(a, 30_000, snap, at=2.0)
         self.assertNotIn(TOK["mint"], a.paper.s["positions"])
         self.assertIn("liquidity", a.paper.s["closed"][-1].get("reason", ""))
 

@@ -199,6 +199,10 @@ SCAN_FETCH = {
 # Last-good reuse for gate finalists (config only, not a setting): while GeckoTerminal / DexScreener / Jupiter
 # cool, the last 5m buy/sell counts and the last good candles of a finalist mint are reused up to this old.
 # They are tagged (source "cache", age_s) so nothing mistakes them for a fresh read.
+# Liquidity-drop exit (paper). The entry and the exit liquidity must come from the SAME source, and a drop
+# needs `confirm_reads` distinct breaching reads; one read of >= `instant_drop` from the same source exits at once.
+LIQ_EXIT = {"confirm_reads": 2, "instant_drop": 0.90}
+
 LAST_GOOD = {
     "tx_m5_max_age_s": 300,
     "bars_max_age_s": 300,

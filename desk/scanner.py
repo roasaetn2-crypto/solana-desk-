@@ -1113,7 +1113,7 @@ def _remember_pairs(pairs: list[dict], now: float) -> None:
             continue
         by_mint.setdefault(mint, []).append(p)
     for mint, group in by_mint.items():
-        _PAIR_CACHE[mint] = {"exp": now + ttl, "pairs": group}
+        _PAIR_CACHE[mint] = {"exp": now + ttl, "pairs": group, "at": now}
 
 
 def cached_raw_pairs(mint: str, now: float | None = None) -> list[dict] | None:
@@ -1366,7 +1366,15 @@ def free_kill(t: dict) -> str | None:
     return _swing_kill(t) or _shared_kill(t)
 
 
-def _quote_from_pairs(pairs: list[dict]) -> dict | None:
+def liq_basis(source) -> str:
+    """Which liquidity metric a token's `liquidity_usd` is. DexScreener's liquidity.usd is the pool's
+    two-sided USD; Jupiter's `liquidity` is a different aggregate (about half of it on the pump pools
+    sampled); GeckoTerminal's reserve_in_usd is its own number. Only the same basis may be compared."""
+    return {"dexscreener": "dexscreener", "jupiter": "jupiter", "pumpportal": "jupiter",
+            "geckoterminal": "geckoterminal", "demo": "demo"}.get(str(source or "").lower(), "unknown")
+
+
+def _quote_from_pairs(pairs: list[dict], at: float | None = None) -> dict | None:
     sol = [p for p in pairs if (p.get("chainId") or "solana").lower() == "solana"] or list(pairs)
     if not sol:
         return None
@@ -1374,7 +1382,8 @@ def _quote_from_pairs(pairs: list[dict]) -> dict | None:
     vol = p.get("volume") or {}
     return {"price_usd": _f(p.get("priceUsd")),
             "liquidity_usd": _f((p.get("liquidity") or {}).get("usd")),
-            "volume_h6": _f(vol.get("h6")), "volume_h24": _f(vol.get("h24"))}
+            "volume_h6": _f(vol.get("h6")), "volume_h24": _f(vol.get("h24")),
+            "liq_source": "dexscreener", "at": time.time() if at is None else at}
 
 
 def quote_many(mints: list[str], session: requests.Session | None = None) -> dict[str, dict]:
@@ -1400,7 +1409,7 @@ def quote_many(mints: list[str], session: requests.Session | None = None) -> dic
             continue
         pairs = cached_raw_pairs(mint, now)
         if pairs:
-            q = _quote_from_pairs(pairs)
+            q = _quote_from_pairs(pairs, at=(_PAIR_CACHE.get(mint) or {}).get("at"))
             if q:
                 out[mint] = q
                 _QUOTE_CACHE[mint] = {"exp": now + SCAN_FETCH["quote_ttl_s"], "q": q}
@@ -1449,7 +1458,7 @@ def quote_many(mints: list[str], session: requests.Session | None = None) -> dic
                 by_mint.setdefault(mint, []).append(p)
         unpriced: list[str] = []
         for mint in chunk:
-            q = _quote_from_pairs(by_mint.get(mint) or [])
+            q = _quote_from_pairs(by_mint.get(mint) or [], at=now)
             if not q:
                 unpriced.append(mint)
                 continue
@@ -1474,11 +1483,12 @@ def quote_many(mints: list[str], session: requests.Session | None = None) -> dic
     return out
 
 
-def _quote_from_jup(row: dict) -> dict | None:
+def _quote_from_jup(row: dict, at: float | None = None) -> dict | None:
     price = _f(row.get("usdPrice"))
     if price <= 0:
         return None
     return {"price_usd": price, "liquidity_usd": _f(row.get("liquidity")),
+            "liq_source": "jupiter", "at": time.time() if at is None else at,
             "volume_h6": _jup_stats_vol(row.get("stats6h") or {}),
             "volume_h24": _jup_stats_vol(row.get("stats24h") or {}),
             "volume_m5": _jup_stats_vol(row.get("stats5m") or {})}
@@ -1491,7 +1501,7 @@ def _jup_quotes(s: requests.Session, mints: list[str], now: float) -> dict[str, 
     for m in mints:
         row = _JUP_ROWS.get(m)
         if row and now - row["at"] <= SCAN_FETCH["quote_ttl_s"]:
-            q = _quote_from_jup(row["row"])
+            q = _quote_from_jup(row["row"], at=row["at"])
             if q:
                 out[m] = q
                 continue
@@ -1503,7 +1513,7 @@ def _jup_quotes(s: requests.Session, mints: list[str], now: float) -> dict[str, 
             for row in body:
                 m = row.get("id") if isinstance(row, dict) else None
                 if m in need:
-                    q = _quote_from_jup(row)
+                    q = _quote_from_jup(row, at=now)
                     if q:
                         out[m] = q
     return out
@@ -1595,5 +1605,5 @@ def demo_quote(mint: str, last: float) -> dict:
     rng = random.Random(f"{mint}:{int(time.time() // 20)}")
     drift = rng.gauss(0.0, 0.06)
     price = max(1e-12, last * (1 + drift))
-    return {"price_usd": price, "liquidity_usd": 50_000.0,
+    return {"price_usd": price, "liquidity_usd": 50_000.0, "liq_source": "demo", "at": time.time(),
             "volume_h6": rng.uniform(500, 20_000), "volume_h24": rng.uniform(20_000, 120_000)}
