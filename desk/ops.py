@@ -107,7 +107,8 @@ class Bench:
         return bool(r and r[1] > now)
 
     def sit(self, mint: str, reason: str):
-        mins = BENCH_MINUTES.get(reason, DEFAULT_BENCH)
+        # "tx_ratio_unknown:gt_cooling" sits out as long as "tx_ratio_unknown": the cause is a suffix
+        mins = BENCH_MINUTES.get(reason, BENCH_MINUTES.get(str(reason).split(":", 1)[0], DEFAULT_BENCH))
         until = time.time() + mins * 60
         if self.ok and self.db is not None:
             try:

@@ -37,7 +37,7 @@ from desk import (analyst, analyst_ai, brain, chain, dexscreener, devcheck, dial
                   groq_postmortem, groq_sizer, guard, heartbeat, helius, meme, meme_tactics,
                   pumpportal, regime, risk, scanner, signal_engine, signals, social)
 from desk import chart as candle_chart
-from desk import dip_recovery, entry_trigger, rulebook
+from desk import dip_recovery, entry_trigger, marketdata, rulebook
 from desk import confirm as entry_confirm
 from desk import links as fomo_links
 from desk.age import created_at_of
@@ -787,11 +787,17 @@ class SolanaAgent:
                 if self.mode != "live" and not t["mint"].startswith("DEMO"):
                     k = rulebook.tx_ratio_gate(ds)
                     if k == "tx_ratio_unknown":
-                        # DexScreener has no 5m counts (cooling / not listed): ask
-                        # GeckoTerminal for this pool. No data there either -> still a skip.
-                        gt_tx = scanner.gt_tx_m5(t, self.session)
-                        if gt_tx:
-                            k = rulebook.tx_ratio_gate(gt_tx)
+                        # DexScreener has no 5m counts (cooling / not listed): Jupiter's 5m stats
+                        # (cached row, else one targeted search), then GeckoTerminal for this pool.
+                        # No data anywhere -> still a skip, and the reason names the cause:
+                        # tx_ratio_unknown:jup_cooling+gt_cooling.
+                        alt = marketdata.tx_m5(t, ds, self.session)
+                        if alt.get("available"):
+                            k = rulebook.tx_ratio_gate(alt)
+                            self._count_source("tx_" + alt["source"])
+                        else:
+                            k = f"tx_ratio_unknown:{alt['cause']}"
+                            self._count_source("tx_missing")
                     k = k or rulebook.lp_gate(dev)
                     if not k and (RULEBOOK.get("volume_rising_gate", True)
                                   or RULEBOOK.get("no_chase_gate", True)):
@@ -836,6 +842,9 @@ class SolanaAgent:
                             "trigger_none" if trig["reason"] == entry_trigger.SKIP_NONE else "trigger_unknown")
                     with self.lock:
                         self.stats[stat] = self.stats.get(stat, 0) + 1
+                    for _k in ("rsi_source", "vol_source"):
+                        if trig.get(_k):
+                            self._count_source(f"{_k[:3]}_{trig[_k]}")
                     msg = f"trigger: ${t.get('symbol')} {entry_trigger.describe(trig)}"
                     print(msg, flush=True)
                     if trig["fired"]:
@@ -1504,6 +1513,11 @@ class SolanaAgent:
                   mint=t["mint"])
         journal("reject", stage="rulebook", mint=t["mint"], symbol=t.get("symbol"), reason=reason)
         print(msg, flush=True)
+
+    def _count_source(self, key: str) -> None:
+        """Tiny per-source counters (which second source answered) for the funnel / state."""
+        with self.lock:
+            self.stats["src_" + key] = self.stats.get("src_" + key, 0) + 1
 
     def _count_breakout_vs_no_chase(self, t: dict) -> None:
         """no_chase is about to skip this coin. If a breakout trigger would have fired on it, count

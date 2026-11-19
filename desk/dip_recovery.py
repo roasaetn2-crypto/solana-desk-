@@ -27,7 +27,7 @@ import logging
 import time
 
 from config import RULEBOOK
-from desk import chart, scanner
+from desk import chart, pricetape, scanner
 
 log = logging.getLogger("desk.dip")
 
@@ -117,8 +117,12 @@ def _worst_drawdown(bars):
 
 
 def classify(candles, *, now: float | None = None, fetched_at: float | None = None,
-             buys_m5=None, sells_m5=None) -> dict:
-    """Classify the recent 1m candles. Pure: no I/O. See the module docstring."""
+             buys_m5=None, sells_m5=None, volume_known: bool = True) -> dict:
+    """Classify the recent 1m candles. Pure: no I/O. See the module docstring.
+
+    volume_known=False means the candles are price-only (the Jupiter price tape): a recovery can still
+    be read when 5m buy/sell counts are given, but "dead after a dip" needs the volume fade, so it
+    is never called without volume."""
     now = time.time() if now is None else now
     min_drop = _cfg("dip_min_drop_pct", 0.20)
     window = max(1, int(_cfg("dip_recover_window_min", 5)))
@@ -172,6 +176,9 @@ def classify(candles, *, now: float | None = None, fetched_at: float | None = No
     if since_low < window:
         return _result(UNKNOWN, "dip_pending", **info)
 
+    if not volume_known:
+        return _result(UNKNOWN, "dip_unresolved_no_volume", **info)
+
     drop_vols = [x["v"] for x in bars[peak_i + 1:low_i + 1]] or [bars[low_i]["v"]]
     drop_avg = sum(drop_vols) / len(drop_vols)
     tail = [x["v"] for x in bars[-3:]]
@@ -203,10 +210,11 @@ def load_candles(mint: str, session=None, now: float | None = None) -> tuple[lis
         return row["candles"], row["at"]
     keyed = chart.cg_available(now)
     can_call = (chart.cg_ready(now) if keyed else not scanner.host_cooling("geckoterminal", now))
+    scanner.note_finalist_wait("geckoterminal", now)       # a finalist needs GT: discovery leaves a reserve
     if (can_call and now - chart._ATTEMPT.get(key, 0.0) >= chart.MISS_RETRY_S
             and _BUCKET.allow(1, now=now)):
         try:
-            cs = chart._fetch_and_store(pool, "1m", session, now)
+            cs = chart._fetch_and_store(pool, "1m", session, now, priority=True)
         except Exception as e:                               # never stall the cycle
             log.warning("dip ohlcv fetch failed: %s", type(e).__name__)
             cs = []
@@ -216,13 +224,44 @@ def load_candles(mint: str, session=None, now: float | None = None) -> tuple[lis
 
 
 def cached_tx_m5(t: dict, now: float | None = None) -> tuple[float | None, float | None]:
-    """5m buys/sells already in the scanner's cache (no request)."""
+    """5m buys/sells already in the scanner's caches (GeckoTerminal pool counts, else a fresh
+    Jupiter row). No request."""
     now = time.time() if now is None else now
     pool = t.get("pool")
     hit = scanner._TX_CACHE.get(pool) if pool else None
     if hit and hit.get("c") and hit["exp"] > now:
         return hit["c"][0], hit["c"][1]
+    got, _ = scanner.jup_tx_m5(t.get("mint") or "", now)
+    if got and (got["buys_m5"] + got["sells_m5"]) > 0:
+        return got["buys_m5"], got["sells_m5"]
     return None, None
+
+
+def candle_cause(mint: str, now: float | None = None) -> str:
+    """Why load_candles had no GeckoTerminal 1m candles for `mint`, from the limiter state (no request)."""
+    now = time.time() if now is None else now
+    if str(mint).startswith("DEMO"):
+        return "demo"
+    pool = chart._pool_address(mint)
+    if not pool:
+        return "no_pool"
+    ep_id = f"gt:ohlcv:{pool}:minute:1"
+    st = scanner.last_status(ep_id)
+    if st == 404:
+        return "gt_404"
+    keyed = chart.cg_available(now)
+    if keyed:
+        if not chart.cg_ready(now):
+            return "gt_budget"
+    elif scanner.host_cooling("geckoterminal", now):
+        return "gt_cooling"
+    if st:
+        return f"gt_{st}"
+    if now - chart._ATTEMPT.get(chart._ohlcv_key(pool, "1m"), 0.0) < chart.MISS_RETRY_S:
+        return "gt_retry_wait"
+    if _BUCKET.peek(now) < 1.0:
+        return "gt_cap"
+    return "gt_budget"
 
 
 def read(t: dict, ds: dict | None = None, session=None, now: float | None = None) -> dict:
@@ -235,7 +274,16 @@ def read(t: dict, ds: dict | None = None, session=None, now: float | None = None
             b, s = ds.get("buys_m5"), ds.get("sells_m5")
         if _num(b) is None or _num(s) is None:
             b, s = cached_tx_m5(t, now)
-        return classify(candles, now=now, fetched_at=at, buys_m5=b, sells_m5=s)
+        out = classify(candles, now=now, fetched_at=at, buys_m5=b, sells_m5=s)
+        if out["class"] == UNKNOWN and out.get("detail") in ("insufficient_candles", "stale_candles"):
+            # no usable GeckoTerminal candles: the price tape (Jupiter prices), price only, no volume
+            tape = pricetape.candles_1m(t.get("mint") or "")
+            if tape:
+                alt = classify(tape, now=now, fetched_at=now, buys_m5=b, sells_m5=s, volume_known=False)
+                if alt["class"] != UNKNOWN or alt.get("detail") not in ("insufficient_candles", "stale_candles"):
+                    alt["source"] = "price_tape"
+                    return alt
+        return out
     except Exception as e:
         log.warning("dip read failed: %s", type(e).__name__)
         return _result(UNKNOWN, "error")

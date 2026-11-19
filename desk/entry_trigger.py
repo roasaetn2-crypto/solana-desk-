@@ -13,16 +13,22 @@ A candidate must fire at least ONE trigger, on top of every other gate:
                    rulebook.breakout_lookback (20) minutes AND that candle's volume is at
                    least rulebook.breakout_vol_mult (2.0) x the average volume of those minutes.
 
-Data, all cache-first (no request flood, no new endpoint):
-  15s bars   built from the desk's own price ticks (chart.ticks / bucket_ticks), no HTTP.
+Data, all cache-first (no request flood, no new endpoint). Best source first, then a source that does not
+depend on GeckoTerminal (which sits in a 429 cooldown most of the time on Render):
+  15s bars   built from the desk's own price ticks and the Jupiter price tape, no HTTP.
              Ticks carry no per-bar volume (they only hold the rolling 5m volume), so the
              15s series feeds RSI only. A breakout needs real volume, so it reads 1m only.
   1m bars    GeckoTerminal OHLCV through dip_recovery.load_candles: the same chart cache,
              retry gap, host cooldown and bucket the dip reader uses. Minutes with no
              trades become flat, zero-volume bars so a silent coin reads as quiet.
 
-Skip reasons: no_trigger (data was readable, nothing fired) and trigger_unknown (neither
-trigger could be computed). Missing data is never a pass. `evaluate()` never raises.
+  1m tape    price-only 1m bars from the price tape (desk/pricetape.py). RSI uses them when GeckoTerminal has
+             no usable candles. A breakout then takes resistance from the tape and the volume multiple
+             from Jupiter (5m volume vs the hour's average 5m volume), via desk/marketdata.py.
+
+Skip reasons: no_trigger (data was readable, nothing fired) and trigger_unknown:<cause> (neither
+trigger could be computed; the cause is e.g. gt_cooling, gt_budget, no_pool, gt_404, too_few_bars).
+Missing data is never a pass. `evaluate()` never raises.
 Live trading never reads any of this (the agent calls it only when mode != "live").
 """
 from __future__ import annotations
@@ -31,7 +37,7 @@ import logging
 import time
 
 from config import RULEBOOK
-from desk import chart, dip_recovery, indicators
+from desk import chart, dip_recovery, indicators, pricetape
 
 log = logging.getLogger("desk.trigger")
 
@@ -41,6 +47,8 @@ FIRE, NO, UNKNOWN = "fire", "no", "unknown"
 
 MIN_REAL_BARS = 6              # fewer real 1m candles than this -> unknown
 MIN_PRIOR_BARS = 8             # a breakout needs at least this many prior minutes
+MIN_REAL_TAPE = 8              # price-tape bars: at least this many minutes with a real price
+TAPE_MAX_AGE_S = 150.0         # the newest tape price must be this fresh
 MAX_DATA_AGE_S = 300.0         # 1m candles fetched longer ago than this are stale
 TICK_BAR_S = 15
 TICK_MAX_AGE_S = 75.0          # the newest 15s bar must be this fresh
@@ -72,16 +80,66 @@ def _load_1m(mint: str, session, now: float, fetch: bool):
 
 
 def _bars_1m(candles, fetched_at, now: float, span_min: int):
-    """(bars, real candle count), or (None, reason) when the data is stale or thin."""
+    """(bars, real candle count, None), or (None, 0, cause) when the data is missing, stale or thin."""
     if not candles or fetched_at is None:
-        return None, "no_candles"
+        return None, 0, "no_candles"
     if now - fetched_at > MAX_DATA_AGE_S:
-        return None, "stale_candles"
+        return None, 0, "stale_candles"
     end_s = min(now, fetched_at + 60.0)
     bars, real = dip_recovery._bars_per_minute(candles, end_s, span_min * 60.0)
     if real < MIN_REAL_BARS:
-        return None, "insufficient_candles"
-    return bars, real
+        return None, real, "too_few_bars"
+    return bars, real, None
+
+
+def _tape_bars_1m(mint: str, now: float, span_min: int):
+    """Price-only 1m bars from the price tape (Jupiter prices + the desk's quote ticks): the second
+    source when GeckoTerminal has no usable candles. (bars, real minutes, None) or (None, n, cause)."""
+    cs = pricetape.candles_1m(mint)
+    if not cs:
+        return None, 0, "too_few_bars"
+    if now - cs[-1]["t"] > TAPE_MAX_AGE_S:
+        return None, 0, "stale_ticks"
+    bars, real = dip_recovery._bars_per_minute(cs, now, span_min * 60.0)
+    if real < MIN_REAL_TAPE:
+        return None, real, "too_few_bars"
+    return bars, real, None
+
+
+class _Sources:
+    """The 1m data for one coin, loaded at most once per evaluation.
+
+    gt()    GeckoTerminal 1m candles (OHLCV + volume) through the dip reader's cache and limits
+    tape()  price-only 1m bars from the price tape
+    A miss carries a cause such as gt_cooling, gt_budget, no_pool, gt_404, too_few_bars."""
+
+    def __init__(self, mint, now, session, fetch):
+        self.mint, self.now, self.session, self.fetch = mint, now, session, fetch
+        self._gt = self._tape = None
+
+    def gt(self, span_min: int):
+        if self._gt is None:
+            try:
+                candles, at = _load_1m(self.mint, self.session, self.now, self.fetch)
+            except Exception as e:
+                log.warning("trigger candle read failed: %s", type(e).__name__)
+                candles, at = [], None
+            self._gt = (candles, at)
+        candles, at = self._gt
+        bars, real, err = _bars_1m(candles, at, self.now, span_min)
+        if bars is None and err == "no_candles":
+            try:
+                err = dip_recovery.candle_cause(self.mint, self.now)
+            except Exception:
+                err = "gt_unavailable"
+        return bars, real, err
+
+    def tape(self, span_min: int):
+        return _tape_bars_1m(self.mint, self.now, span_min)
+
+
+def _join(*causes) -> str:
+    return "+".join(dict.fromkeys(c for c in causes if c))
 
 
 # ---------- trigger A: RSI oversold ----------
@@ -93,9 +151,9 @@ def _rsi_from_closes(closes, period: int):
 
 
 def _rsi_15s(mint: str, period: int, now: float):
-    bars = chart.bucket_ticks(chart.ticks(mint), TICK_BAR_S)
+    bars = chart.bucket_ticks(pricetape.merged_ticks(mint), TICK_BAR_S)
     if len(bars) < period + 1:
-        return None, "thin_ticks"
+        return None, "too_few_bars"
     if now - bars[-1]["t"] > TICK_MAX_AGE_S:
         return None, "stale_ticks"
     window = bars[-(3 * period + 1):]
@@ -104,30 +162,42 @@ def _rsi_15s(mint: str, period: int, now: float):
     return [b["c"] for b in window], None
 
 
-def read_rsi(mint: str, now: float, session=None, fetch: bool = True, c1m=None) -> dict:
-    """RSI on the configured short timeframe, else the other one. `unknown` if neither works."""
+def read_rsi(mint: str, now: float, session=None, fetch: bool = True, src: "_Sources | None" = None) -> dict:
+    """RSI on the configured short timeframe, else the other sources. `unknown` if none works.
+
+    Order for "15s": 15s bars from price ticks, then 1m GeckoTerminal candles, then 1m price-tape bars.
+    Order for "1m":  1m GeckoTerminal candles, then 1m price-tape bars, then 15s bars from price ticks."""
     period = max(2, int(_cfg("rsi_period", 14)))
     want = str(RULEBOOK.get("rsi_timeframe") or "15s").lower()
-    order = ["1m", "15s"] if want == "1m" else ["15s", "1m"]
-    why = {}
-    for tf in order:
-        if tf == "15s":
+    order = (["1m", "tape", "15s"] if want == "1m" else ["15s", "1m", "tape"])
+    src = src or _Sources(mint, now, session, fetch)
+    span = 3 * period + 2
+    why: dict[str, str] = {}
+    for step in order:
+        if step == "15s":
             closes, err = _rsi_15s(mint, period, now)
-        else:
-            candles, at = c1m if c1m is not None else _load_1m(mint, session, now, fetch)
-            bars, err = _bars_1m(candles, at, now, 3 * period + 2)
+            tf, source = "15s", "ticks"
+        elif step == "1m":
+            bars, _real, err = src.gt(span)
             closes = None if bars is None else [b["c"] for b in bars]
+            tf, source = "1m", "geckoterminal"
+        else:
+            bars, _real, err = src.tape(span)
+            closes = None if bars is None else [b["c"] for b in bars]
+            tf, source = "1m", "price_tape"
         if closes is None:
-            why[tf] = err
+            why[step] = err
             continue
         v = _rsi_from_closes(closes, period)
         if v is None:
-            why[tf] = "too_few_bars"
+            why[step] = "too_few_bars"
             continue
         turn = len(closes) >= 2 and closes[-1] > closes[-2]
-        return {"state": UNKNOWN, "rsi": v, "tf": tf, "period": period, "turn": turn,
-                "bars": len(closes), "fell_back": tf != order[0]}
-    return {"state": UNKNOWN, "rsi": None, "period": period, "tf": None,
+        return {"state": UNKNOWN, "rsi": v, "tf": tf, "source": source, "period": period, "turn": turn,
+                "bars": len(closes), "fell_back": step != order[0]}
+    # the cause: the GeckoTerminal miss first (the usual root), then why the ticks / tape were thin
+    cause = _join(why.get("1m"), why.get("tape") or why.get("15s"))
+    return {"state": UNKNOWN, "rsi": None, "period": period, "tf": None, "cause": cause or "no_data",
             "detail": ",".join(f"{k}:{v}" for k, v in why.items())}
 
 
@@ -142,27 +212,56 @@ def judge_rsi(r: dict) -> dict:
 
 
 # ---------- trigger B: breakout above resistance on 2x volume ----------
-def read_breakout(mint: str, now: float, session=None, fetch: bool = True, c1m=None) -> dict:
-    n = max(3, int(_cfg("breakout_lookback", 20)))
-    mult_min = _cfg("breakout_vol_mult", 2.0)
-    candles, at = c1m if c1m is not None else _load_1m(mint, session, now, fetch)
-    bars, err = _bars_1m(candles, at, now, n + 2)
-    if bars is None:
-        return {"state": UNKNOWN, "detail": err, "tf": "1m"}
+def _breakout_from(bars, n: int, mult_min: float, vol_mult, source: str, extra: dict | None = None):
     prior, last = bars[-n - 1:-1], bars[-1]
     if len(prior) < MIN_PRIOR_BARS:
-        return {"state": UNKNOWN, "detail": "insufficient_candles", "tf": "1m", "bars": len(bars)}
+        return {"state": UNKNOWN, "cause": "too_few_bars", "detail": "insufficient_candles",
+                "tf": "1m", "bars": len(bars), "source": source}
     resistance = max(b["h"] for b in prior)
-    avg_v = sum(b["v"] for b in prior) / len(prior)
-    if avg_v <= 0:
-        return {"state": UNKNOWN, "detail": "no_volume_baseline", "tf": "1m", "bars": len(bars)}
-    mult = round(last["v"] / avg_v, 2)
-    info = {"tf": "1m", "resistance": resistance, "close": last["c"], "vol_mult": mult,
-            "lookback": len(prior), "above": last["c"] > resistance}
-    if last["c"] > resistance and mult >= mult_min:
+    info = {"tf": "1m", "source": source, "resistance": resistance, "close": last["c"],
+            "lookback": len(prior), "above": last["c"] > resistance, **(extra or {})}
+    if vol_mult is None:
+        return {**info, "state": UNKNOWN, "cause": info.get("vol_cause") or "no_volume", "detail": "no_volume_baseline"}
+    info["vol_mult"] = vol_mult
+    if last["c"] > resistance and vol_mult >= mult_min:
         return {**info, "state": FIRE, "detail": "broke_resistance_on_volume"}
     return {**info, "state": NO,
             "detail": "below_resistance" if last["c"] <= resistance else "weak_volume"}
+
+
+def read_breakout(mint: str, now: float, session=None, fetch: bool = True,
+                  src: "_Sources | None" = None) -> dict:
+    """Close above the prior-N-minute high on >= breakout_vol_mult x average volume.
+
+    First choice: GeckoTerminal 1m candles (per-minute volume). Second choice, when those are not
+    available: resistance from price-tape 1m bars and the volume multiple from Jupiter (5m volume vs
+    the hour's average 5m volume). Neither: unknown, with the cause."""
+    n = max(3, int(_cfg("breakout_lookback", 20)))
+    mult_min = _cfg("breakout_vol_mult", 2.0)
+    src = src or _Sources(mint, now, session, fetch)
+    bars, _real, gt_err = src.gt(n + 2)
+    if bars is not None:
+        prior = bars[-n - 1:-1]
+        avg_v = sum(b["v"] for b in prior) / len(prior) if prior else 0.0
+        if len(prior) >= MIN_PRIOR_BARS and avg_v <= 0:
+            return {"state": UNKNOWN, "cause": "no_volume", "detail": "no_volume_baseline", "tf": "1m",
+                    "bars": len(bars), "source": "geckoterminal"}
+        mult = round(bars[-1]["v"] / avg_v, 2) if avg_v > 0 else None
+        out = _breakout_from(bars, n, mult_min, mult, "geckoterminal")
+        if out["state"] != UNKNOWN:
+            return out
+        gt_err = out.get("cause") or gt_err
+    tbars, _treal, t_err = src.tape(n + 2)
+    if tbars is None:
+        return {"state": UNKNOWN, "cause": _join(gt_err, t_err), "detail": f"gt:{gt_err},tape:{t_err}",
+                "tf": "1m"}
+    from desk import marketdata, scanner
+    jc = marketdata.ensure_jup(mint, session, now, fetch)
+    ratio, jcause = (scanner.jup_volume_ratio(mint, now) if jc is None else (None, jc))
+    out = _breakout_from(tbars, n, mult_min, ratio, "price_tape+jupiter", {"vol_cause": jcause})
+    if out["state"] == UNKNOWN:
+        out["cause"] = _join(gt_err, out.get("cause"))
+    return out
 
 
 # ---------- combined ----------
@@ -170,27 +269,26 @@ def evaluate(mint: str, *, now: float | None = None, session=None, fetch: bool =
     """Both triggers for one coin. Never raises; any failure reads as unknown."""
     now = time.time() if now is None else now
     try:
-        c1m = None
-        try:
-            c1m = _load_1m(mint, session, now, fetch)
-        except Exception as e:
-            log.warning("trigger candle read failed: %s", type(e).__name__)
-            c1m = ([], None)
-        rsi = judge_rsi(read_rsi(mint, now, session, fetch, c1m))
-        brk = read_breakout(mint, now, session, fetch, c1m)
+        src = _Sources(mint, now, session, fetch)
+        rsi = judge_rsi(read_rsi(mint, now, session, fetch, src))
+        brk = read_breakout(mint, now, session, fetch, src)
     except Exception as e:
         log.warning("trigger read failed: %s", type(e).__name__)
-        rsi, brk = {"state": UNKNOWN, "detail": "error", "rsi": None}, {"state": UNKNOWN, "detail": "error"}
+        rsi = {"state": UNKNOWN, "detail": "error", "cause": "error", "rsi": None}
+        brk = {"state": UNKNOWN, "detail": "error", "cause": "error"}
     fired = RSI_OVERSOLD if rsi["state"] == FIRE else BREAKOUT if brk["state"] == FIRE else None
+    cause = None
     if fired:
         reason = None
     elif NO in (rsi["state"], brk["state"]):
         reason = SKIP_NONE
     else:
         reason = SKIP_UNKNOWN
-    return {"fired": fired, "reason": reason, "rsi": rsi, "breakout": brk,
+        cause = _join(rsi.get("cause"), brk.get("cause")) or "no_data"
+    return {"fired": fired, "reason": reason, "cause": cause, "rsi": rsi, "breakout": brk,
             "rsi_value": rsi.get("rsi"), "rsi_tf": rsi.get("tf"), "rsi_period": rsi.get("period"),
-            "vol_mult": brk.get("vol_mult")}
+            "rsi_source": rsi.get("source"), "vol_mult": brk.get("vol_mult"),
+            "vol_source": brk.get("source")}
 
 
 def gate(info: dict | None) -> str | None:
@@ -201,15 +299,18 @@ def gate(info: dict | None) -> str | None:
         return SKIP_UNKNOWN
     if info.get("fired"):
         return None
-    return info.get("reason") or SKIP_UNKNOWN
+    reason = info.get("reason") or SKIP_UNKNOWN
+    # trigger_unknown:<cause> (gt_cooling, gt_budget, no_pool, gt_404, too_few_bars ...): the base
+    # reason stays the prefix so counters and the bench keep working
+    return f"{reason}:{info['cause']}" if reason == SKIP_UNKNOWN and info.get("cause") else reason
 
 
 def tag(info: dict | None) -> dict:
     """The fields stamped on the buy event, journal row, position and decision."""
     i = info or {}
-    out = {"trigger": i.get("fired"), "rsi": i.get("rsi_value"), "rsi_tf": i.get("rsi_tf"),
-           "vol_mult": i.get("vol_mult")}
-    return out
+    return {"trigger": i.get("fired"), "rsi": i.get("rsi_value"), "rsi_tf": i.get("rsi_tf"),
+            "rsi_source": i.get("rsi_source"), "vol_mult": i.get("vol_mult"),
+            "vol_source": i.get("vol_source")}
 
 
 def facts(info: dict | None) -> dict | None:
@@ -229,10 +330,10 @@ def describe(info: dict | None) -> str:
     if r.get("rsi") is not None:
         bits.append(f"rsi{r.get('period')} {r['rsi']:g} @{r.get('tf')}"
                     + ("" if r.get("turn") else " (no up-turn)"))
-    elif r.get("detail"):
-        bits.append(f"rsi n/a ({r['detail']})")
+    elif r.get("cause"):
+        bits.append(f"rsi n/a ({r['cause']})")
     if b.get("vol_mult") is not None:
         bits.append(f"vol {b['vol_mult']:g}x" + (" above resistance" if b.get("above") else ", under resistance"))
-    elif b.get("detail"):
-        bits.append(f"breakout n/a ({b['detail']})")
+    elif b.get("cause"):
+        bits.append(f"breakout n/a ({b['cause']})")
     return ", ".join(bits)

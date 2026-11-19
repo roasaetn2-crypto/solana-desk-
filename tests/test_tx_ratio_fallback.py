@@ -59,10 +59,12 @@ class AgentFallback(unittest.TestCase):
     def test_still_skips_when_every_source_is_missing(self):
         a, m = self._run(DS_MISSING, None)
         m.assert_called_once()
-        self.assertEqual(self.skips(a), ["tx_ratio_unknown"])
+        self.assertEqual([r.split(":")[0] for r in self.skips(a)], ["tx_ratio_unknown"])
+        self.assertTrue(self.skips(a)[0].startswith("tx_ratio_unknown:"))      # with a named cause
         self.assertEqual(a.stats["entries"], 0)
         a2, _ = self._run(DS_MISSING, fb(0, 0))
-        self.assertEqual(self.skips(a2), ["tx_ratio_unknown"])
+        self.assertEqual([r.split(":")[0] for r in self.skips(a2)], ["tx_ratio_unknown"])
+        self.assertIn("gt_zero_txns", self.skips(a2)[0])
 
     def test_fallback_not_asked_when_dexscreener_has_data(self):
         a, m = self._run(tr.GOOD_DS, fb(1, 100))

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import random
+import re
 import time
 from collections import OrderedDict
 from datetime import datetime
@@ -83,6 +84,11 @@ class TokenBucket:
         self.tokens = self.burst
         self.t = time.time() if now is None else now
 
+    def peek(self, now: float | None = None) -> float:
+        """Tokens available now (after refill), without spending any."""
+        now = time.time() if now is None else now
+        return min(self.burst, self.tokens + max(0.0, now - self.t) * (self.per_min / 60.0))
+
     def allow(self, n: float = 1, now: float | None = None) -> bool:
         now = time.time() if now is None else now
         elapsed = max(0.0, now - self.t)
@@ -133,10 +139,72 @@ GT_TX_TTL_S = 60            # a pool's 5m counts are reused this long
 GT_TX_MAX = 500
 # Own cap on top of the shared GT bucket so this fallback can never starve discovery.
 _TX_BUCKET = TokenBucket(3, 1)
+# Own cap on targeted Jupiter searches for gate finalists (on top of the shared Jupiter bucket).
+_FIN_BUCKET = TokenBucket(6, 2)
+JUP_TX_MAX_AGE_S = 180.0    # a Jupiter row we fetched this recently can supply 5m buy/sell counts
+JUP_UPDATED_MAX_S = 300.0   # ... and Jupiter itself must have refreshed that token this recently
 
 
 def _host_of(source: str) -> TokenBucket:
     return _BUCKETS[_SOURCE_HOST.get(source, source)]
+
+
+# ---------- finalist priority on the shared budgets ----------
+# Discovery (new pools, trending lists, the PumpPortal hydrate) and the gate finalists (a coin that
+# already passed the scanner and is waiting on tx counts / candles) draw on the SAME per-host bucket.
+# Discovery used to win every time, so a finalist found the bucket empty. Now, while finalists have
+# asked for data in the last FINALIST_WAIT_S, discovery leaves RESERVE tokens in the bucket for them.
+# Discovery is never starved outright: after MAX_DENY consecutive refusals it gets one call through.
+FINALIST_WAIT_S = 90.0
+RESERVE = {"geckoterminal": 1.0, "jupiter": 1.0}
+MAX_DENY = 3
+_WAIT: dict[str, float] = {}
+_DENIED: dict[str, int] = {}
+PRIORITY_STATS = {"finalist_calls": 0, "discovery_yielded": 0, "discovery_forced": 0}
+
+
+def note_finalist_wait(source: str, now: float | None = None) -> None:
+    """A gate finalist needs this host: reserve budget for it for the next FINALIST_WAIT_S."""
+    _WAIT[source] = (time.time() if now is None else now) + FINALIST_WAIT_S
+
+
+def _budget_ok(source: str, now: float, priority: bool) -> bool:
+    """Spend one token of the host bucket. Finalists (priority) may take the whole bucket;
+    discovery keeps the reserve while finalists are waiting, but is never starved."""
+    b = _host_of(source)
+    host = _SOURCE_HOST.get(source, source)
+    if priority:
+        PRIORITY_STATS["finalist_calls"] += 1
+        return b.allow(1, now=now)
+    reserve = RESERVE.get(host, 0.0)
+    if reserve <= 0 or now >= _WAIT.get(host, 0.0):
+        _DENIED[host] = 0
+        return b.allow(1, now=now)
+    if b.peek(now) - 1.0 >= reserve - 1e-9:
+        _DENIED[host] = 0
+        return b.allow(1, now=now)
+    if _DENIED.get(host, 0) >= MAX_DENY:
+        _DENIED[host] = 0
+        PRIORITY_STATS["discovery_forced"] += 1
+        return b.allow(1, now=now)
+    _DENIED[host] = _DENIED.get(host, 0) + 1
+    PRIORITY_STATS["discovery_yielded"] += 1
+    return False
+
+
+# endpoint id -> last non-200 HTTP status (None once it succeeds): lets callers name the cause
+_LAST_STATUS: "OrderedDict[str, int | None]" = OrderedDict()
+
+
+def last_status(endpoint_id: str):
+    return _LAST_STATUS.get(endpoint_id)
+
+
+def _set_status(endpoint_id: str, status) -> None:
+    _LAST_STATUS[endpoint_id] = status
+    _LAST_STATUS.move_to_end(endpoint_id)
+    while len(_LAST_STATUS) > 1500:
+        _LAST_STATUS.popitem(last=False)
 
 
 def _jup_enabled() -> bool:
@@ -178,6 +246,12 @@ def reset_runtime() -> None:
     _QUOTE_CACHE.clear()
     _TX_CACHE.clear()
     _TX_BUCKET.reset()
+    _WAIT.clear()
+    _DENIED.clear()
+    _LAST_STATUS.clear()
+    _FIN_BUCKET.reset()
+    for k in PRIORITY_STATS:
+        PRIORITY_STATS[k] = 0
     CALLS["geckoterminal"] = 0
     CALLS["dexscreener"] = 0
     CALLS["jupiter"] = 0
@@ -475,6 +549,8 @@ def _get_once(s: requests.Session, url: str, params: dict | None, source: str,
         _note(source, f"{label} request failed ({type(e).__name__})")
         _cool(endpoint_id, source, 10.0, label, 0, type(e).__name__)
         return None
+    if r.status_code != 200:
+        _set_status(endpoint_id, r.status_code)
     if r.status_code == 429:
         wait = _retry_after(r, SCAN_FETCH["cooldown_floor_s"])
         _cool(endpoint_id, source, wait, label, 429, r.reason or "Too Many Requests")
@@ -490,6 +566,7 @@ def _get_once(s: requests.Session, url: str, params: dict | None, source: str,
         else:
             _note(source, f"{label} -> {r.status_code} {r.reason or 'error'}")
         return None
+    _set_status(endpoint_id, None)
     if endpoint_id in _COOL:
         _COOL[endpoint_id]["strikes"] = 0
         _COOL[endpoint_id]["until"] = 0.0
@@ -512,8 +589,9 @@ def _store_cache(endpoint_id: str, body, now: float) -> None:
     _EP_CACHE[endpoint_id] = {"exp": now + SCAN_FETCH["cache_ttl_s"], "body": body}
 
 
-def _fetch_endpoint(s: requests.Session, ep: dict, now: float):
-    """Return (body, fresh). Uses cache, rate budget, and cooldown. Never sleeps."""
+def _fetch_endpoint(s: requests.Session, ep: dict, now: float, priority: bool = False):
+    """Return (body, fresh). Uses cache, rate budget, and cooldown. Never sleeps.
+    priority=True is the finalist lane (see _budget_ok)."""
     endpoint_id = ep["id"]
     source = ep["source"]
     label = ep["label"]
@@ -522,7 +600,7 @@ def _fetch_endpoint(s: requests.Session, ep: dict, now: float):
         return cached, True
     if is_cooling(endpoint_id, now):
         return cached, False
-    if not _host_of(source).allow(1, now=now):
+    if not _budget_ok(source, now, priority):
         return cached, False
     r = _get_once(s, ep["url"], ep.get("params"), source, label, endpoint_id)
     if r is None:
@@ -536,7 +614,8 @@ def _fetch_endpoint(s: requests.Session, ep: dict, now: float):
     return body, True
 
 
-def _fetch_live(s: requests.Session, ep: dict, now: float, positions: bool = False):
+def _fetch_live(s: requests.Session, ep: dict, now: float, positions: bool = False,
+                priority: bool = False):
     """Like _fetch_endpoint but never serves a cached body (the URL varies per call).
 
     positions=True is the open-position price lane: its own token bucket, and it ignores
@@ -548,7 +627,7 @@ def _fetch_live(s: requests.Session, ep: dict, now: float, positions: bool = Fal
         until = float((_COOL.get(ep["id"]) or {}).get("until") or 0)
         if until > now or not _BUCKETS["dexscreener_pos"].allow(1, now=now):
             return None
-    elif is_cooling(ep["id"], now) or not _host_of(source).allow(1, now=now):
+    elif is_cooling(ep["id"], now) or not _budget_ok(source, now, priority):
         return None
     r = _get_once(s, ep["url"], ep.get("params"), source, ep["label"], ep["id"])
     if r is None:
@@ -570,16 +649,29 @@ def _gt_m5_counts(body) -> tuple[int, int] | None:
         return None
 
 
+def _gt_tx_ep(pool: str) -> dict:
+    # one endpoint id PER POOL: a 404 / error on one young pool must not cool the lookup for every other
+    return {"id": f"gt:pooltx:{pool}", "source": "geckoterminal", "label": "pool 5m txns",
+            "url": f"{GT}/networks/solana/pools/{pool}"}
+
+
+def _real_pool(t: dict) -> str | None:
+    pool = t.get("pool")
+    # a Jupiter / PumpPortal token with no pool of its own carries the mint as its "pool"
+    return pool if pool and pool != t.get("mint") else None
+
+
 def gt_tx_m5(t: dict, s: requests.Session | None = None, now: float | None = None) -> dict | None:
     """5m buy/sell counts for t's pool from GeckoTerminal, for when DexScreener has none.
 
     One call to /networks/solana/pools/{pool}, cached GT_TX_TTL_S per pool. It honours the
-    GT 429 cooldown and the shared GT bucket, plus its own small cap. Returns a gate-shaped
-    dict ({"available": True, "buys_m5", "sells_m5", "source"}) or None when there is no data
-    (offline, cooling, throttled, no pool, failed call): the caller then skips as unknown.
+    GT 429 cooldown and the shared GT bucket (as a finalist: see _budget_ok), plus its own small
+    cap. Returns a gate-shaped dict ({"available": True, "buys_m5", "sells_m5", "source"}) or None
+    when there is no data (offline, cooling, throttled, no pool, failed call): the caller then
+    skips as unknown, and gt_tx_cause() names why.
     """
     from desk.netutil import offline
-    pool = t.get("pool")
+    pool = _real_pool(t)
     if not pool or offline():
         return None
     now = time.time() if now is None else now
@@ -587,11 +679,11 @@ def gt_tx_m5(t: dict, s: requests.Session | None = None, now: float | None = Non
     if hit and hit["exp"] > now:
         c = hit["c"]
     else:
-        ep = {"id": "gt:pooltx", "source": "geckoterminal", "label": "pool 5m txns",
-              "url": f"{GT}/networks/solana/pools/{pool}"}
+        ep = _gt_tx_ep(pool)
+        note_finalist_wait("geckoterminal", now)
         if is_cooling(ep["id"], now) or not _TX_BUCKET.allow(1, now=now):
             return None
-        body = _fetch_live(s or requests.Session(), ep, now)
+        body = _fetch_live(s or requests.Session(), ep, now, priority=True)
         if body is None:
             return None
         c = _gt_m5_counts(body)
@@ -602,6 +694,103 @@ def gt_tx_m5(t: dict, s: requests.Session | None = None, now: float | None = Non
     if c is None:
         return None
     return {"available": True, "source": "geckoterminal", "buys_m5": c[0], "sells_m5": c[1]}
+
+
+def gt_tx_cause(t: dict, now: float | None = None) -> str:
+    """Why gt_tx_m5 had no data for t, read from the limiter / cooldown state (no request)."""
+    from desk.netutil import offline
+    now = time.time() if now is None else now
+    if offline():
+        return "offline"
+    pool = _real_pool(t)
+    if not pool:
+        return "no_pool"
+    hit = _TX_CACHE.get(pool)
+    if hit and hit["exp"] > now and hit["c"] is None:
+        return "gt_empty"
+    ep_id = _gt_tx_ep(pool)["id"]
+    st = last_status(ep_id)
+    if st == 404:
+        return "gt_404"
+    if host_cooling("geckoterminal", now):
+        return "gt_cooling"
+    if st:
+        return f"gt_{st}"
+    if is_cooling(ep_id, now):
+        return "gt_error"
+    if _TX_BUCKET.peek(now) < 1.0:
+        return "gt_cap"
+    return "gt_budget"
+
+
+# ---------- Jupiter tokens v2: a second, GeckoTerminal-free source for 5m counts and volume ----------
+
+def _jup_row_fresh(mint: str, now: float, max_age: float = JUP_TX_MAX_AGE_S):
+    """(row, None) for a Jupiter row we fetched within max_age whose token Jupiter refreshed recently,
+    else (None, cause)."""
+    hit = _JUP_ROWS.get(mint)
+    if not hit:
+        return None, "jup_none"
+    if now - hit["at"] > max_age:
+        return None, "jup_stale"
+    row = hit["row"]
+    upd = row.get("updatedAt")
+    if upd:
+        ts = _created_at_iso(re.sub(r"(\.\d{6})\d+", r"\1", str(upd)))   # old Pythons choke on 9-digit fractions
+        if ts and now - ts > JUP_UPDATED_MAX_S:
+            return None, "jup_stale"
+    return row, None
+
+
+def jup_tx_m5(mint: str, now: float | None = None) -> tuple[dict | None, str | None]:
+    """5m buys / sells from a cached Jupiter row: ({"available", "buys_m5", "sells_m5", "source",
+    "age_s"}, None) or (None, cause). No request."""
+    now = time.time() if now is None else now
+    row, cause = _jup_row_fresh(mint, now)
+    if row is None:
+        return None, cause
+    s5 = row.get("stats5m") or {}
+    if s5.get("numBuys") is None or s5.get("numSells") is None:
+        return None, "jup_no_stats"
+    return ({"available": True, "source": "jupiter", "buys_m5": _i(s5["numBuys"]),
+             "sells_m5": _i(s5["numSells"]), "age_s": round(now - _JUP_ROWS[mint]["at"], 1)}, None)
+
+
+def jup_volume_ratio(mint: str, now: float | None = None) -> tuple[float | None, str | None]:
+    """(5m volume / the hour's average 5m volume, None) from a cached Jupiter row, else (None, cause)."""
+    now = time.time() if now is None else now
+    row, cause = _jup_row_fresh(mint, now)
+    if row is None:
+        return None, cause
+    v5 = _jup_stats_vol(row.get("stats5m") or {})
+    h1 = _jup_stats_vol(row.get("stats1h") or {})
+    if h1 <= 0:
+        return None, "jup_no_volume"
+    return round(v5 / (h1 / 12.0), 2), None
+
+
+def jup_refresh(mints: list[str], s: requests.Session | None = None,
+                now: float | None = None) -> str | None:
+    """One Jupiter search for gate finalists (finalist lane: own cap + priority on the Jupiter bucket).
+    Refreshes _JUP_ROWS and the price tape. Returns None on success, else the cause."""
+    now = time.time() if now is None else now
+    mints = [m for m in dict.fromkeys(mints) if m][:20]
+    if not mints:
+        return "jup_none"
+    if not _jup_enabled():
+        return "jup_off"
+    note_finalist_wait("jupiter", now)
+    if host_cooling("jupiter", now):
+        return "jup_cooling"
+    if not _FIN_BUCKET.allow(1, now=now):
+        return "jup_cap"
+    body = _fetch_live(s or requests.Session(),
+                       _jup_search_ep(mints, "jup:finalists", "jupiter search (finalists)"), now,
+                       priority=True)
+    if not isinstance(body, list):
+        return "jup_cooling" if host_cooling("jupiter", now) else "jup_error"
+    _remember_jup(body, now)
+    return None
 
 
 # ---------- rolling pool ----------
@@ -711,18 +900,26 @@ def _jup_search_ep(mints: list[str], ep_id: str, label: str) -> dict:
             "label": f"{label} n={len(mints)}", "kind": "jup_tokens"}
 
 
-def _remember_jup(rows, now: float) -> None:
+def _remember_jup(rows, now: float, fresh: bool = True) -> None:
+    """Keep Jupiter rows. A row from a stale cached body is stored as OLD (never overwriting a newer
+    one), so its 5m stats are not mistaken for a fresh read. Fresh rows also feed the price tape."""
+    from desk import pricetape
     for row in rows if isinstance(rows, list) else []:
         if isinstance(row, dict) and isinstance(row.get("id"), str):
-            _JUP_ROWS[row["id"]] = {"at": now, "row": row}
+            m = row["id"]
+            if fresh:
+                _JUP_ROWS[m] = {"at": now, "row": row}
+                pricetape.record(m, row.get("usdPrice"), now)
+            elif m not in _JUP_ROWS:
+                _JUP_ROWS[m] = {"at": now - 3600.0, "row": row}
     if len(_JUP_ROWS) > 4000:                       # bounded: drop the oldest quarter
         for m, _ in sorted(_JUP_ROWS.items(), key=lambda kv: kv[1]["at"])[:1000]:
             _JUP_ROWS.pop(m, None)
 
 
-def _absorb_jup(body, now: float, source: str = "jupiter") -> int:
+def _absorb_jup(body, now: float, source: str = "jupiter", fresh: bool = True) -> int:
     rows = body if isinstance(body, list) else []
-    _remember_jup(rows, now)
+    _remember_jup(rows, now, fresh)
     n = 0
     max_age_min = age_cut_minutes()
     for row in rows:
@@ -974,7 +1171,7 @@ def new_tokens(session: requests.Session | None = None) -> list[dict]:
         if body is None:
             continue
         if ep["kind"] == "jup_tokens":
-            _absorb_jup(body, now)
+            _absorb_jup(body, now, fresh=bool(_fresh))
         elif ep["kind"] == "gt_pools":
             _absorb_gt(body, now, age_cut=bool(ep.get("age_cut")))
             if ep.get("rot"):

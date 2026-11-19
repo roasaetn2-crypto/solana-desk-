@@ -260,8 +260,11 @@ class AgentWiring(unittest.TestCase):
             with self.subTest(reason=reason):
                 a = self.run_agent(**kw)
                 self.assertEqual(a.stats["entries"], 0)
-                self.assertIn(reason, self.skips(a))
-                self.assertTrue(any(e["message"] == f"gate: $RULE skip {reason}" for e in a.events))
+                # a cause may follow the base reason ("tx_ratio_unknown:jup_off+offline")
+                self.assertIn(reason, [r.split(":")[0] for r in self.skips(a)])
+                self.assertTrue(any(e["message"].split(":")[0:2] == ["gate", f" $RULE skip {reason}"]
+                                    or e["message"].startswith(f"gate: $RULE skip {reason}:")
+                                    or e["message"] == f"gate: $RULE skip {reason}" for e in a.events))
 
     def test_bad_values_skip(self):
         a = self.run_agent(jup={**GOOD_JUP, "impact": 0.05})

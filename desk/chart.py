@@ -278,7 +278,7 @@ def _ohlcv_key(pool: str, tf: str) -> str:
     return f"{pool}:{tf}"
 
 
-def _fetch_and_store(pool: str, tf: str, session, now: float) -> list[dict]:
+def _fetch_and_store(pool: str, tf: str, session, now: float, priority: bool = False) -> list[dict]:
     """One GeckoTerminal OHLCV call via the scanner's cache, budget and host cooldown."""
     spec = _TF.get(tf, (None, None))[1]
     if not spec:
@@ -303,7 +303,7 @@ def _fetch_and_store(pool: str, tf: str, session, now: float) -> list[dict]:
         "label": f"ohlcv {tf} pool={pool[:8]}…",
         "kind": "gt_ohlcv",
     }
-    body, fresh = scanner._fetch_endpoint(s, ep, now)
+    body, fresh = scanner._fetch_endpoint(s, ep, now, priority=priority)
     candles = _parse_ohlcv(body) if body else []
     if candles and fresh:
         _OHLCV[key] = {"at": now, "candles": candles}
@@ -377,7 +377,7 @@ def prefetch(session, positions, now: float | None = None):
         return None
     due.sort(key=lambda d: d[0])                  # stable: missing first, then oldest
     _, mint, tf, pool = due[0]
-    _fetch_and_store(pool, tf, session, now)
+    _fetch_and_store(pool, tf, session, now, priority=True)      # open positions: finalist lane
     return mint, tf
 
 

@@ -165,7 +165,7 @@ class Oversold(Base):
         with feed(flat(4)):                                    # 4 real 1m candles: too few
             r = et.evaluate(MINT, now=NOW)
         self.assertEqual((r["fired"], r["reason"]), (None, et.SKIP_UNKNOWN))
-        self.assertEqual(et.gate(r), "trigger_unknown")
+        self.assertEqual(et.gate(r), "trigger_unknown:too_few_bars")
         with feed([]):
             self.assertEqual(et.evaluate(MINT, now=NOW)["reason"], et.SKIP_UNKNOWN)
 
@@ -402,7 +402,8 @@ class AgentWiring(unittest.TestCase):
 
     def test_no_data_skips_trigger_unknown(self):
         a, _ = self.run_agent(None)
-        self.assertEqual(self.skips(a), ["trigger_unknown"])
+        self.assertEqual([r.split(":")[0] for r in self.skips(a)], ["trigger_unknown"])
+        self.assertTrue(self.skips(a)[0].startswith("trigger_unknown:"))       # with a named cause
         self.assertEqual((a.stats["entries"], a.stats["trigger_unknown"]), (0, 1))
 
     def test_gate_off_does_not_block(self):
