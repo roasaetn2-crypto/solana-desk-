@@ -1831,18 +1831,27 @@ setInterval(tickAges, 1000);
   const narrow = () => window.matchMedia("(max-width: 900px)").matches;
 
   function activate(name, { scroll = true } = {}) {
-    if (!cols[name]) name = "live";
+    if (name !== "tower" && !cols[name]) name = "live";
     layout.dataset.tab = name;
+    document.body.dataset.desk = name === "tower" ? "tower" : "";
+    const tower = document.getElementById("towerView");
+    if (tower) tower.hidden = name !== "tower";
     tabs.forEach((t) => {
       const on = t.dataset.tab === name;
       t.classList.toggle("is-active", on);
       t.setAttribute("aria-selected", on ? "true" : "false");
     });
     try { localStorage.setItem(KEY, name); } catch (e) {}
+    document.dispatchEvent(new CustomEvent("desk-tab", { detail: name }));
+    if (name === "tower") {
+      if (location.hash !== "#tower") history.replaceState(null, "", "#tower");
+    } else if (location.hash === "#tower") {
+      history.replaceState(null, "", location.pathname + location.search);
+    }
     // Opening Research is the moment the backtest becomes worth its cost.
     if (name === "research") refreshBacktest(false);
     if (scroll) {
-      if (narrow()) {
+      if (narrow() || name === "tower") {
         window.scrollTo({ top: 0, behavior: "smooth" });
       } else {
         const el = layout.querySelector(cols[name]);
@@ -1866,7 +1875,18 @@ setInterval(tickAges, 1000);
 
   let saved = null;
   try { saved = localStorage.getItem(KEY); } catch (e) {}
+  if (location.hash === "#tower") saved = "tower";
   activate(saved || "live", { scroll: false });
+  window.addEventListener("popstate", () => {
+    if (location.hash === "#ai") return;
+    if (location.hash === "#tower") activate("tower", { scroll: false });
+    else if (document.body.dataset.desk === "tower") {
+      let back = "live";
+      try { back = localStorage.getItem(KEY) || "live"; } catch (e) {}
+      if (back === "tower") back = "live";
+      activate(back, { scroll: false });
+    }
+  });
 
   // badge: open positions on the Live tab, decisions on Research
   function setBadge(name, n) {

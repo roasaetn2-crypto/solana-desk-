@@ -13,6 +13,7 @@
   <link rel="manifest" href="/static/manifest.webmanifest" />
   <link rel="apple-touch-icon" href="/static/assets/icon-192.png" />
   <link rel="stylesheet" href="/static/styles.css?v=20261115ds" />
+  <link rel="stylesheet" href="/static/tower.css?v=tower" />
   <link rel="stylesheet" href="/static/ai-chat.css?v=20261112d" />
 </head>
 <body class="desk-page">
@@ -94,10 +95,14 @@
     <button class="desk-tab is-active" type="button" role="tab" aria-selected="true"
             data-tab="live"><span class="ico">◉</span><span>Live</span></button>
     <button class="desk-tab" type="button" role="tab" aria-selected="false"
+            data-tab="tower"><span class="ico">✈</span><span>Tower</span></button>
+    <button class="desk-tab" type="button" role="tab" aria-selected="false"
             data-tab="control"><span class="ico">⚙</span><span>Control</span></button>
     <button class="desk-tab" type="button" role="tab" aria-selected="false"
             data-tab="research"><span class="ico">⌕</span><span>Research</span></button>
   </nav>
+
+  <section id="towerView" class="tower-view" hidden aria-label="Control Tower"></section>
 
   <canvas id="confetti" class="confetti" hidden></canvas>
 
@@ -485,6 +490,7 @@
   </section>
 
   <script src="/static/app.js?v=20261115ds"></script>
+  <script src="/static/tower.js?v=tower"></script>
   <script src="/static/ai-chat.js?v=20261112d"></script>
 </body>
 </html>

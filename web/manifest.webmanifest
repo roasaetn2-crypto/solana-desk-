@@ -34,6 +34,19 @@
   ],
   "shortcuts": [
     {
+      "name": "Control Tower",
+      "short_name": "Tower",
+      "description": "Flight-style view of the paper desk's five seats",
+      "url": "/#tower",
+      "icons": [
+        {
+          "src": "/static/assets/heads/head_robot_192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
       "name": "Desk AI",
       "short_name": "Desk AI",
       "description": "Ask the desk's robot cat about your paper desk",
