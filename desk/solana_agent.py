@@ -1349,6 +1349,12 @@ class SolanaAgent:
             floor = EXECUTION["live_min_ticket_usd"]
         else:
             floor = PAPER.get("min_ticket_usd", RISK["min_ticket_usd"])
+        # PAPER opt-in (default OFF): a cut ticket under the min is lifted to the min
+        # instead of vetoed. Not for live, never for a 0 size; see risk.floor_cut_ticket.
+        floored = False
+        if self.mode != "live" and max_ticket is None:
+            new_ticket, floored = risk.floor_cut_ticket(
+                new_ticket, ticket, floor, getattr(acct, "cash", None), self.mode)
         cap = max_ticket if max_ticket is not None else RISK["max_position_pct"] * sizing_base(acct)
         # In live mode the checklist must assert the broker really is the live
         # broker and live trading is not disabled -- not "paper mode", which was
@@ -1392,6 +1398,15 @@ class SolanaAgent:
             return (False, 0.0, f"ticket ${new_ticket} below fee floor ${floor} after caution cuts "
                                 f"({', '.join(names)})", info, chips)
         reason = "approved" if not names else f"approved, size x{mult:g} ({', '.join(names)})"
+        if floored:
+            info["floored_to_min_ticket"] = True
+            info["ticket_after_cuts"] = round(ticket * mult, 2)
+            reason = (f"{risk.FLOORED_REASON}: ${info['ticket_after_cuts']} after cuts "
+                      f"({', '.join(names)}) -> min ticket ${floor}")
+            chips.append(signals.chip(risk.FLOORED_REASON, "info", "guard"))
+            self.emit("info", f"{t.get('symbol', '?')}: {risk.FLOORED_REASON} "
+                              f"(${info['ticket_after_cuts']} -> ${floor}, cuts: {', '.join(names)})",
+                      stage="risk", mint=t.get("mint"))
         return True, new_ticket, reason, info, chips
 
     def _scan(self, force_demo: bool) -> tuple[list[dict], str]:

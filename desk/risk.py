@@ -308,6 +308,38 @@ def check_token_trade(thesis, account: Account, liquidity_usd: float,
     return True, ticket, "approved"
 
 
+FLOORED_REASON = "floored_to_min_ticket"
+
+
+def floor_cut_ticket(new_ticket: float, ticket_before: float, floor: float,
+                     cash: float | None, mode: str | None) -> tuple[float, bool]:
+    """PAPER-only opt-in: lift a cut ticket to the paper min ticket instead of vetoing.
+
+    Returns ``(ticket, floored)``. Floors only when ALL hold:
+
+    * ``PAPER["floor_to_min_ticket"]`` is on (default OFF; only the operator's
+      Confirm turns it on) and the mode is not live;
+    * the cut ticket is above 0 and below ``floor`` (a 0 means a hard block, e.g.
+      a zero breaker or security multiplier, and is never floored);
+    * the pre-cut ticket already cleared ``floor``, so every sizing cap (per-trade
+      risk, position share, pool share, cash) already allowed at least the min ticket;
+    * free cash covers the min ticket.
+
+    The open-risk budget is still applied after this by ``fit_risk_budget``, which
+    refuses when what fits is below the floor, so a floored ticket is either placed at
+    exactly the min ticket or refused there. Otherwise the ticket is returned unchanged.
+    """
+    if (mode or "").strip().lower() == "live" or not PAPER.get("floor_to_min_ticket", False):
+        return new_ticket, False
+    if new_ticket <= 0 or new_ticket >= floor or floor <= 0:
+        return new_ticket, False
+    if ticket_before < floor:
+        return new_ticket, False
+    if cash is not None and cash < floor:
+        return new_ticket, False
+    return round(floor, 2), True
+
+
 def sizing_breakdown(account: Account, liquidity_usd: float, stop_pct: float | None = None) -> dict:
     """The caps, for the dashboard. The smallest one wins."""
     base, stop = sizing_base(account), (stop_pct or EXITS["stop_pct"])

@@ -481,6 +481,12 @@ PAPER = {
                                    # $0.63-$0.94, and a $2 floor would silently reject every
                                    # setup (the original "sizing deadlock").
     "min_ticket_usd": 0.20,        # paper fee floor; live still uses RISK["min_ticket_usd"]
+    # PAPER only, default OFF (turned on only by the operator's Confirm, setting
+    # paper.floor_to_min_ticket). On: when the caution cuts (regime, breaker, size model...)
+    # shrink an otherwise-approved ticket below min_ticket_usd, place it at min_ticket_usd
+    # instead of vetoing. Never floors a 0 size, never when cash or the open-risk budget
+    # cannot take the min ticket, never in live mode.
+    "floor_to_min_ticket": False,
     # Charge the real Jupiter/Solana fee (base signature + capped priority, priced
     # off the live SOL spot) instead of a flat percentage. Jupiter's own fee is
     # 0%; the old 1% "pump.fun curve fee" was invented and made paper P&L drift

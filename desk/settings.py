@@ -225,6 +225,14 @@ _R: list[Setting] = [
     Setting("risk.compound", "Compound wins", "Risk", "bool", lambda: bool(RISK["compound"]),
             lambda v: RISK.__setitem__("compound", bool(v))),
     _num("paper.min_ticket_usd", "Min paper ticket", "Risk", "float", _d(PAPER, "min_ticket_usd"), 0.10, 10, "USD"),
+    Setting("paper.floor_to_min_ticket", "Floor cut tickets to the min ticket", "Risk", "bool",
+            lambda: bool(PAPER.get("floor_to_min_ticket", False)),
+            lambda v: PAPER.__setitem__("floor_to_min_ticket", bool(v)),
+            help="PAPER only, default off. On: when the caution cuts (RISK_OFF, breaker half size, "
+                 "size model) shrink an otherwise-approved ticket under the min paper ticket, trade "
+                 "it at the min ticket instead of skipping it. Still refused if cash or the open-risk "
+                 "budget cannot take the min ticket, if any gate or kill blocks it, or if the size "
+                 "was cut to zero. Live trading ignores this."),
     Setting("paper.real_fees", "Charge real Jupiter fees", "Risk", "bool",
             lambda: bool(PAPER.get("use_live_fee_model", True)),
             lambda v: PAPER.__setitem__("use_live_fee_model", bool(v)),
