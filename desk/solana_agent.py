@@ -1232,10 +1232,36 @@ class SolanaAgent:
                         bad = "no_confirm_quote" if ENTRY["require_confirm_quote"] else None
                     else:
                         gap = abs(cq["price_usd"] / t["price_usd"] - 1) * 100 if t["price_usd"] else 999
-                        liq_ratio = (cq["liquidity_usd"] / t["liquidity_usd"]) if t["liquidity_usd"] else 0
+                        # like for like: the confirm quote's liquidity and the discovery token's must be on
+                        # the same basis (DexScreener's number is about twice Jupiter's on pump pools)
+                        _cb = cq.get("liq_source") or "unknown"
+                        _tb = scanner.liq_basis(t.get("source"))
+                        liq_cmp = cq["liquidity_usd"]
+                        liq_ratio = None
+                        if _cb != _tb or _cb == "unknown":
+                            alt_q = None
+                            try:
+                                alt_q = scanner.same_basis_quote(t["mint"], _tb, self.session) if _tb != "unknown" else None
+                            except Exception:
+                                alt_q = None
+                            if alt_q and alt_q.get("liquidity_usd"):
+                                liq_cmp = alt_q["liquidity_usd"]
+                                liq_ratio = liq_cmp / t["liquidity_usd"] if t["liquidity_usd"] else 0
+                                self.stats["confirm_liq_alt"] = self.stats.get("confirm_liq_alt", 0) + 1
+                                print(f"confirm: ${t.get('symbol')} liquidity compared on {_tb}: scan "
+                                      f"{t['liquidity_usd']:,.0f} [{_tb}] vs confirm {liq_cmp:,.0f} [{_tb}]", flush=True)
+                            else:
+                                self.stats["confirm_liq_mismatch"] = self.stats.get("confirm_liq_mismatch", 0) + 1
+                                msg = (f"confirm: ${t.get('symbol')} liquidity ratio skipped, sources differ: scan "
+                                       f"{t['liquidity_usd']:,.0f} [{_tb}] vs confirm {cq['liquidity_usd']:,.0f} [{_cb}]")
+                                print(msg, flush=True)
+                                self.emit("info", msg, stage="confirm", reason="confirm_liq_mismatch",
+                                          symbol=t.get("symbol"), mint=t["mint"])
+                        else:
+                            liq_ratio = (cq["liquidity_usd"] / t["liquidity_usd"]) if t["liquidity_usd"] else 0
                         if gap > ENTRY["max_price_gap_pct"]:
                             bad = "price_gap"
-                        elif liq_ratio < ENTRY["min_confirm_liq_ratio"]:
+                        elif liq_ratio is not None and liq_ratio < ENTRY["min_confirm_liq_ratio"]:
                             bad = "liq_unconfirmed"
                         else:
                             buy_price = cq["price_usd"]

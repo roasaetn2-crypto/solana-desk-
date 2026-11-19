@@ -206,6 +206,7 @@ LIQ_EXIT = {"confirm_reads": 2, "instant_drop": 0.90}
 LAST_GOOD = {
     "tx_m5_max_age_s": 300,
     "bars_max_age_s": 300,
+    "liq_max_age_s": 300,        # a same-source liquidity read this recent may stand in for the confirm quote
 }
 
 # ---- env overrides for the fetch budgets: from Termux, SCANFETCH_DS_PER_MIN=30 ----

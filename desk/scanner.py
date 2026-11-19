@@ -1386,6 +1386,30 @@ def _quote_from_pairs(pairs: list[dict], at: float | None = None) -> dict | None
             "liq_source": "dexscreener", "at": time.time() if at is None else at}
 
 
+def same_basis_quote(mint: str, basis: str, session: requests.Session | None = None,
+                     now: float | None = None, fetch: bool = True) -> dict | None:
+    """A quote whose liquidity is on `basis`, for a like-for-like comparison. Cheap by construction:
+    the DexScreener pair cache or Jupiter row cache within LAST_GOOD["liq_max_age_s"], and for Jupiter
+    one targeted refresh that goes through the Jupiter cooldown and token bucket (never while cooling).
+    DexScreener is not re-asked (quote_many just did). None when there is no such read."""
+    from config import LAST_GOOD
+    now = time.time() if now is None else now
+    age = float(LAST_GOOD.get("liq_max_age_s", 300))
+    if basis == "dexscreener":
+        row = _PAIR_CACHE.get(mint)
+        if row and row.get("pairs") and now - float(row.get("at") or 0) <= age:
+            return _quote_from_pairs(row["pairs"], at=row.get("at"))
+    elif basis == "jupiter":
+        row = _JUP_ROWS.get(mint)
+        if row and now - row["at"] <= age:
+            q = _quote_from_jup(row["row"], at=row["at"])
+            if q:
+                return q
+        if fetch and _jup_enabled() and not host_cooling("jupiter", now):
+            return _jup_quotes(session or requests.Session(), [mint], now).get(mint)
+    return None
+
+
 def quote_many(mints: list[str], session: requests.Session | None = None) -> dict[str, dict]:
     """Live quotes for open positions, batched (max 30) on /tokens/v1/solana/{mints}.
 

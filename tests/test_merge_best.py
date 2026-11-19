@@ -130,14 +130,14 @@ if __name__ == "__main__":
 @legacy_book
 class EndToEnd(unittest.TestCase):
     """Mocked network: one good pool goes scan -> confirm -> paper buy -> ladder exit."""
-    def run_agent(self, quote):
+    def run_agent(self, quote, tok_source="geckoterminal"):
         d = Path(tempfile.mkdtemp())
         a = SolanaAgent(ledger=d / "p.json", bench_path=d / "b.db", live_ledger=d / "l.json")
         tok = {"mint": "REALMINT1", "symbol": "GOOD", "name": "GOOD", "pool": "P", "dex": "pumpswap",
                "price_usd": 0.001, "mcap_usd": 300_000, "liquidity_usd": 40_000, "volume_m5": 5000,
                "volume_h1": 90_000, "volume_h6": 150_000, "volume_h24": 300_000, "buys_h1": 500,
                "sells_h1": 300, "buyers_h1": 220, "change_m5": 3, "change_h1": 60, "change_h6": 80,
-               "age_minutes": 45, "source": "geckoterminal"}
+               "age_minutes": 45, "source": tok_source}
         facts = {"mint_authority": False, "freeze_authority": False, "top_wallet_pct": 0.03,
                  "top_10_pct": 0.2, "holders": 400, "supply": 1e9}
         dev = {"hard_no": [], "dev_score": 90, "dev_hold_pct": 0.01, "creator_prev_rugs": 0,
@@ -170,7 +170,9 @@ class EndToEnd(unittest.TestCase):
         self.assertEqual(a.reject_reasons["price_gap"], 1)
 
     def test_thin_second_source_liquidity_blocks_entry(self):
-        a = self.run_agent({"price_usd": 0.001, "liquidity_usd": 5_000, "volume_h6": 1, "volume_h24": 1})
+        # both liquidity numbers on DexScreener's basis: 5k against 40k is a real 12% (the gate compares like for like)
+        a = self.run_agent({"price_usd": 0.001, "liquidity_usd": 5_000, "volume_h6": 1, "volume_h24": 1,
+                            "liq_source": "dexscreener"}, tok_source="dexscreener")
         self.assertEqual(a.stats["entries"], 0)
         self.assertEqual(a.reject_reasons["liq_unconfirmed"], 1)
 
