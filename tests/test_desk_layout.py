@@ -44,11 +44,29 @@ def test_hero_comes_before_the_decision_log() -> None:
 
 
 def test_read_only_boards_sit_below_the_desk() -> None:
-    """Backtest/agents/activity are reference; they must not push the book down."""
+    """Backtest stays below the book. Fills sit with the book, not under every tab.
+    The old agent roster duplicated The seats and the Tower, so it is gone."""
     h = html()
     main_end = at(h, "</main>")
-    for sid in ("backtestSec", "agentsSec", "activitySec"):
-        assert at(h, f'id="{sid}"') > main_end, f"{sid} should sit below </main>"
+    assert at(h, 'id="backtestSec"') > main_end
+    assert "agentsSec" not in h
+    assert "agentsGrid" not in h
+    assert at(h, 'id="posCards"') < at(h, 'id="activitySec"') < main_end
+
+
+def test_step_once_scans_the_real_market() -> None:
+    """Step once used to call ?demo=1, which feeds coins that can never fill."""
+    j = js()
+    step = j.split('$("btnStep").onclick', 1)[1].split("$(\"btnReset\")", 1)[0]
+    assert "/api/agent/step?demo=1" not in step
+    assert "/api/agent/step" in step
+
+
+def test_live_arming_is_separate_from_the_paper_cost() -> None:
+    h = html()
+    assert 'id="liveArm"' in h
+    assert 'id="capFees"' in h
+    assert at(h, 'id="capFees"') < at(h, 'id="liveArm"')
 
 
 def test_execution_mode_leads_the_control_column() -> None:

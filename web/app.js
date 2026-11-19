@@ -234,7 +234,8 @@ function shorten(msg, n = 72) {
 
 function fomoBtn(url, label) {
   if (!url) return "";
-  return `<a class="btn-fomo" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${label || "Buy on FOMO"}</a>`;
+  // The desk never buys. This opens the coin page; the label used to say "Buy".
+  return `<a class="btn-fomo" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${label || "View"}</a>`;
 }
 
 const chartCache = new Map(); // mint|tf -> payload
@@ -521,7 +522,8 @@ function renderMode(s) {
   if ($("armPhraseHint")) $("armPhraseHint").textContent = ex.confirm_phrase || "—";
   const msg = $("modeMsg");
   if (msg && !msg.dataset.sticky) {
-    msg.textContent = live ? "" : (ex.live_ready ? "" : (ex.live_reason || ""));
+    // The disabled-live essay is not an action. The blurb already says paper.
+    msg.textContent = "";
     msg.style.color = "var(--muted)";
   }
   if (msg && capProblems.length) {
@@ -533,6 +535,9 @@ function renderMode(s) {
   if (eqLabel) eqLabel.textContent = live ? "Live P&L" : "Equity";
   const arm = $("btnArm");
   if (arm) arm.disabled = !ex.live_ready || capProblems.length > 0;
+  // Arming controls are a dead button while live is off. The paper cost stays.
+  const liveArm = $("liveArm");
+  if (liveArm) liveArm.hidden = !ex.live_ready;
 }
 
 function toast(msg) {
@@ -694,20 +699,9 @@ function renderHero(s) {
   drawEquity(s);
 }
 
-const AGENT_SEATS = [
-  { id: "scanner", name: "Scanner", handle: "@scan", color: "#0a84ff", head: "market" },
-  { id: "chain", name: "Chain", handle: "@chain", color: "#5ac8ff", head: "research" },
-  { id: "dev", name: "Devcheck", handle: "@dev", color: "#bf5af2", head: "reviewer" },
-  { id: "meme", name: "Meme", handle: "@meme", color: "#ff9f0a", head: "lead" },
-  { id: "analyst", name: "Analyst", handle: "@thesis", color: "#f2b2c2", head: "strategist" },
-  { id: "risk", name: "Risk", handle: "@risk", color: "#ffd60a", head: "risk" },
-  { id: "broker", name: "Broker", handle: "@fills", color: "#00d35a", head: "executor" },
-];
 // desk seat id (and the chat's "devcheck") -> pixel head art
 const SEAT_HEAD = { scanner: "market", chain: "research", dev: "reviewer", devcheck: "reviewer",
   meme: "lead", analyst: "strategist", risk: "risk", broker: "executor", robot: "robot" };
-const SEAT_NAME = { scanner: "Scanner", chain: "Chain", dev: "Devcheck", devcheck: "Devcheck",
-  meme: "Meme", analyst: "Analyst", risk: "Risk", broker: "Broker" };
 function headImg(id, px, cls) {
   const art = SEAT_HEAD[id];
   if (!art) return "";
@@ -715,62 +709,6 @@ function headImg(id, px, cls) {
   return `<img class="px-head ${cls || ""}" src="${b}_48.png" srcset="${b}_48.png 1x, ${b}_192.png 4x"
     width="${px}" height="${px}" alt="" decoding="async">`;
 }
-
-function lastDecision(s) {
-  return (s.decisions && s.decisions[0]) || null;
-}
-
-function seatRing(s, id) {
-  const st = s.stats || {};
-  const seen = st.seen || 0;
-  const d = lastDecision(s);
-  if (id === "scanner") return seen ? Math.min(100, seen) : 0;
-  if (id === "chain") return seen ? Math.max(0, Math.min(100, (1 - (st.chain_rejects || 0) / seen) * 100)) : 0;
-  if (id === "dev") return d && d.dev && d.dev.dev_score != null ? Number(d.dev.dev_score) : 0;
-  if (id === "meme") return d && d.scorecard && d.scorecard.total != null ? Number(d.scorecard.total) : 0;
-  if (id === "analyst") return d && d.thesis && d.thesis.score != null ? Number(d.thesis.score) * 10 : 0;
-  if (id === "risk") {
-    if (!d) return 0;
-    return d.approved ? 100 : 25;
-  }
-  if (id === "broker") {
-    const max = (s.config && s.config.max_positions) || 3;
-    const open = (s.broker && s.broker.open_count) || 0;
-    return max ? Math.min(100, (open / max) * 100) : 0;
-  }
-  return 0;
-}
-
-function seatStatus(s, id) {
-  const st = s.stats || {};
-  const d = lastDecision(s);
-  const sym = d && d.symbol ? d.symbol : "";
-  if (id === "scanner") return st.seen ? (st.seen + " coins seen") : "waiting";
-  if (id === "chain") return st.chain_rejects ? (st.chain_rejects + " cut") : (st.seen ? "facts clear" : "waiting");
-  if (id === "dev") {
-    if (d && d.dev && d.dev.dev_score != null) return sym + " dev " + d.dev.dev_score;
-    return st.dev_rejects ? (st.dev_rejects + " cut") : "waiting";
-  }
-  if (id === "meme") {
-    if (d && d.scorecard && d.scorecard.total != null) return sym + " meme " + d.scorecard.total;
-    return st.meme_rejects ? (st.meme_rejects + " cut") : "waiting";
-  }
-  if (id === "analyst") {
-    if (d && d.thesis && d.thesis.score != null) return sym + " score " + d.thesis.score + "/10";
-    return st.analyst_calls ? (st.analyst_calls + " calls") : "waiting";
-  }
-  if (id === "risk") {
-    if (d && d.approved && d.ticket_usd != null) return "ticket " + fmtMoney(d.ticket_usd, 0);
-    return st.risk_rejects ? (st.risk_rejects + " veto") : "waiting";
-  }
-  if (id === "broker") {
-    const buy = s.latest_buy;
-    if (buy && buy.ticket_usd != null) return "bought " + fmtMoney(buy.ticket_usd, 0);
-    return st.entries ? (st.entries + " fills") : "waiting";
-  }
-  return "waiting";
-}
-
 
 // ---------- AI second opinion thread (display only; never changes a score or trade) ----------
 const BOT_NAME = { gemini: "Gemini", groq: "Groq", openrouter: "OpenRouter",
@@ -823,32 +761,15 @@ function brainBoxHtml(s) {
 }
 
 function renderAgents(s) {
-  const grid = $("agentsGrid");
-  const badge = $("agentsRunning");
-  if (badge) badge.textContent = s.running ? "7 running" : "0 running";
-  if (!grid) return;
-  const r = 30, cx = 32, cy = 32, circ = 2 * Math.PI * r;
-  grid.innerHTML = AGENT_SEATS.map((a) => {
-    const pct = Math.max(0, Math.min(100, seatRing(s, a.id)));
-    const dash = (pct / 100) * circ;
-    const isAn = a.id === "analyst";
-    return `<article class="agent-card${isAn ? " analyst-card" : ""}" data-seat="${a.id}">
-      <div class="avatar-wrap">
-        <svg viewBox="0 0 64 64" aria-hidden="true">
-          <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#222" stroke-width="3"></circle>
-          <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${a.color}" stroke-width="3"
-            stroke-linecap="round" stroke-dasharray="${dash.toFixed(2)} ${circ.toFixed(2)}"></circle>
-        </svg>
-        <div class="face">${headImg(a.id, 48)}</div>
-      </div>
-      <div class="abody">
-        <div class="aname">${a.name}</div>
-        <div class="handle">${a.handle}</div>
-        <div class="astat">${esc(seatStatus(s, a.id))}</div>
-      </div>
-      ${isAn ? `<div class="brain-box"><div class="bt-h">AI second opinion</div>${brainBoxHtml(s)}</div>` : ""}
-    </article>`;
-  }).join("");
+  // The seven-card roster duplicated The seats and the Tower, and it said
+  // "7 running" for one loop. The only unique piece was the second opinion.
+  const box = $("brainBox");
+  const sec = $("brainSec");
+  if (!box || !sec) return;
+  const html = brainBoxHtml(s);
+  const idle = /waiting for (coins|keys)/.test(html);
+  sec.hidden = idle;
+  box.innerHTML = idle ? "" : html;
 }
 
 function renderActivity(s) {
@@ -1021,27 +942,22 @@ function render(s) {
     sumEntries.textContent = entries;
     $("sumClosed").textContent = closed.length;
     $("sumOpen").textContent = b.open_count || 0;
+    if ($("sumWin")) $("sumWin").textContent = closed.length ? Math.round((wins / closed.length) * 100) + "%" : "—";
   }
 
   // pipeline
-  $("cSeen").textContent = fmtNum(st.seen);
-  $("cChain").textContent = fmtNum(st.chain_rejects);
-  $("cDev").textContent = fmtNum(st.dev_rejects);
-  $("cMeme").textContent = fmtNum(st.meme_rejects);
-  $("cAnalyst").textContent = fmtNum(st.analyst_calls);
-  $("cRisk").textContent = fmtNum(st.risk_rejects);
-  $("cEntries").textContent = fmtNum(st.entries);
-  $("sCycles").textContent = fmtNum(st.cycles);
-  $("sSeen").textContent = fmtNum(st.seen);
-  $("sFree").textContent = fmtNum(st.free_rejects);
-  $("sChain").textContent = fmtNum(st.chain_rejects);
-  $("sDev").textContent = fmtNum(st.dev_rejects);
-  $("sMeme").textContent = fmtNum(st.meme_rejects);
-  $("sTheses").textContent = fmtNum(st.analyst_calls);
-  $("sDialogues").textContent = fmtNum(st.dialogues);
-  $("sEntries").textContent = fmtNum(st.entries);
-  $("sExits").textContent = fmtNum(st.exits);
-  $("sErrors").textContent = fmtNum(st.errors);
+  const put = (id, text) => { const n = $(id); if (n) n.textContent = text; };
+  put("cSeen", fmtNum(st.seen));
+  put("cChain", fmtNum(st.chain_rejects));
+  put("cDev", fmtNum(st.dev_rejects));
+  put("cMeme", fmtNum(st.meme_rejects));
+  put("cAnalyst", fmtNum(st.analyst_calls));
+  put("cRisk", fmtNum(st.risk_rejects));
+  put("cEntries", fmtNum(st.entries));
+  // Seat cards already show seen / cuts / calls / fills. These three are not on a seat.
+  put("sCycles", fmtNum(st.cycles));
+  put("sDialogues", fmtNum(st.dialogues));
+  put("sErrors", fmtNum(st.errors));
   const br = s.brain || {};
   const brainLabel = br.label
     ? br.label + (br.model ? " · " + br.model : "") + (br.free ? " · free" : "")
@@ -1738,8 +1654,9 @@ $("btnContinue").onclick = async () => {
 };
 $("btnPause").onclick = () => act("/api/agent/stop", "POST", "Agent paused");
 $("btnStep").onclick = async () => {
-  toast("Running one cycle…");
-  await act("/api/agent/step?demo=1", "POST", "Cycle complete");
+  // A real scan. ?demo=1 used to feed synthetic coins that can never fill.
+  toast("Scanning the market once…");
+  await act("/api/agent/step", "POST", "Cycle complete");
 };
 $("btnReset").onclick = () => {
   const m = (lastState && lastState.execution && lastState.execution.mode) || "paper";

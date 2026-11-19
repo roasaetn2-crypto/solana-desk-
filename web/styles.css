@@ -149,6 +149,9 @@ body {
   overflow: hidden;
   box-shadow: 0 8px 28px rgba(0,0,0,0.22);
 }
+#liveArm[hidden], .panel[hidden] { display: none !important; }
+/* The backtest is research. It used to sit under Live and Control too. */
+#deskLayout:not([data-tab="research"]) ~ #backtestSec { display: none; }
 .panel-head {
   display: flex; align-items: center; gap: 9px;
   padding: 13px 16px;
@@ -1070,21 +1073,16 @@ body.desk-page { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); 
   .col-center > .hero { order: 1; }
   .col-center > .kpis { order: 2; }
   .col-center > #posPanel { order: 3; }
-  .col-center > .buy-banner { order: 4; }
+  .col-center > #activitySec { order: 4; }
+  .col-center > .buy-banner { order: 5; }
 
-  /* The 2x2 grid became a horizontal filmstrip: two tiles visible, the third
-     peeking, so the row reads as "there is more to the right" without a
-     scrollbar eating vertical space. */
-  .kpis {
-    display: flex; gap: 8px; margin: 0 -12px; padding: 2px 12px 6px;
-    overflow-x: auto; scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch; scrollbar-width: none;
-  }
-  .kpis::-webkit-scrollbar { display: none; }
-  .kpi { flex: 0 0 46%; scroll-snap-align: start; padding: 11px 12px; border-radius: 13px; }
-  .kpi .k { font-size: 9.5px; letter-spacing: 0.5px; }
-  .kpi .v { font-size: 20px; margin-top: 2px; letter-spacing: -0.3px; }
-  .kpi .s { font-size: 10px; }
+  /* Equity, day P&L, open count and win rate already sit on the hero.
+     The four KPI tiles were a second copy of those numbers. */
+  .kpis { display: none; }
+
+  /* Symbol, signal, ticket, reason. Verdict, score, meme and dev live on Research. */
+  .col-center thead th:nth-child(n+3):nth-child(-n+6),
+  .col-center tbody td:nth-child(n+3):nth-child(-n+6) { display: none; }
 
   /* specificity beats the base `.hero-strip{display:none}` that follows */
   .hero .hero-strip { display: flex; }

@@ -117,11 +117,14 @@
         <div class="panel-body">
           <div class="tiny muted" id="modeBlurb">Paper fills only. No key, no signing, no real money can move.</div>
           <div class="stat-grid" style="margin-top:10px">
+            <div class="stat"><div class="k">Round-trip cost</div><div class="v" id="capFees">—</div></div>
+          </div>
+          <div id="liveArm" hidden>
+          <div class="stat-grid" style="margin-top:10px">
             <div class="stat"><div class="k">Wallet</div><div class="v" id="modeWallet" style="font-size:12px">—</div></div>
             <div class="stat"><div class="k">Live P&L</div><div class="v" id="modeLivePnl">$0.00</div></div>
             <div class="stat"><div class="k">Per trade cap</div><div class="v" id="capTrade">—</div></div>
             <div class="stat"><div class="k">Total cap</div><div class="v" id="capNotional">—</div></div>
-            <div class="stat"><div class="k">Round-trip cost</div><div class="v" id="capFees">—</div></div>
           </div>
           <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn" id="btnPaper">Use paper</button>
@@ -136,6 +139,7 @@
               <button class="btn danger" id="btnArmGo">Arm live</button>
               <button class="btn" id="btnArmCancel">Cancel</button>
             </div>
+          </div>
           </div>
           <div class="tiny" id="modeMsg" style="margin-top:8px"></div>
         </div>
@@ -191,15 +195,7 @@
         <div class="panel-body">
           <div class="stat-grid">
             <div class="stat"><div class="k">Cycles</div><div class="v" id="sCycles">0</div></div>
-            <div class="stat"><div class="k">Pools seen</div><div class="v" id="sSeen">0</div></div>
-            <div class="stat"><div class="k">Free cuts</div><div class="v" id="sFree">0</div></div>
-            <div class="stat"><div class="k">Chain cuts</div><div class="v" id="sChain">0</div></div>
-            <div class="stat"><div class="k">Dev cuts</div><div class="v" id="sDev">0</div></div>
-            <div class="stat"><div class="k">Meme cuts</div><div class="v" id="sMeme">0</div></div>
-            <div class="stat"><div class="k">Theses</div><div class="v" id="sTheses">0</div></div>
             <div class="stat"><div class="k">Dialogues</div><div class="v" id="sDialogues">0</div></div>
-            <div class="stat"><div class="k">Entries</div><div class="v" id="sEntries">0</div></div>
-            <div class="stat"><div class="k">Exits</div><div class="v" id="sExits">0</div></div>
             <div class="stat"><div class="k">Errors</div><div class="v" id="sErrors">0</div></div>
           </div>
           <div class="tiny muted" style="margin-top:12px" id="analystLine">Brain: —</div>
@@ -300,7 +296,7 @@
           <div class="tf-tabs" id="buyBannerTabs"></div>
           <canvas class="candle-chart" id="buyBannerChart" width="640" height="220"></canvas>
         </div>
-        <a class="btn-fomo" id="buyBannerLink" target="_blank" rel="noopener noreferrer" hidden>Buy on FOMO</a>
+        <a class="btn-fomo" id="buyBannerLink" target="_blank" rel="noopener noreferrer" hidden>View</a>
       </div>
 
       <section class="hero" id="hero">
@@ -322,6 +318,8 @@
           <span><b id="sumClosed">0</b> closed</span>
           <span class="sep">·</span>
           <span><b id="sumOpen">0</b> open</span>
+          <span class="sep">·</span>
+          <span><b id="sumWin">—</b> win</span>
         </div>
         <div class="equity-chart-wrap">
           <canvas class="equity-chart" id="equityChart" width="824" height="280"></canvas>
@@ -360,10 +358,23 @@
           <div class="log" id="log"><div class="empty">Waiting for the agent…</div></div>
         </div>
       </div>
+
+      <section class="board-sec" id="activitySec">
+        <div class="board-head">
+          <h2>Fills</h2>
+          <span class="badge" id="activityCount">0 trades</span>
+        </div>
+        <div class="activity-feed" id="activityFeed"><div class="empty">No trades yet.</div></div>
+      </section>
     </section>
 
     <!-- RIGHT: scorecard, dev report, thesis, rules -->
     <section class="col col-right" data-col="research" role="tabpanel" aria-label="Research">
+      <div class="panel" id="brainSec" hidden>
+        <div class="panel-head"><span class="icon">🧠</span><h2>AI second opinion</h2></div>
+        <div class="panel-body" id="brainBox"></div>
+      </div>
+
       <div class="panel">
         <div class="panel-head"><span class="icon">🪙</span><h2>Meme value scorecard</h2><span class="badge" id="memeBadge">—</span></div>
         <div class="panel-body">
@@ -418,22 +429,6 @@
     </div>
     <div class="bt-note" id="backtestNote">Replays recorded tickets against other gate settings. Never changes the live desk.</div>
     <div class="bt-wrap" id="backtestBody"><div class="empty">Loading…</div></div>
-  </section>
-
-  <section class="board-sec" id="agentsSec">
-    <div class="board-head">
-      <h2>Agents</h2>
-      <span class="badge" id="agentsRunning">0 running</span>
-    </div>
-    <div class="agents-grid" id="agentsGrid"></div>
-  </section>
-
-  <section class="board-sec" id="activitySec">
-    <div class="board-head">
-      <h2>Activity</h2>
-      <span class="badge" id="activityCount">0 trades</span>
-    </div>
-    <div class="activity-feed" id="activityFeed"><div class="empty">No trades yet.</div></div>
   </section>
 
   <div class="toast" id="toast"></div>
