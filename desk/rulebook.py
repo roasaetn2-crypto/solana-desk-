@@ -4,7 +4,8 @@ Every function here is pure (no I/O) apart from the small volume history, so
 the agent can call it cheaply and the tests can pin each rule.
 
 Entry gates return None (pass) or a short skip reason. Missing or unknown data
-is ALWAYS a skip, never a pass:
+is a skip unless the matching *_unknown_pass switch is on. A known failure
+(low buy/sell ratio, unlocked LP, falling volume) still skips:
 
   tx_ratio_low / tx_ratio_unknown   5m buys / sells must be > min_buy_sell_ratio
   lp_unlocked  / lp_unknown         LP burned or locked (RugCheck lpLockedPct)
@@ -67,7 +68,9 @@ def lp_gate(dev: dict | None) -> str | None:
         return None
     pct = _num((dev or {}).get("lp_locked_pct"))
     if pct is None:
-        return "lp_unknown"
+        # Unknown is a skip unless the operator says a missing RugCheck lock
+        # may pass. A known unlocked pool is still rejected.
+        return None if RULEBOOK.get("lp_unknown_pass") else "lp_unknown"
     return None if pct >= float(RULEBOOK["min_lp_locked_pct"]) else "lp_unlocked"
 
 
@@ -152,7 +155,9 @@ def volume_gate(t: dict, candles=None, now: float | None = None) -> str | None:
         return None
     st = volume_state(t, candles, now)
     if st["cur"] is None or st["prev"] is None:
-        return "vol_unknown"
+        # First sight of a coin has no previous 5m sample. That is not the
+        # same as volume falling. Falling, when both numbers exist, still skips.
+        return None if RULEBOOK.get("vol_unknown_pass") else "vol_unknown"
     return None if st["cur"] > st["prev"] else "vol_falling"
 
 

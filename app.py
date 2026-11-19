@@ -743,8 +743,24 @@ def _who(request: Request) -> str:
 
 @app.get("/api/settings")
 def get_settings(request: Request):
+    from config import SCALP
+    from desk import live as live_mod
     from desk import settings as desk_settings
-    return desk_settings.snapshot(owner=_owner(request))
+    snap = desk_settings.snapshot(owner=_owner(request))
+    groups = snap.get("groups") or {}
+    # Live caps and live fees do nothing while live trading is switched off.
+    if live_mod.LIVE_DISABLED:
+        groups = {k: v for k, v in groups.items() if "Live" not in k}
+    # While the fast scalp lane is on, it overwrites exits.scalp.* on every fill.
+    # One ladder, one set of knobs.
+    if SCALP.get("enabled"):
+        groups = {
+            k: [r for r in rows if not str(r.get("key", "")).startswith("exits.scalp.")]
+            for k, rows in groups.items()
+        }
+        groups = {k: v for k, v in groups.items() if v}
+    snap["groups"] = groups
+    return snap
 
 
 @app.get("/api/proposals")

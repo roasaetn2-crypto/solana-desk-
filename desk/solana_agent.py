@@ -115,6 +115,9 @@ class SolanaAgent:
         try:
             from desk import settings as desk_settings
             desk_settings.apply_saved()
+            # DESK_OFFLINE (the test suite) must not rewrite the global gates.
+            if not offline():
+                desk_settings.apply_paper_flow()
         except Exception as e:
             print(f"[desk] settings: re-apply skipped ({type(e).__name__})")
         self.session = requests.Session()
@@ -973,16 +976,29 @@ class SolanaAgent:
                     if ce.get("ok") is None and ce.get("cause"):
                         f.setdefault("data_gaps", {})["scalp_candles"] = ce["cause"]
                     if ce.get("ok") is None and SCALP.get("require_candles", True):
-                        # P3 (2026-11-19): unknown (no candles / sparse tape / stale) no longer passes.
-                        # 0/7 clean paper scalps won, and the two with no candles had their exit armed from
-                        # a snapshot. No candles = no confirmed entry.
-                        self.stats["scalp_no_candles"] = self.stats.get("scalp_no_candles", 0) + 1
-                        self.bench.sit(t["mint"], "scalp_no_candles")
-                        self.emit("reject", f"{t['symbol']}: scalp entry unknown, no candles ({ce.get('why')})",
-                                  stage="entry", reason="scalp_no_candles", symbol=t["symbol"], mint=t["mint"])
-                        journal("reject", stage="entry", mint=t["mint"], symbol=t["symbol"],
-                                reason="scalp_no_candles", detail=ce)
-                        continue
+                        # P3: unknown candles do not pass. The one exception is the
+                        # pool row's own 5m change, and only when that switch is on:
+                        # GeckoTerminal OHLCV spends most of the day cooling, and a
+                        # modest green 5m move is the moving-candle rule without a fetch.
+                        pooled = None
+                        if (SCALP.get("pool_change_entry")
+                                and str(SCALP.get("entry_mode") or "") == "moving_candle"):
+                            try:
+                                pooled = float(t.get("change_m5"))
+                            except (TypeError, ValueError):
+                                pooled = None
+                        if pooled is not None and 0.4 <= pooled <= 18:
+                            ce = {"ok": True, "mode": "moving_candle", "via": "pool_change",
+                                  "why": f"pool 5m {pooled:.1f}% while candles are down"}
+                            f["scalp_entry"] = ce
+                        else:
+                            self.stats["scalp_no_candles"] = self.stats.get("scalp_no_candles", 0) + 1
+                            self.bench.sit(t["mint"], "scalp_no_candles")
+                            self.emit("reject", f"{t['symbol']}: scalp entry unknown, no candles ({ce.get('why')})",
+                                      stage="entry", reason="scalp_no_candles", symbol=t["symbol"], mint=t["mint"])
+                            journal("reject", stage="entry", mint=t["mint"], symbol=t["symbol"],
+                                    reason="scalp_no_candles", detail=ce)
+                            continue
                     if ce.get("ok") is False:
                         self.bench.sit(t["mint"], "scalp_candle")
                         self.emit("reject", f"{t['symbol']}: scalp entry ({ce.get('mode')}): {ce['why']}",

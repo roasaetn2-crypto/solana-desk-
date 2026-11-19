@@ -383,6 +383,14 @@ _R += [
             help="PAPER: buy only when 5m buys / sells is above the ratio below. No 5m data = skip."),
     _num("rulebook.min_buy_sell_ratio", "Rulebook: min 5m buy/sell ratio", "Rulebook", "float",
          _d(RULEBOOK, "min_buy_sell_ratio"), 1.0, 5.0, "x"),
+    Setting("rulebook.lp_unknown_pass", "Rulebook: unknown LP lock passes", "Rulebook", "bool",
+            lambda: bool(RULEBOOK.get("lp_unknown_pass", False)),
+            lambda v: RULEBOOK.__setitem__("lp_unknown_pass", bool(v)),
+            help="A missing LP-lock read may pass. A pool RugCheck says is unlocked still fails."),
+    Setting("rulebook.vol_unknown_pass", "Rulebook: unknown 5m volume passes", "Rulebook", "bool",
+            lambda: bool(RULEBOOK.get("vol_unknown_pass", False)),
+            lambda v: RULEBOOK.__setitem__("vol_unknown_pass", bool(v)),
+            help="No previous 5m volume sample may pass. Volume that is actually falling still fails."),
     Setting("rulebook.tx_ratio_unknown_pass", "Rulebook: unknown 5m buy/sell passes", "Rulebook", "bool",
             lambda: bool(RULEBOOK.get("tx_ratio_unknown_pass", False)),
             lambda v: RULEBOOK.__setitem__("tx_ratio_unknown_pass", bool(v)),
@@ -644,6 +652,11 @@ for _k in OWNER_REGISTRY:  # no secret may ever be an owner setting
 # this block onto the scalp horizon (applied last, so it wins over the pullback
 # ladder), and scanner.free_kill() enforces the freshness/size/depth window.
 _R += [
+    Setting("scalp.pool_change_entry", "Scalp: use the pool's 5m change when candles are down", "Scalp", "bool",
+            lambda: bool(SCALP.get("pool_change_entry", False)),
+            lambda v: SCALP.__setitem__("pool_change_entry", bool(v)),
+            help="When exchange candles are cooling, a modest green 5m change on the pool "
+                 "row counts as the moving-candle entry. A red or vertical 5m change still fails."),
     Setting("scalp.enabled", "Fast scalp lane", "Scalp", "bool",
             lambda: bool(SCALP.get("enabled", False)),
             lambda v: SCALP.__setitem__("enabled", bool(v)),
@@ -673,7 +686,7 @@ _R += [
     _num("scalp.max_age_minutes", "Scalp max age (fresh)", "Scalp", "float",
          _d(SCALP, "max_age_minutes"), 30, 10080, "min"),
     _num("scalp.min_mcap_usd", "Scalp min mcap", "Scalp", "int",
-         _d(SCALP, "min_mcap_usd", int), 5_000, 5_000_000, "USD"),
+         _d(SCALP, "min_mcap_usd", int), 1_000, 5_000_000, "USD"),
     _num("scalp.max_mcap_usd", "Scalp max mcap (cap)", "Scalp", "int",
          _d(SCALP, "max_mcap_usd", int), 20_000, 50_000_000, "USD"),
     _num("scalp.min_liquidity_usd", "Scalp min liquidity", "Scalp", "int",
@@ -1341,6 +1354,83 @@ def _save_proposals() -> None:
 def reset_runtime() -> None:
     """Tests only."""
     _state["proposals"], _state["loaded"] = [], False
+
+
+# One-shot paper profile. The live funnel (2026-11-19) scanned tens of thousands
+# of pools and filled once: scalp_mcap, age, and trigger_unknown (GeckoTerminal
+# cooling, so no candles) vetoed the rest. Rev 1 moves those paper gates. A
+# later confirm is left alone because the revision is stored with the overrides.
+PAPER_FLOW_REV = 1
+PAPER_FLOW = {
+    "scalp.min_mcap_usd": 2500,          # was 5000; pump launches sit under $5k
+    "scalp.max_mcap_usd": 10_000_000,    # keep the wide cap already on the desk
+    "scalp.min_age_minutes": 1,          # was 2
+    "scalp.max_age_minutes": 2880,       # was 1440 (24h) -> 48h
+    "scalp.min_liquidity_usd": 2500,     # was 5000
+    "scalp.max_liquidity_usd": 500_000,  # was 20_000 in code; a real pool is deeper
+    "scalp.min_volume_m5_usd": 100,      # was 500
+    "scalp.entry_style": "moving_candle",  # was breakout, which almost never fired
+    "scalp.pool_change_entry": True,     # was off; candles are down whenever GT cools
+    "scalp.stop_pct": 0.08,              # was 0.09
+    "scalp.tp1_at": 1.06,                # was 1.15; +6% is a take-profit a meme can hit
+    "scalp.tp1_frac": 0.5,
+    "scalp.tp2_at": 1.12,                # was 1.25
+    "scalp.tp2_frac": 0.5,
+    "scalp.max_hold_minutes": 15,        # was 30; the slot frees, so an exit shows
+    "scalp.timeout_minutes": 6,          # was 15
+    "rulebook.entry_trigger_gate": False,  # scalp candle gate still decides the shape
+    "rulebook.tx_ratio_unknown_pass": True,
+    "rulebook.lp_unknown_pass": True,
+    "rulebook.vol_unknown_pass": True,
+    "rulebook.min_lp_locked_pct": 0.50,  # was 0.90; a known unlock below this still fails
+    "signal.min_confidence": 35,         # was 60
+    "signal.min_win_probability": 0.35,  # was 0.52
+}
+
+
+def apply_paper_flow() -> dict:
+    """Apply PAPER_FLOW once on a real boot. Tests (DESK_OFFLINE) never call this.
+
+    Returns {key: {old, new}} for values that actually moved.
+    """
+    d = _read(_OVERRIDES, {})
+    if not isinstance(d, dict):
+        d = {}
+    if int(d.get("paper_flow") or 0) >= PAPER_FLOW_REV:
+        return {}
+    moved = {}
+    for key, raw in PAPER_FLOW.items():
+        try:
+            s = resolve(key, owner=True)
+            new, _ = s.coerce(raw)
+        except (Rejected, ValueError, TypeError) as e:
+            print(f"[desk] paper flow: skip {key} ({type(e).__name__})")
+            continue
+        old = s.get()
+        if old != new:
+            s.set(new)
+            moved[s.key] = {"old": old, "new": new}
+    vals = d.get("values") or {}
+    if not isinstance(vals, dict):
+        vals = {}
+    for key, change in moved.items():
+        vals[key] = change["new"]
+    # Keys that already matched still have to be stored so a later boot
+    # does not look un-applied if the file was empty.
+    for key, raw in PAPER_FLOW.items():
+        if key not in vals:
+            try:
+                s = resolve(key, owner=True)
+                vals[key], _ = s.coerce(raw)
+            except (Rejected, ValueError, TypeError):
+                pass
+    d["values"] = vals
+    d["paper_flow"] = PAPER_FLOW_REV
+    _write(_OVERRIDES, "operator_settings", d)
+    if moved:
+        print("[desk] paper flow: " + ", ".join(
+            f"{k} {c['old']} -> {c['new']}" for k, c in moved.items()))
+    return moved
 
 
 def apply_saved() -> dict:

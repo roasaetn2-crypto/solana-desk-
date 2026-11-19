@@ -328,7 +328,9 @@ class Tower:
                 pct = int(round(float(frac) * 100)) if frac is not None else 100
             except (TypeError, ValueError):
                 pct = 100
-            self.click("executor", f"click Sell {pct}%", symbol=symbol, mint=mint,
+            why = _clip(ev.get("reason") or "", 40)
+            text = f"click Sell {pct}%" + (f" · {why}" if why else "")
+            self.click("executor", text, symbol=symbol, mint=mint,
                        usd=ev.get("pnl_usd"))
             return
         if kind == "info" and stage == "risk":

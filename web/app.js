@@ -790,6 +790,13 @@ function renderActivity(s) {
       title = "Sold " + frac + "$" + (r.symbol || "");
     }
     const reason = r.reason || r.message || "";
+    const exitKind = /take|tp\d/i.test(reason) ? "TP"
+      : /stop/i.test(reason) ? "SL"
+      : /time|hold/i.test(reason) ? "TIME" : "";
+    const prices = (!bought && r.entry != null && r.fill != null)
+      ? ("entry " + priceFmt(r.entry) + " → exit " + priceFmt(r.fill))
+      : (bought && (r.fill != null || r.entry != null) ? ("entry " + priceFmt(r.fill || r.entry)) : "");
+    const trail = [exitKind, prices].filter(Boolean).join(" · ");
     let amt = "";
     let cls = "";
     if (bought) amt = fmtMoney(r.usd);
@@ -809,7 +816,7 @@ function renderActivity(s) {
       <div class="face" style="background:${bought ? "#00d35a" : "#ff453a"}">${bought ? "B" : "S"}</div>
       <div>
         <div class="ttl">${esc(title)}</div>
-        <div class="sub" ${r.review ? `title="${esc(r.review)}"` : ""}>broker \u00b7 ${esc(reason)} \u00b7 ${esc(timeManila(r.time))}</div>
+        <div class="sub" ${r.review ? `title="${esc(r.review)}"` : ""}>${trail ? esc(trail) + " · " : ""}broker \u00b7 ${esc(reason)} \u00b7 ${esc(timeManila(r.time))}</div>
         ${r.review ? `<div class="sub review">${esc(r.review)}</div>` : ""}
       </div>
       <div>
