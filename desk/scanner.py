@@ -25,6 +25,8 @@ from datetime import datetime
 
 import requests
 
+from collections import Counter
+
 from config import ESTABLISHED, SCALP, SCAN, SCAN_FETCH, SWING
 
 log = logging.getLogger("desk.scanner")
@@ -1338,7 +1340,7 @@ def _shared_kill(t: dict) -> str | None:
     return None
 
 
-def free_kill(t: dict) -> str | None:
+def _free_kill(t: dict) -> str | None:
     """Pass one. Pure arithmetic on data we already hold. Returns the failed check or None.
 
     Two bands, each with its own age / liquidity / mcap / volume numbers:
@@ -1364,6 +1366,64 @@ def free_kill(t: dict) -> str | None:
     if not SWING.get("enabled"):
         return "age"          # swing lane off: nothing outside the scalp window trades
     return _swing_kill(t) or _shared_kill(t)
+
+
+AGE_WHY: Counter = Counter()   # why coins were cut as "age", since the last funnel line (diagnostic only)
+
+
+def age_cause(t: dict) -> str:
+    """Which of the several things behind the single reject label "age" applied to this coin."""
+    age = t.get("age_minutes")
+    if age is None:
+        return "unknown_age"
+    if not SWING.get("enabled"):
+        return "swing_lane_off"
+    if age < SWING["min_age_minutes"]:
+        return "too_young"
+    max_min = SWING["max_age_hours"] * 60
+    if age > max_min:
+        if ESTABLISHED.get("enabled", False):
+            if age > ESTABLISHED["max_age_hours"] * 60:
+                return "older_than_%gd" % (ESTABLISHED["max_age_hours"] / 24)
+            return "older_than_max_and_shallow"      # past the max age and below the established floors
+        return "older_than_max"
+    return "other"
+
+
+def free_kill(t: dict) -> str | None:
+    """See _free_kill. Also tallies the cause of every "age" cut so the funnel can show it."""
+    k = _free_kill(t)
+    if k == "age":
+        try:
+            AGE_WHY[age_cause(t)] += 1
+        except Exception:
+            pass
+    return k
+
+
+def kill_detail(k: str | None, t: dict) -> str:
+    """One short phrase saying WHY a free_kill reason fired, for the log. Age is the confusing one:
+    the same word covers a coin that is too young, too old, or any coin when the swing lane is off."""
+    if k != "age":
+        return ""
+    age = t.get("age_minutes")
+    if age is None:
+        return "no age on the pool"
+    def span(m: float) -> str:
+        return f"{m:.0f}m" if m < 120 else (f"{m / 60:.1f}h" if m < 2880 else f"{m / 1440:.1f}d")
+    if not SWING.get("enabled") and not _scalp_window(t):
+        return f"{span(age)} old; swing lane is OFF so only the scalp window trades"
+    if age < SWING["min_age_minutes"]:
+        return f"too young: {span(age)} old, swing min {span(SWING['min_age_minutes'])}"
+    cap = SWING["max_age_hours"] * 60
+    if age > cap:
+        if ESTABLISHED.get("enabled", False) and age <= ESTABLISHED["max_age_hours"] * 60:
+            return (f"{span(age)} old (swing max {span(cap)}); established lane needs liq "
+                    f"${ESTABLISHED['min_liquidity_usd']:,.0f}, vol ${ESTABLISHED['min_volume_h1_usd']:,.0f}, "
+                    f"{ESTABLISHED['min_trades_h1']} trades/h (has ${t.get('liquidity_usd', 0):,.0f}, "
+                    f"${t.get('volume_h1', 0):,.0f}, {t.get('buys_h1', 0) + t.get('sells_h1', 0)})")
+        return f"too old: {span(age)}, max {span(cap)}"
+    return f"{span(age)} old"
 
 
 def liq_basis(source) -> str:

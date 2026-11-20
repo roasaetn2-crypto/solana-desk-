@@ -729,7 +729,8 @@ class SolanaAgent:
                 if (k := scanner.free_kill(t)):
                     self.bench.sit(t["mint"], k)
                     self.stats["free_rejects"] += 1
-                    self.emit("reject", f"{t['symbol']}: cut at scanner ({k})",
+                    why = scanner.kill_detail(k, t)
+                    self.emit("reject", f"{t['symbol']}: cut at scanner ({k}{': ' + why if why else ''})",
                               stage="scanner", reason=k, symbol=t["symbol"], mint=t["mint"])
                     journal("reject", stage="scanner", mint=t["mint"], symbol=t["symbol"],
                             reason=k, token=token_snap(t))
@@ -1522,6 +1523,10 @@ class SolanaAgent:
             return
         top = ", ".join(f"{r}={n}" for r, n in self.funnel.most_common(10)) or "none"
         st = self.stats
+        age_why = ", ".join(f"{r}={n}" for r, n in scanner.AGE_WHY.most_common(5))
+        if age_why:
+            top += f" [age cuts: {age_why}]"
+        scanner.AGE_WHY.clear()
         print(f"[desk] funnel: cycles {cycle - self.FUNNEL_EVERY + 1}-{cycle} rejects {top}; "
               f"totals seen={st.get('seen', 0)} entries={st.get('entries', 0)} "
               f"exits={st.get('exits', 0)} open={self.broker.open_count()} "
