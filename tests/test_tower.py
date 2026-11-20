@@ -196,7 +196,11 @@ class TowerRoute(unittest.TestCase):
         self.assertFalse(off.json()["demo"])
         shell = client.get("/")
         self.assertEqual(shell.status_code, 200)
-        self.assertIn('data-tab="tower"', shell.text)
+        # The Tower is part of the Live tab now: no separate tab button, but the panel is in the page
+        # and sits after the desk layout, so it shows under the Live column.
+        self.assertNotIn('data-tab="tower"', shell.text)
+        self.assertIn('id="towerView"', shell.text)
+        self.assertLess(shell.text.index('id="deskLayout"'), shell.text.index('id="towerView"'))
         self.assertIn("manifest.webmanifest", shell.text)
 
 

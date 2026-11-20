@@ -1755,11 +1755,14 @@ setInterval(tickAges, 1000);
   const narrow = () => window.matchMedia("(max-width: 900px)").matches;
 
   function activate(name, { scroll = true } = {}) {
-    if (name !== "tower" && !cols[name]) name = "live";
+    // The Tower used to be its own tab. It now lives inside Live; old "tower" links land there.
+    let toTower = false;
+    if (name === "tower") { name = "live"; toTower = true; }
+    if (!cols[name]) name = "live";
     layout.dataset.tab = name;
-    document.body.dataset.desk = name === "tower" ? "tower" : "";
+    document.body.dataset.desk = "";
     const tower = document.getElementById("towerView");
-    if (tower) tower.hidden = name !== "tower";
+    if (tower) tower.hidden = name !== "live";
     tabs.forEach((t) => {
       const on = t.dataset.tab === name;
       t.classList.toggle("is-active", on);
@@ -1767,15 +1770,15 @@ setInterval(tickAges, 1000);
     });
     try { localStorage.setItem(KEY, name); } catch (e) {}
     document.dispatchEvent(new CustomEvent("desk-tab", { detail: name }));
-    if (name === "tower") {
-      if (location.hash !== "#tower") history.replaceState(null, "", "#tower");
-    } else if (location.hash === "#tower") {
+    if (location.hash === "#tower") {
       history.replaceState(null, "", location.pathname + location.search);
     }
     // Opening Research is the moment the backtest becomes worth its cost.
     if (name === "research") refreshBacktest(false);
-    if (scroll) {
-      if (narrow() || name === "tower") {
+    if (scroll || toTower) {
+      if (toTower && tower) {
+        tower.scrollIntoView({ behavior: "smooth", block: "start" });
+      } else if (narrow()) {
         window.scrollTo({ top: 0, behavior: "smooth" });
       } else {
         const el = layout.querySelector(cols[name]);
@@ -1804,12 +1807,6 @@ setInterval(tickAges, 1000);
   window.addEventListener("popstate", () => {
     if (location.hash === "#ai") return;
     if (location.hash === "#tower") activate("tower", { scroll: false });
-    else if (document.body.dataset.desk === "tower") {
-      let back = "live";
-      try { back = localStorage.getItem(KEY) || "live"; } catch (e) {}
-      if (back === "tower") back = "live";
-      activate(back, { scroll: false });
-    }
   });
 
   // badge: open positions on the Live tab, decisions on Research

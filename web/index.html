@@ -95,14 +95,10 @@
     <button class="desk-tab is-active" type="button" role="tab" aria-selected="true"
             data-tab="live"><span class="ico">◉</span><span>Live</span></button>
     <button class="desk-tab" type="button" role="tab" aria-selected="false"
-            data-tab="tower"><span class="ico">✈</span><span>Tower</span></button>
-    <button class="desk-tab" type="button" role="tab" aria-selected="false"
             data-tab="control"><span class="ico">⚙</span><span>Control</span></button>
     <button class="desk-tab" type="button" role="tab" aria-selected="false"
             data-tab="research"><span class="ico">⌕</span><span>Research</span></button>
   </nav>
-
-  <section id="towerView" class="tower-view" hidden aria-label="Control Tower"></section>
 
   <canvas id="confetti" class="confetti" hidden></canvas>
 
@@ -421,6 +417,9 @@
       </div>
     </section>
   </main>
+
+  <!-- Control Tower: shown inside the Live tab (it used to be its own tab) -->
+  <section id="towerView" class="tower-view" hidden aria-label="Control Tower"></section>
 
   <section class="board-sec" id="backtestSec">
     <div class="board-head">

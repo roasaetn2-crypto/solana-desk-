@@ -416,7 +416,7 @@
   }
 
   function visible() {
-    return document.body.dataset.desk === "tower" && !root.hidden;
+    return !root.hidden && !document.hidden;
   }
 
   function stop() {
@@ -433,7 +433,9 @@
     }).finally(() => {
       if (!visible()) return;
       const took = Date.now() - started;
-      const wait = took > 8000 ? 15000 : took > 4000 ? 6000 : 2000;
+      // Live is the default tab now, so the Tower polls whenever the desk is open: gentler than
+      // when it was its own tab (every 2s), and slower again when the server is slow.
+      const wait = took > 8000 ? 15000 : took > 4000 ? 8000 : 5000;
       timer = setTimeout(loop, wait);
     });
   }
@@ -454,9 +456,14 @@
   }
 
   document.addEventListener("desk-tab", (e) => {
-    if (e.detail === "tower") show();
+    if (e.detail === "live") show();
     else hide();
   });
+  // pause while the page is in the background, resume when it is back
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) stop();
+    else if (!root.hidden) loop();
+  });
 
-  if (document.body.dataset.desk === "tower") show();
+  if (!root.hidden) show();
 })();
