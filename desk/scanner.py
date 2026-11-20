@@ -1564,7 +1564,7 @@ def quote_many(mints: list[str], session: requests.Session | None = None) -> dic
                 stale = _QUOTE_CACHE.get(mint)
                 if stale:
                     out[mint] = stale["q"]
-    return out
+    return _overlay_live_prices(mints, out, now)
 
 
 def _quote_from_jup(row: dict, at: float | None = None) -> dict | None:
@@ -1633,6 +1633,28 @@ def _record_quote_tick(mint: str, q: dict) -> None:
         return
     from desk import chart
     chart.record_tick(mint, q.get("price_usd"), q.get("volume_m5") or 0.0)
+
+
+def _overlay_live_prices(mints: list[str], out: dict[str, dict], now: float) -> dict[str, dict]:
+    """Replace a quote's price with the streamed one when a held coin traded in the last few seconds.
+
+    Only the price moves: liquidity and volume still come from the REST quote, so every exit check
+    that reads them is unchanged. Off (a no-op) unless FEED["trade_stream"] is on.
+    """
+    try:
+        from desk import live_feed
+        if not live_feed.enabled():
+            return out
+        for mint in mints:
+            lp = live_feed.last_price(mint, now)
+            if not lp:
+                continue
+            base = out.get(mint) or (_QUOTE_CACHE.get(mint) or {}).get("q")
+            if base:
+                out[mint] = {**base, "price_usd": lp, "live": True}
+    except Exception:
+        pass
+    return out
 
 
 def quote(mint: str, session: requests.Session | None = None) -> dict | None:

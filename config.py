@@ -204,6 +204,13 @@ SCAN_FETCH = {
 # needs `confirm_reads` distinct breaching reads; one read of >= `instant_drop` from the same source exits at once.
 LIQ_EXIT = {"confirm_reads": 2, "instant_drop": 0.90}
 
+# ---------- Live trade stream for open positions (desk/live_feed.py) ----------
+# PumpPortal's free Data API websocket, subscribed ONLY to coins the desk holds. OFF by default.
+FEED = {
+    "trade_stream": False,       # opt-in: stream trades for open positions (pump.fun / PumpSwap coins)
+    "price_max_age_s": 15,      # a streamed price older than this is ignored (REST price is used)
+}
+
 LAST_GOOD = {
     "tx_m5_max_age_s": 300,
     "bars_max_age_s": 300,

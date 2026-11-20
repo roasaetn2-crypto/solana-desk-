@@ -76,7 +76,7 @@ from desk.ops import KILL_FILE, load_env
 # desk kept calling the slow default model. Import order is load-bearing here.
 load_env()
 
-from desk import devices, keepalive, meme_tactics, meminfo, pumpportal, store  # noqa: E402
+from desk import devices, keepalive, live_feed, meme_tactics, meminfo, pumpportal, store  # noqa: E402
 from desk.solana_agent import SolanaAgent  # noqa: E402
 from desk.store import restore as restore_store  # noqa: E402
 from desk.intent import maybe_autostart  # noqa: E402
@@ -95,6 +95,7 @@ def _iso(t: float) -> str:
 async def _lifespan(app):
     # Feed is independent of the trading loop so a deploy is not "off" until Start.
     pumpportal.start()
+    live_feed.start()          # idle (no connection) until FEED trade_stream is on and a coin is held
     # PAPER only, and only if the operator did not pause the desk.
     maybe_autostart(agent)
     # Free plan sleeps after ~15 min idle; ping our own public URL.
@@ -102,6 +103,7 @@ async def _lifespan(app):
     yield
     keepalive.stop()
     pumpportal.stop()
+    live_feed.stop()
 
 
 app = FastAPI(title="AI Trading Desk \u2014 Solana Agent", version="1.3.0", lifespan=_lifespan)
@@ -503,6 +505,7 @@ def health():
             "reconnects": pp["reconnects"],
             "error": pp.get("error"),
         },
+        "live_feed": live_feed.health(),
         "ai": _ai_health(),
         "desk": _desk_health(),
         "confirm": _confirm_health(),

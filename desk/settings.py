@@ -36,7 +36,7 @@ from dataclasses import dataclass, replace
 from typing import Any, Callable
 
 import config
-from config import AGENT, CHAIN, CONFIRM, ENTRY, EXECUTION, EXITS, MEME, PAPER, RISK, RULEBOOK, SCALP, SCAN, SIGNAL, SWING
+from config import AGENT, CHAIN, CONFIRM, ENTRY, FEED, EXECUTION, EXITS, MEME, PAPER, RISK, RULEBOOK, SCALP, SCAN, SIGNAL, SWING
 from desk import meme_tactics
 from desk.ops import data_file
 
@@ -371,6 +371,13 @@ _R += [
     Setting("confirm.check_extended", "Confirm: not already vertical", "Entry", "bool",
             lambda: bool((CONFIRM.get("checks") or {}).get("extended", True)),
             lambda v: CONFIRM["checks"].__setitem__("extended", bool(v))),
+    Setting("feed.trade_stream", "Live trade feed for open positions", "Scanner", "bool",
+            lambda: bool(FEED.get("trade_stream", False)),
+            lambda v: FEED.__setitem__("trade_stream", bool(v)),
+            help="OFF (default). ON: stream every trade of the coins you HOLD from PumpPortal's free "
+                 "websocket, so P&L and exits see a price within seconds instead of waiting for "
+                 "DexScreener / GeckoTerminal. pump.fun and PumpSwap coins only; other coins keep "
+                 "using the normal price path. Never trades, never uses a key."),
     Setting("meme.retest_entry", "Also buy breakout retests", "Entry", "bool",
             lambda: bool(MEME.get("retest_entry", False)),
             lambda v: MEME.__setitem__("retest_entry", bool(v)),

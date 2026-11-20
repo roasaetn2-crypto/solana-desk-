@@ -35,7 +35,7 @@ from config import AGENT, CONFIRM, ENTRY, EXECUTION, EXITS, FOMO, MEME, PAPER, R
 from desk.brain_advisor import ADVISOR, should_advise, wants_entry, wants_exit
 from desk import (analyst, analyst_ai, brain, chain, dexscreener, devcheck, dialogue, exits, fomo, goplus, gmgn,
                   groq_postmortem, groq_sizer, guard, heartbeat, helius, meme, meme_tactics,
-                  pumpportal, regime, risk, scanner, signal_engine, signals, social)
+                  pumpportal, live_feed, regime, risk, scanner, signal_engine, signals, social)
 from desk import chart as candle_chart
 from desk import dip_recovery, entry_trigger, marketdata, rulebook
 from desk import confirm as entry_confirm
@@ -1898,6 +1898,7 @@ class SolanaAgent:
         brk = self.broker
         book = brk.s["positions"]
         live_mints = [m for m in book if not m.startswith("DEMO")]
+        live_feed.set_mints(live_mints)          # the trade stream watches exactly the held coins
         quotes = scanner.quote_many(live_mints, self.session) if live_mints else {}
         try:    # one OHLCV refresh per cycle so the dashboard chart never has to fetch
             candle_chart.prefetch(self.session, [
