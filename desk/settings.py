@@ -36,7 +36,7 @@ from dataclasses import dataclass, replace
 from typing import Any, Callable
 
 import config
-from config import AGENT, CHAIN, ENTRY, EXECUTION, EXITS, MEME, PAPER, RISK, RULEBOOK, SCALP, SCAN, SIGNAL, SWING
+from config import AGENT, CHAIN, CONFIRM, ENTRY, EXECUTION, EXITS, MEME, PAPER, RISK, RULEBOOK, SCALP, SCAN, SIGNAL, SWING
 from desk import meme_tactics
 from desk.ops import data_file
 
@@ -347,6 +347,30 @@ _R += [
                  "overrides the per-profile TP rungs. OFF: entries no longer wait for a dip AND "
                  "the ladder stops overriding, so the Scalp/Swing TP1/TP2/trail rows take over. "
                  "Turn OFF only if you want the profile ladders to be the source of truth."),
+    # ---------- entry confirmation checks (desk/confirm.py) ----------
+    # Each check can veto a coin with a known FAIL; "no data" never blocks. The trend check
+    # (1m/5m EMA9 above EMA21) refuses every coin that just dipped, so it fights the dip entry.
+    Setting("confirm.enabled", "Entry confirmation layer", "Entry", "bool",
+            lambda: bool(CONFIRM.get("enabled", True)),
+            lambda v: CONFIRM.__setitem__("enabled", bool(v)),
+            help="ON (default): the five checks below can veto an entry. OFF: none of them run."),
+    Setting("confirm.check_trend", "Confirm: uptrend (EMA9 above EMA21)", "Entry", "bool",
+            lambda: bool((CONFIRM.get("checks") or {}).get("trend", True)),
+            lambda v: CONFIRM["checks"].__setitem__("trend", bool(v)),
+            help="ON (default): skip a coin whose 1m or 5m EMA9 is below EMA21. A dip entry is below "
+                 "its averages by definition, so with the dip rule on this vetoes most of them."),
+    Setting("confirm.check_buy", "Confirm: buyers outnumber sellers (5m)", "Entry", "bool",
+            lambda: bool((CONFIRM.get("checks") or {}).get("buy", True)),
+            lambda v: CONFIRM["checks"].__setitem__("buy", bool(v))),
+    Setting("confirm.check_turnover", "Confirm: enough 1h turnover", "Entry", "bool",
+            lambda: bool((CONFIRM.get("checks") or {}).get("turnover", True)),
+            lambda v: CONFIRM["checks"].__setitem__("turnover", bool(v))),
+    Setting("confirm.check_knife", "Confirm: not a falling knife", "Entry", "bool",
+            lambda: bool((CONFIRM.get("checks") or {}).get("knife", True)),
+            lambda v: CONFIRM["checks"].__setitem__("knife", bool(v))),
+    Setting("confirm.check_extended", "Confirm: not already vertical", "Entry", "bool",
+            lambda: bool((CONFIRM.get("checks") or {}).get("extended", True)),
+            lambda v: CONFIRM["checks"].__setitem__("extended", bool(v))),
     Setting("meme.retest_entry", "Also buy breakout retests", "Entry", "bool",
             lambda: bool(MEME.get("retest_entry", False)),
             lambda v: MEME.__setitem__("retest_entry", bool(v)),
