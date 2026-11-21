@@ -2,6 +2,9 @@
 // Desk AI only PROPOSES setting changes; a change applies only when the operator taps Confirm.
 // Uses esc / headImg / SEAT_NAME from app.js. Nothing here calls a trading, mode, reset or kill endpoint.
 (() => {
+  // SEAT_NAME used to come from app.js; a cleanup removed it, and a bare reference threw a
+  // ReferenceError for every chat message with agent chips, so the whole chat drew blank.
+  const seatName = (a) => ((typeof SEAT_NAME !== "undefined" && SEAT_NAME && SEAT_NAME[a]) || a);
   const view = document.getElementById("aiView");
   if (!view) return;
   const chat = document.getElementById("aiChat");
@@ -28,7 +31,7 @@
   function chipsHtml(agents) {
     if (!agents || !agents.length) return "";
     return '<div class="ai-chips">' + agents.map((a) =>
-      `<span class="ai-chip ${esc(a)}">${headImg(a, 24)}${esc(SEAT_NAME[a] || a)}</span>`).join("") + "</div>";
+      `<span class="ai-chip ${esc(a)}">${headImg(a, 24)}${esc(seatName(a))}</span>`).join("") + "</div>";
   }
 
   function rowHtml(m) {
