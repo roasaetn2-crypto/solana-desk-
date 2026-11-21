@@ -1481,7 +1481,25 @@ def apply_saved() -> dict:
         applied[s.key] = cv
     if applied:
         print(f"[desk] settings: re-applied {len(applied)} operator-confirmed paper setting(s)")
+    repair_lanes()
     return applied
+
+
+def repair_lanes() -> bool:
+    """If the fast scalp lane AND the swing lane are both off, no coin can ever trade: every
+    candidate is cut as "age" (swing_lane_off). That state is never what anyone wants (a pause is
+    the Pause button), and it is how a desk ended up with 210,000 coins seen and 0 entries after a
+    scalper preset was confirmed and the scalp lane then switched off by hand. Turn the swing lane
+    back on and say so loudly. DESK_NO_LANE_REPAIR=1 opts out. Returns True when it repaired."""
+    import os
+    if os.environ.get("DESK_NO_LANE_REPAIR", "").strip().lower() in ("1", "true", "yes"):
+        return False
+    if SCALP.get("enabled") or SWING.get("enabled"):
+        return False
+    SWING["enabled"] = True
+    print("[desk] REPAIR: the scalp lane and the swing lane were both OFF, so nothing could trade. "
+          "Swing lane turned ON (set DESK_NO_LANE_REPAIR=1 to keep both off).")
+    return True
 
 
 def _persist_values(changed: dict) -> None:
